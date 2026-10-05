@@ -10,6 +10,8 @@
     "build": "npm run build:js && npm run build:css && npm run build:html",
     "start": "npm run build && node src/server/server.ts",
     "start:lan": "npm run build && node src/server/server.ts --lan",
+    "dev": "node scripts/dev.mjs",
+    "dev:lan": "node scripts/dev.mjs --lan",
     "test": "node --test \"tests/**/*.test.ts\"",
     "typecheck": "tsc --noEmit"
   },
