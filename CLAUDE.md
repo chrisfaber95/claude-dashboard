@@ -14,7 +14,7 @@ Web dashboard for Claude Code activity: the projects in `N:\Projects`, live sess
 - `npm run typecheck`: `tsc --noEmit` over `src` and `tests`
 - `npm run build`: esbuild `src/client/app.ts` + `login.ts` → `public/`, sass `style.scss` → `public/style.css`, copy `index.html` + `login.html`
 
-Run `npm run typecheck` and `npm test` after every change.
+Run `npm run typecheck` and `npm test` after every change, except changes that only touch documentation (Markdown, agent/skill/parameter files, comments).
 
 ## Layout
 
