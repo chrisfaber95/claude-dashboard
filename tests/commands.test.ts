@@ -104,9 +104,16 @@ test('follow-ups resume the session in its own folder', async () => {
 
 test('stop and logs validate ids before calling the CLI', async () => {
   assert.equal(JSON.parse((await post(`/api/sessions/${SID}/stop`, {})).body).ok, true);
-  assert.deepEqual(calls()[0].args, ['stop', SID]);
+  // The CLI matches jobs by their 8-hex job id; a full session UUID never matches.
+  assert.deepEqual(calls()[0].args, ['stop', SID.slice(0, 8)]);
   const logs = JSON.parse((await get(`/api/sessions/bg-1a2b3c/logs`)).body);
   assert.equal(logs.output, 'line one\nline two');
+  assert.deepEqual(calls()[1].args, ['logs', 'bg-1a2b3c']);
+  await get(`/api/sessions/${SID}/logs`);
+  assert.deepEqual(calls()[2].args, ['logs', SID.slice(0, 8)]);
+  // Job ids are lowercase hex; an uppercase UUID still finds the job.
+  await post(`/api/sessions/${SID.toUpperCase()}/stop`, {});
+  assert.deepEqual(calls()[3].args, ['stop', SID.slice(0, 8).toLowerCase()]);
   rmSync(cliLog, { force: true });
   assert.equal((await post('/api/sessions/--help/stop', {})).status, 400);
   assert.equal((await get('/api/sessions/-x/logs')).status, 400);

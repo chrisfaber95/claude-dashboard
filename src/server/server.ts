@@ -261,7 +261,7 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
           if (live) {
             if (live.kind !== 'bg') throw new CommandError(409, 'This session is open in a terminal or editor. Send the message there.');
             if (live.status !== 'idle') throw new CommandError(409, 'This session is busy or waiting. Wait until it is idle, then send the message.');
-            const stopped = await stopSession(id.slice(0, 8), projectsRoot);
+            const stopped = await stopSession(id, projectsRoot);
             audit({ ip, action: 'stop', via: 'message', session: id, ok: stopped.ok });
             for (let i = 0; i < 25 && isLive(); i++) await new Promise((r) => setTimeout(r, 200));
             // Still running: resuming now would start a copy, so give up. (A failed stop of a session that exited on its own is fine.)
