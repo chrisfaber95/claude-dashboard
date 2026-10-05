@@ -110,10 +110,18 @@ export async function continueSession(sessionId: string, cwd: string, prompt: st
   return toResult(await run(['--bg', '--resume', sessionId, '--permission-mode', mode, prompt], cwd));
 }
 
+/**
+ * `claude stop/logs` look a job up by its 8-hex job id (the first block of the session UUID) and
+ * match ids the argument is a prefix of, so a full UUID never matches. Shorten it to the job id.
+ */
+function jobId(id: string): string {
+  return UUID_RE.test(id) ? id.slice(0, 8).toLowerCase() : validateBgId(id);
+}
+
 export async function stopSession(id: string, cwd: string): Promise<CommandResult> {
-  return toResult(await run(['stop', validateBgId(id)], cwd));
+  return toResult(await run(['stop', jobId(id)], cwd));
 }
 
 export async function sessionLogs(id: string, cwd: string): Promise<CommandResult> {
-  return toResult(await run(['logs', validateBgId(id)], cwd));
+  return toResult(await run(['logs', jobId(id)], cwd));
 }
