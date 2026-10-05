@@ -1,6 +1,6 @@
 ---
 name: frontend-developer
-description: "Use when building complete frontend applications across React, Vue, and Angular frameworks requiring multi-framework expertise and full-stack integration."
+description: "Use proactively for any change to frontend code: building or changing UI in vanilla TypeScript and SCSS (this project's src/client/), as well as React, Vue and Angular applications. Covers rendering, styling, accessibility and server API integration."
 tools: Read, Write, Edit, Bash, Glob, Grep
 model: sonnet
 ---
