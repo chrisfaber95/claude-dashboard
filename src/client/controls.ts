@@ -15,15 +15,24 @@ let modesFilled = false;
 
 // ---- drawer (transcript / logs) ----
 
-type DrawerMode = { kind: 'transcript'; id: string } | { kind: 'logs'; id: string };
+type DrawerMode = { kind: 'transcript'; id: string } | { kind: 'subagent'; id: string } | { kind: 'logs'; id: string };
 let drawer: DrawerMode | null = null;
+
+/** Drawer modes that show a transcript (a session's or a subagent's), as opposed to terminal logs. */
+const showsTranscript = (d: DrawerMode | null): d is Extract<DrawerMode, { kind: 'transcript' | 'subagent' }> => d?.kind === 'transcript' || d?.kind === 'subagent';
+
+const transcriptPath = (d: Extract<DrawerMode, { kind: 'transcript' | 'subagent' }>, query: string) =>
+  `/api/${d.kind === 'subagent' ? 'subagents' : 'sessions'}/${encodeURIComponent(d.id)}/transcript?${query}`;
+
+// A subagent's transcript starts with the brief its caller handed down and ends with its report.
+const SUBAGENT_LABEL: Partial<Record<TranscriptEntry['role'], string>> = { user: 'Brief from caller', assistant: 'Subagent' };
 let entries: TranscriptEntry[] = [];
 let hasMore = false;
 let truncated = false;
 let timer: number | undefined;
 
 function entryHtml(e: TranscriptEntry): string {
-  const who = e.role === 'peer' && e.from ? `Message from ${e.from}` : ROLE_LABEL[e.role];
+  const who = e.role === 'peer' && e.from ? `Message from ${e.from}` : ((drawer?.kind === 'subagent' && SUBAGENT_LABEL[e.role]) || ROLE_LABEL[e.role]);
   return `<div class="msg msg--${e.role}${e.isError ? ' msg--error' : ''}">
     <div class="msg__meta">${esc(who)}${e.tsMs ? ` · ${esc(new Date(e.tsMs).toLocaleTimeString())}` : ''}</div>
     <div class="msg__text">${esc(e.text)}</div></div>`;
@@ -41,13 +50,13 @@ function renderEntries(keepBottom: boolean) {
 }
 
 async function refreshTranscript(initial: boolean) {
-  if (drawer?.kind !== 'transcript') return;
+  if (!showsTranscript(drawer)) return;
   const id = drawer.id;
   const body = $('drawer-body');
   const atBottom = initial || body.scrollHeight - body.scrollTop - body.clientHeight < 40;
   try {
-    const page = await api<TranscriptPage>(`/api/sessions/${encodeURIComponent(id)}/transcript?limit=100`);
-    if (drawer?.kind !== 'transcript' || drawer.id !== id) return;
+    const page = await api<TranscriptPage>(transcriptPath(drawer, 'limit=100'));
+    if (!showsTranscript(drawer) || drawer.id !== id) return;
     // Keep earlier pages the user loaded; replace only the live tail.
     const firstNew = page.entries[0]?.uuid;
     const keep = firstNew ? entries.slice(0, Math.max(0, entries.findIndex((e) => e.uuid === firstNew))) : [];
@@ -64,10 +73,8 @@ async function refreshTranscript(initial: boolean) {
 }
 
 async function loadEarlier() {
-  if (drawer?.kind !== 'transcript' || !entries.length) return;
-  const page = await api<TranscriptPage>(
-    `/api/sessions/${encodeURIComponent(drawer.id)}/transcript?limit=100&before=${encodeURIComponent(entries[0].uuid)}`,
-  );
+  if (!showsTranscript(drawer) || !entries.length) return;
+  const page = await api<TranscriptPage>(transcriptPath(drawer, `limit=100&before=${encodeURIComponent(entries[0].uuid)}`));
   const body = $('drawer-body');
   const fromBottom = body.scrollHeight - body.scrollTop;
   entries = [...page.entries, ...entries];
@@ -93,6 +100,13 @@ function openDrawer(title: string, sub: string, mode: DrawerMode) {
 
 export function openTranscript(id: string, name: string) {
   openDrawer(name, `Session ${id}`, { kind: 'transcript', id });
+  void refreshTranscript(true);
+  timer = window.setInterval(() => void refreshTranscript(false), 2000);
+}
+
+/** Read-only view of what a subagent was told and what it did. */
+export function openSubagentTranscript(id: string, name: string) {
+  openDrawer(name, `Subagent ${id}`, { kind: 'subagent', id });
   void refreshTranscript(true);
   timer = window.setInterval(() => void refreshTranscript(false), 2000);
 }

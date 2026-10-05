@@ -36,6 +36,19 @@
     <section id="comms" class="panel" aria-labelledby="h-comms"></section>
     <section id="usage" class="panel" aria-labelledby="h-usage"></section>
   </main>
+  <div id="building" class="building" role="dialog" aria-modal="true" aria-labelledby="building-title" hidden>
+    <div class="building__panel">
+      <div class="building__head">
+        <div>
+          <h2 id="building-title"></h2>
+          <div id="building-sub" class="sub"></div>
+        </div>
+        <button id="building-close" class="btn" type="button" aria-label="Close building">Close</button>
+      </div>
+      <div id="building-body" class="building__scene"></div>
+      <p class="sub building__hint">Each room is one live session; the small desks below a room are its subagents, joined by pipes to whoever handed them the work. Click a room or a desk to read its transcript.</p>
+    </div>
+  </div>
   <aside id="drawer" class="drawer" aria-labelledby="drawer-title" hidden>
     <div class="drawer__head">
       <div>

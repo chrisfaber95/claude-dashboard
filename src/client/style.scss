@@ -633,3 +633,603 @@ textarea {
 .tip {
   white-space: pre-line;
 }
+
+// ---- project building ----
+
+.card--click {
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--axis);
+    background: var(--page);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--seq);
+    outline-offset: 2px;
+  }
+}
+
+.building {
+  position: fixed;
+  z-index: 4; // below the transcript drawer (5), so a room click opens the drawer on top
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.45);
+
+  &[hidden] {
+    display: none;
+  }
+
+  &__panel {
+    width: min(1100px, 100%);
+    max-height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+  }
+
+  &__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    gap: 12px;
+    padding: 16px;
+
+    h2 {
+      font-size: 17px;
+      margin: 0;
+    }
+  }
+
+  &__scene {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: 8px 16px 0;
+    background: linear-gradient(to bottom, var(--page), var(--grid));
+    border-top: 1px solid var(--grid);
+    border-bottom: 1px solid var(--grid);
+  }
+
+  &__hint {
+    margin: 0;
+    padding: 8px 16px 12px;
+  }
+
+  &__svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    margin: 0 auto;
+    overflow: visible;
+  }
+
+  &__body {
+    fill: var(--axis);
+  }
+
+  &__antenna {
+    fill: var(--muted);
+  }
+
+  &__beacon {
+    fill: var(--crit);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+
+  &__title {
+    fill: #fff;
+    font-size: 20px;
+    font-weight: 700;
+    paint-order: stroke;
+    stroke: rgba(0, 0, 0, 0.35);
+    stroke-width: 3px;
+  }
+
+  &__base {
+    fill: var(--muted);
+  }
+
+  &__door {
+    fill: #5b4636;
+  }
+
+  .cloud {
+    fill: var(--surface);
+    opacity: 0.8;
+    animation: drift 14s ease-in-out infinite alternate;
+
+    &--b {
+      animation-duration: 19s;
+    }
+  }
+}
+
+.room {
+  outline: none;
+
+  &__wall {
+    fill: var(--surface);
+  }
+
+  &__window {
+    fill: #9ccdf2;
+    stroke: var(--axis);
+    stroke-width: 2;
+  }
+
+  &__pane {
+    stroke: var(--axis);
+    stroke-width: 1.5;
+    fill: none;
+  }
+
+  &__floor {
+    fill: var(--grid);
+  }
+
+  &__name {
+    fill: var(--ink);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  &__state,
+  &__stat {
+    fill: var(--ink-2);
+    font-size: 10px;
+  }
+
+  &__screen {
+    fill: #0f2a44;
+  }
+
+  &__code {
+    fill: #62d99a;
+    transform-box: fill-box;
+    transform-origin: left center;
+    animation: type-line 1.4s ease-in-out infinite;
+  }
+
+  &__focus {
+    fill: transparent;
+    stroke: transparent;
+    stroke-width: 3;
+    cursor: pointer;
+  }
+
+  &:hover &__focus,
+  &:focus-visible &__focus {
+    stroke: var(--seq);
+  }
+
+  &--busy &__wall {
+    fill: color-mix(in srgb, var(--warn) 12%, var(--surface));
+  }
+
+  &--busy &__screen {
+    fill: #12395f;
+  }
+
+  &--waiting &__wall {
+    fill: color-mix(in srgb, var(--warn) 26%, var(--surface));
+  }
+
+  &--idle &__wall {
+    fill: color-mix(in srgb, var(--grid) 55%, var(--surface));
+  }
+
+  &--busy &__arm {
+    transform-box: fill-box;
+    transform-origin: left center;
+    animation: type-arm 0.34s ease-in-out infinite alternate;
+
+    &--b {
+      animation-delay: 0.17s;
+    }
+  }
+
+  &--busy &__head {
+    animation: nod 1.6s ease-in-out infinite;
+  }
+
+  &__dot {
+    fill: var(--muted);
+    animation: pulse 0.9s ease-in-out infinite;
+  }
+
+  &__bubble--ask {
+    animation: hop 0.9s ease-in-out infinite;
+  }
+
+  &__zzz text {
+    fill: var(--muted);
+    font-size: 10px;
+    font-weight: 700;
+    animation: float-z 3s ease-in-out infinite;
+
+    &:nth-child(2) {
+      animation-delay: 0.6s;
+    }
+
+    &:nth-child(3) {
+      animation-delay: 1.2s;
+    }
+  }
+
+  &__steam {
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+
+  &--empty {
+    opacity: 0.55;
+  }
+
+  &--empty &__wall {
+    fill: color-mix(in srgb, var(--ink) 14%, var(--surface));
+  }
+
+  &--empty &__window {
+    fill: #25354a;
+  }
+}
+
+@keyframes type-line {
+  0% {
+    transform: scaleX(0.15);
+  }
+  60%,
+  100% {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes type-arm {
+  to {
+    transform: rotate(7deg) translateY(1px);
+  }
+}
+
+@keyframes nod {
+  50% {
+    transform: translateY(1.5px);
+  }
+}
+
+@keyframes hop {
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes float-z {
+  0%,
+  100% {
+    opacity: 0.2;
+    transform: translateY(2px);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes drift {
+  to {
+    transform: translateX(40px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .building *,
+  .room * {
+    animation: none !important;
+  }
+}
+
+// ---- building: parts (kept in classes, no inline styles) ----
+
+$skin: (#f1c9a5, #d9a577, #b27850, #8a5a3a);
+$hair: (#2b2118, #6b4423, #c9a24b, #a33b2a, #555555);
+
+@for $i from 1 through list.length($series) {
+  .tint-#{$i} {
+    fill: var(--s#{$i});
+  }
+
+  .shirt-#{$i} {
+    fill: var(--s#{$i});
+  }
+
+  .sleeve-#{$i} {
+    stroke: var(--s#{$i});
+  }
+}
+
+.tint-muted {
+  fill: var(--muted);
+}
+
+@for $i from 1 through list.length($skin) {
+  .skin-#{$i - 1} {
+    fill: list.nth($skin, $i);
+  }
+
+  .arm-skin-#{$i - 1} {
+    stroke: list.nth($skin, $i);
+  }
+}
+
+@for $i from 1 through list.length($hair) {
+  .hair-#{$i - 1} {
+    fill: list.nth($hair, $i);
+  }
+}
+
+.building__svg {
+  // Rooms stay a sensible size: a one-room building doesn't stretch across the whole popup.
+  &--cols-1 {
+    max-width: 405px;
+  }
+
+  &--cols-2 {
+    max-width: 780px;
+  }
+
+  &--cols-3 {
+    max-width: 1150px;
+  }
+
+  &--cols-4 {
+    max-width: 1530px;
+  }
+}
+
+.building__knob {
+  fill: #f5c400;
+}
+
+.room {
+  &__chair {
+    fill: var(--axis);
+  }
+
+  &__legs {
+    fill: #3b4252;
+  }
+
+  &__desk {
+    fill: var(--ink-2);
+  }
+
+  &__monitor {
+    fill: #20242c;
+  }
+
+  &__screen--off {
+    fill: #0d0f13;
+  }
+
+  &__eye {
+    fill: #222;
+  }
+
+  &__hat {
+    fill: #f5c400;
+  }
+
+  &__brim {
+    fill: #d9ab00;
+  }
+
+  &__mug {
+    fill: #e8e6df;
+  }
+
+  &__handle {
+    fill: none;
+    stroke: #e8e6df;
+    stroke-width: 1.5;
+  }
+
+  &__steam {
+    fill: none;
+    stroke: var(--muted);
+    stroke-width: 1.2;
+    stroke-linecap: round;
+  }
+
+  &__arm {
+    fill: none;
+    stroke-width: 5;
+    stroke-linecap: round;
+  }
+
+  &__pot {
+    fill: #a0603c;
+  }
+
+  &__leaf {
+    fill: #2f8f4e;
+
+    &--b {
+      fill: #3aa860;
+    }
+  }
+
+  &__bubble-bg {
+    fill: var(--surface);
+    stroke: var(--axis);
+
+    &--ask {
+      fill: var(--warn);
+      stroke: none;
+    }
+  }
+
+  &__ask {
+    fill: #0b0b0b;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  &__code--1 {
+    animation-delay: 0.35s;
+  }
+
+  &__code--2 {
+    animation-delay: 0.7s;
+  }
+
+  &__code--3 {
+    animation-delay: 1.05s;
+  }
+
+  &__dot--1 {
+    animation-delay: 0.2s;
+  }
+
+  &__dot--2 {
+    animation-delay: 0.4s;
+  }
+}
+
+// ---- building: subagent annex ----
+
+.annex {
+  &__pipe {
+    fill: none;
+    stroke: var(--muted);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+
+    &--nested {
+      stroke-dasharray: 3 3;
+    }
+  }
+
+  &__mail {
+    fill: var(--surface);
+    stroke: var(--ink-2);
+    stroke-width: 0.8;
+    animation: mail-down 2.4s ease-in infinite;
+
+    path {
+      fill: none;
+    }
+
+    &--c1 {
+      animation-delay: 0.5s;
+    }
+
+    &--c2 {
+      animation-delay: 1s;
+    }
+  }
+
+  &__cube {
+    outline: none;
+    cursor: pointer;
+
+    &--done {
+      opacity: 0.82;
+    }
+
+    &:hover .annex__wall,
+    &:focus-visible .annex__wall {
+      stroke: var(--seq);
+    }
+
+    &--working .annex__arm {
+      transform-box: fill-box;
+      transform-origin: left center;
+      animation: type-arm 0.34s ease-in-out infinite alternate;
+    }
+  }
+
+  &__wall {
+    fill: color-mix(in srgb, var(--grid) 45%, var(--surface));
+    stroke: var(--axis);
+    stroke-width: 1;
+  }
+
+  &__cube--child &__wall {
+    stroke-dasharray: 3 2;
+  }
+
+  &__type {
+    fill: var(--ink);
+    font-size: 8.5px;
+    font-weight: 600;
+  }
+
+  &__activity {
+    fill: var(--ink-2);
+    font-size: 7.5px;
+  }
+
+  &__desk {
+    fill: var(--ink-2);
+  }
+
+  &__head {
+    fill: #5b6577;
+  }
+
+  &__eye {
+    fill: #62d99a;
+  }
+
+  &__antenna {
+    stroke: var(--axis);
+    stroke-width: 1.5;
+  }
+
+  &__dot {
+    &--working {
+      fill: var(--warn);
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+
+    &--done {
+      fill: var(--good);
+    }
+
+    &--quiet {
+      fill: var(--muted);
+    }
+  }
+
+  &__tick {
+    fill: none;
+    stroke: #fff;
+    stroke-width: 1.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+}
+
+@keyframes mail-down {
+  0% {
+    transform: translateY(-1px);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+}
