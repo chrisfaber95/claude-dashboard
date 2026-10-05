@@ -16,7 +16,7 @@ import {
   validateMode,
   validatePrompt,
 } from './claude-cli.ts';
-import { buildState } from './state.ts';
+import { buildState, readSessions } from './state.ts';
 import { ensureCert, lanAddresses } from './tls.ts';
 import { readTranscriptPage } from './transcript-view.ts';
 import { scanTranscripts, subagentPaths, transcriptIndex } from './transcripts.ts';
@@ -33,6 +33,8 @@ const TYPES: Record<string, string> = {
 const PUBLIC_PATHS = new Set(['/login', '/login.js', '/style.css']);
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
 const BODY_MAX = 64 * 1024;
+/** Session ids with a follow-up in flight. */
+const continuing = new Set<string>();
 
 export interface ServerOptions {
   publicDir?: string;
@@ -248,9 +250,29 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
         const t = transcriptIndex.get(id);
         if (!t) throw new CommandError(404, 'unknown session');
         if (!insideProject(t.cwd, projectsRoot)) throw new CommandError(403, 'session folder is outside the projects folder');
-        const r = await continueSession(id, t.cwd, prompt, mode);
-        audit({ ip, action: 'message', session: id, project: t.project, mode, prompt: prompt.slice(0, 200), ok: r.ok });
-        send(res, 200, r);
+        // One follow-up at a time per session: concurrent ones would each stop/resume it or start copies.
+        if (continuing.has(id)) throw new CommandError(409, 'A message to this session is already being sent.');
+        continuing.add(id);
+        try {
+          const isLive = () => readSessions().some((s) => s.sessionId === id);
+          // `--bg --resume` on a running session starts a *copy* with a new id. To keep the same
+          // session, an idle background session is stopped first (its conversation is kept).
+          const live = readSessions().find((s) => s.sessionId === id);
+          if (live) {
+            if (live.kind !== 'bg') throw new CommandError(409, 'This session is open in a terminal or editor. Send the message there.');
+            if (live.status !== 'idle') throw new CommandError(409, 'This session is busy or waiting. Wait until it is idle, then send the message.');
+            const stopped = await stopSession(id.slice(0, 8), projectsRoot);
+            audit({ ip, action: 'stop', via: 'message', session: id, ok: stopped.ok });
+            for (let i = 0; i < 25 && isLive(); i++) await new Promise((r) => setTimeout(r, 200));
+            // Still running: resuming now would start a copy, so give up. (A failed stop of a session that exited on its own is fine.)
+            if (isLive()) throw new CommandError(stopped.ok ? 504 : 502, 'The session did not stop. Try again.');
+          }
+          const r = await continueSession(id, t.cwd, prompt, mode);
+          audit({ ip, action: 'message', session: id, project: t.project, mode, prompt: prompt.slice(0, 200), ok: r.ok });
+          send(res, 200, r);
+        } finally {
+          continuing.delete(id);
+        }
         return;
       }
     }
