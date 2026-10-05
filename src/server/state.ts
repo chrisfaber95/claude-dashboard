@@ -38,7 +38,7 @@ function pidAlive(pid: number): boolean {
   }
 }
 
-function readSessions(): SessionInfo[] {
+export function readSessions(): SessionInfo[] {
   const dir = join(CLAUDE_DIR, 'sessions');
   const out: SessionInfo[] = [];
   let names: string[] = [];
