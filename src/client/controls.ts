@@ -1,5 +1,5 @@
 import type { CommandResult, DashboardState, TranscriptEntry, TranscriptPage } from '../shared/types.ts';
-import { $, api, esc } from './util.ts';
+import { $, ago, api, esc } from './util.ts';
 
 const ROLE_LABEL: Record<TranscriptEntry['role'], string> = {
   user: 'You',
@@ -143,10 +143,120 @@ function describe(r: CommandResult): string {
   return r.ok ? `Started${r.id ? ` (${r.id})` : ''}. ${r.output}`.trim() : r.output || 'Command failed.';
 }
 
+// ---- recent tasks (started from the run panel, kept in localStorage) ----
+
+interface RecentTask {
+  id: string;
+  project: string;
+  prompt: string;
+  startedAt: number;
+}
+
+const RECENT_KEY = 'recentTasks';
+const RECENT_MAX = 10;
+const PROMPT_MAX = 80;
+let latest: DashboardState | null = null;
+let recent: RecentTask[] = [];
+
+function isRecentTask(v: unknown): v is RecentTask {
+  if (typeof v !== 'object' || v === null) return false;
+  const o = v as Record<string, unknown>;
+  return typeof o.id === 'string' && typeof o.project === 'string' && typeof o.prompt === 'string' && typeof o.startedAt === 'number' && Number.isFinite(o.startedAt);
+}
+
+function loadRecent(): RecentTask[] {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]');
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(isRecentTask)
+      .filter((t) => t.id === '' || /^[A-Za-z0-9_-]{4,64}$/.test(t.id))
+      .map((t) => ({ id: t.id.slice(0, 64), project: t.project.slice(0, 200), prompt: t.prompt.slice(0, PROMPT_MAX), startedAt: t.startedAt }))
+      .slice(0, RECENT_MAX);
+  } catch {
+    return [];
+  }
+}
+
+function saveRecent() {
+  try {
+    localStorage.setItem(RECENT_KEY, JSON.stringify(recent));
+  } catch {
+    // storage unavailable: the list just lasts until reload
+  }
+}
+
+/** Full session id for a short background id, from the latest state; null when not known yet. */
+function resolveSession(shortId: string): { id: string; name: string; live: boolean } | null {
+  if (!latest || shortId.length < 4) return null;
+  const live = matchSession(latest.sessions, shortId);
+  if (live) return { id: live.sessionId, name: live.name || live.sessionId, live: true };
+  const old = matchSession(latest.recentSessions, shortId);
+  return old ? { id: old.sessionId, name: old.sessionId, live: old.live } : null;
+}
+
+/** Exact id first, then a prefix match only when it is unambiguous. */
+function matchSession<T extends { sessionId: string }>(list: T[], id: string): T | undefined {
+  if (id.length < 4) return undefined;
+  const exact = list.find((x) => x.sessionId === id);
+  if (exact) return exact;
+  const prefixed = list.filter((x) => x.sessionId.startsWith(id));
+  return prefixed.length === 1 ? prefixed[0] : undefined;
+}
+
+function renderRecent() {
+  $('recent').hidden = recent.length === 0;
+  $('recent-list').innerHTML = recent
+    .map(
+      (t, i) => `<li class="recent__item" data-ri="${i}">
+        <span class="recent__dot" aria-hidden="true"></span>
+        <span class="recent__main"><span class="recent__project">${esc(t.project)}</span>
+          <span class="recent__prompt">${esc(t.prompt)}</span>
+          <span class="sub"><span class="recent__time">${esc(ago(t.startedAt))}</span> · <span class="recent__state"></span></span></span>
+        ${t.id ? `<button class="btn btn--sm" type="button" data-recent="${esc(t.id)}" data-name="${esc(t.project)}">View</button>` : ''}
+      </li>`,
+    )
+    .join('');
+  patchRecent();
+}
+
+/** Updates live dots and times in place; the list itself is not rebuilt on state pushes. */
+function patchRecent() {
+  document.querySelectorAll<HTMLElement>('#recent-list .recent__item').forEach((li) => {
+    const t = recent[Number(li.dataset.ri)];
+    if (!t) return;
+    const live = Boolean(t.id && latest && matchSession(latest.sessions, t.id));
+    li.classList.toggle('is-live', live);
+    li.querySelector('.recent__state')!.textContent = !t.id ? 'no id to link' : live ? 'live' : 'not live';
+    li.querySelector('.recent__time')!.textContent = ago(t.startedAt);
+  });
+}
+
+function addRecent(id: string | undefined, project: string, prompt: string) {
+  recent = [{ id: id ?? '', project, prompt: prompt.trim().slice(0, PROMPT_MAX), startedAt: Date.now() }, ...recent].slice(0, RECENT_MAX);
+  saveRecent();
+  renderRecent();
+}
+
 // ---- wiring ----
 
 export function initControls() {
+  recent = loadRecent();
+  renderRecent();
+  $('recent-clear').addEventListener('click', () => {
+    recent = [];
+    saveRecent();
+    renderRecent();
+  });
+
   document.addEventListener('click', async (e) => {
+    const rec = (e.target as Element).closest<HTMLElement>('[data-recent]');
+    if (rec?.dataset.recent) {
+      const found = resolveSession(rec.dataset.recent);
+      if (found) openTranscript(found.id, found.live ? found.name : (rec.dataset.name ?? found.name));
+      else toast('Session not found yet, try again in a moment');
+      return;
+    }
     const el = (e.target as Element).closest<HTMLElement>('[data-view],[data-logs],[data-stop],[data-more]');
     if (!el) return;
     if (el.dataset.more !== undefined) {
@@ -182,7 +292,10 @@ export function initControls() {
     try {
       const r = await api<CommandResult>('/api/commands', { project, prompt, permissionMode });
       status.textContent = describe(r);
-      if (r.ok) $<HTMLTextAreaElement>('run-prompt').value = '';
+      if (r.ok) {
+        addRecent(r.id, project, prompt);
+        $<HTMLTextAreaElement>('run-prompt').value = '';
+      }
     } catch (err) {
       status.textContent = (err as Error).message;
     }
@@ -207,6 +320,8 @@ export function initControls() {
 
 /** Called on every state push. Never re-renders the forms, so typing isn't interrupted. */
 export function updateControls(s: DashboardState) {
+  latest = s;
+  patchRecent();
   commandsOn = s.features.commands;
   $('run').hidden = !commandsOn;
   $('logout').hidden = !s.features.lan;
