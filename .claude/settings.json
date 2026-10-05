@@ -6,15 +6,5 @@
         "repo": "chrisfaber95/claude-agent-skill-builder"
       }
     }
-  },
-  "enabledPlugins": {
-    "git@chris-marketplace": true,
-    "node@chris-marketplace": true,
-    "typescript@chris-marketplace": true,
-    "testing@chris-marketplace": true,
-    "dependencies@chris-marketplace": true,
-    "review@chris-marketplace": true,
-    "docs@chris-marketplace": true,
-    "architecture@chris-marketplace": true
   }
 }
