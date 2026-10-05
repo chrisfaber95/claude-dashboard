@@ -20,15 +20,18 @@ function textOf(content: unknown): string {
     .join('\n');
 }
 
-function toolSummary(name: string, input: Record<string, unknown> | undefined): string {
+export function toolSummary(name: string, input: Record<string, unknown> | undefined, max = 300): string {
   if (!input) return name;
   const pick = input.command ?? input.file_path ?? input.pattern ?? input.url ?? input.query ?? input.description ?? input.prompt;
   const s = typeof pick === 'string' ? pick : JSON.stringify(input);
-  return `${name}: ${s.replace(/\s+/g, ' ').slice(0, 300)}`;
+  return `${name}: ${s.replace(/\s+/g, ' ').slice(0, max)}`;
 }
 
-/** Turn raw JSONL lines into readable entries. Thinking, attachments and system reminders are dropped. */
-export function parseEntries(lines: string[]): TranscriptEntry[] {
+/**
+ * Turn raw JSONL lines into readable entries. Thinking, attachments and system reminders are dropped.
+ * Subagent transcripts mark every line as a sidechain, so they are only parsed with `sidechain` set.
+ */
+export function parseEntries(lines: string[], sidechain = false): TranscriptEntry[] {
   const out: TranscriptEntry[] = [];
   for (const raw of lines) {
     if (!raw) continue;
@@ -38,7 +41,7 @@ export function parseEntries(lines: string[]): TranscriptEntry[] {
     } catch {
       continue;
     }
-    if (o.isMeta || o.isSidechain) continue;
+    if (o.isMeta || (o.isSidechain && !sidechain)) continue;
     const base = { uuid: String(o.uuid ?? ''), tsMs: o.timestamp ? Date.parse(o.timestamp) : 0 };
 
     if (o.type === 'user') {
@@ -68,9 +71,9 @@ export function parseEntries(lines: string[]): TranscriptEntry[] {
 }
 
 /** Parsed entries of (at most the last VIEW_BYTES_MAX bytes of) a transcript, cached by size + mtime. */
-async function loadEntries(path: string, maxBytes: number): Promise<{ entries: TranscriptEntry[]; truncated: boolean }> {
+async function loadEntries(path: string, maxBytes: number, sidechain: boolean): Promise<{ entries: TranscriptEntry[]; truncated: boolean }> {
   const st = await stat(path);
-  const key = `${st.size}:${st.mtimeMs}:${maxBytes}`;
+  const key = `${st.size}:${st.mtimeMs}:${maxBytes}:${sidechain}`;
   const hit = cache.get(path);
   if (hit?.key === key) return hit;
   const start = Math.max(0, st.size - maxBytes);
@@ -83,15 +86,21 @@ async function loadEntries(path: string, maxBytes: number): Promise<{ entries: T
   }
   const lines = buf.toString('utf8').split('\n');
   if (start > 0) lines.shift(); // first line is partial
-  const value = { key, entries: parseEntries(lines), truncated: start > 0 };
+  const value = { key, entries: parseEntries(lines, sidechain), truncated: start > 0 };
   cache.set(path, value);
   if (cache.size > 8) cache.delete(cache.keys().next().value!);
   return value;
 }
 
 /** Last `limit` entries, optionally those strictly before the entry with uuid `before`. */
-export async function readTranscriptPage(path: string, limit: number, before?: string, maxBytes = VIEW_BYTES_MAX): Promise<TranscriptPage> {
-  const { entries: all, truncated } = await loadEntries(path, maxBytes);
+export async function readTranscriptPage(
+  path: string,
+  limit: number,
+  before?: string,
+  maxBytes = VIEW_BYTES_MAX,
+  sidechain = false,
+): Promise<TranscriptPage> {
+  const { entries: all, truncated } = await loadEntries(path, maxBytes, sidechain);
   let end = all.length;
   if (before) {
     const i = all.findIndex((e) => e.uuid === before);

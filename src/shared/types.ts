@@ -47,6 +47,32 @@ export interface MessageInfo {
   snippet: string;
 }
 
+/** A subagent a session (or another subagent) handed work to. */
+export interface SubagentInfo {
+  agentId: string;
+  /** The main session this subagent belongs to, also when another subagent spawned it. */
+  sessionId: string;
+  project: string;
+  agentType: string;
+  description: string;
+  /** The brief that was handed down (clipped). */
+  prompt: string;
+  background: boolean;
+  /** Subagent that spawned this one; null when the main session did. */
+  parentAgentId: string | null;
+  startedAtMs: number;
+  lastTsMs: number;
+  /** 'done' also covers a subagent that went quiet without handing anything back. */
+  state: 'working' | 'done';
+  /** True once it handed a report (or at least a completion notice) back; false for one that just went quiet. */
+  handedBack: boolean;
+  /** Its latest tool call, e.g. "Read: src/server/auth.ts". Empty once done. */
+  activity: string;
+  /** What it handed back (clipped); empty until then. */
+  result: string;
+  tokens: number;
+}
+
 export interface UsageDay {
   day: string; // YYYY-MM-DD (local)
   byProject: Record<string, number>;
@@ -115,6 +141,8 @@ export interface DashboardState {
   generatedAtMs: number;
   projects: ProjectInfo[];
   sessions: SessionInfo[];
+  /** Subagents of live sessions that are working or finished recently. */
+  subagents: SubagentInfo[];
   messages: MessageInfo[];
   usage: { days: UsageDay[]; totals: TokenCounts; byModel: Record<string, number> };
   limits: LimitsInfo;

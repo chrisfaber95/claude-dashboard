@@ -18,19 +18,20 @@ Run `npm run typecheck` and `npm test` after every change.
 
 - `src/server/`: Node 24 runs these `.ts` files directly (native type stripping, no compile step, no runtime dependencies)
   - `config.ts`: paths, ports, env overrides, small helpers
-  - `transcripts.ts`: incremental JSONL scanner (16 MB chunks) and all in-memory aggregates (tokens, messages, rate-limit hits, the session → transcript index)
+  - `transcripts.ts`: incremental JSONL scanner (16 MB chunks) and all in-memory aggregates (tokens, messages, rate-limit hits, session → transcript index, subagent index); `buildSubagents()` filters live subagents; `subagentPaths` maps agent id to transcript path
   - `limits.ts`: live usage API poll with fallback to the `.claude.json` cache
-  - `state.ts`: builds the `DashboardState` (live sessions, projects, git info, CLI trust, feature flags)
-  - `server.ts`: HTTP(S) server: Host/Origin/CSRF checks, login, `/api/state`, `/api/events` (SSE every 2s), transcript and command endpoints, static files from `public/`
+  - `state.ts`: builds the `DashboardState` (live sessions, projects, subagents of live sessions, git info, CLI trust, feature flags)
+  - `server.ts`: HTTP(S) server: Host/Origin/CSRF checks, login, `/api/state`, `/api/events` (SSE every 2s), transcript and subagent transcript endpoints, command endpoints, static files from `public/`
   - `auth.ts`: login token file, timing-safe login, per-IP rate limit, in-memory cookie sessions
   - `tls.ts`: self-signed cert for LAN mode via Git's `openssl`
   - `claude-cli.ts`: the **only** place that runs `claude.exe` (`--bg`, `--bg --resume`, `stop`, `logs`), plus the audit log
-  - `transcript-view.ts`: turns a transcript into readable entries for the viewer (last 32 MB of a file at most)
+  - `transcript-view.ts`: turns a transcript into readable entries for the viewer (last 32 MB of a file at most; `sidechain` flag for subagent transcripts)
 - `src/client/`: vanilla TypeScript and SCSS, no framework, charts drawn as inline SVG
-  - `app.ts`: renders the sections
-  - `controls.ts`: the run panel and the transcript drawer
+  - `app.ts`: renders the sections (projects, sessions, usage, limits, messages); shows subagent counts on project cards
+  - `building.ts`: renders the project building popup; rooms for each live session (worker animation by status: busy/waiting/idle, hard hat for background), annex below with cubicles for subagents (one per room, up to 24 per session); pipes show who handed work down (main → bus/stub; subagent → dashed pipe from parent); animations: envelope while working, tick when handed back; click room or cubicle to read transcript
+  - `controls.ts`: the run panel and the transcript drawer (read-write for main sessions, read-only for subagents with `kind: 'subagent'`)
   - `util.ts`: `esc()` and `api()`
-- `src/shared/types.ts`: API types shared by server and client; change both sides together
+- `src/shared/types.ts`: API types shared by server and client (SessionInfo, SubagentInfo, MessageInfo, etc.); change both sides together
 - `public/`: **build output only**; edit `src/client/` instead
 - `.dashboard/`: login `token`, TLS `key.pem`/`cert.pem`, `commands.log`. **Holds secrets**: never print, serve or commit it
 
@@ -43,9 +44,9 @@ Run `npm run typecheck` and `npm test` after every change.
 ## Data sources (format of Claude Code's internal files, not a public API)
 
 - `~/.claude/sessions/<pid>.json`: one file per session (`kind`, `status`, `name`, `cwd`). A session counts as live only if its `pid` is still running.
-- `~/.claude/projects/<slug>/<sessionId>.jsonl`: transcripts. The slug is the cwd with every non-alphanumeric character replaced by `-`. Subagent transcripts live in `<sessionId>/subagents/` and are counted under the parent session.
+- `~/.claude/projects/<slug>/<sessionId>.jsonl`: transcripts. The slug is the cwd with every non-alphanumeric character replaced by `-`. Subagent transcripts live in `<sessionId>/subagents/agent-<id>.jsonl` (one per Agent tool call) plus `.meta.json` with `agentType`, `description`, `toolUseId` (links to spawner's Agent tool_use id), and request shape. All subagent transcripts are filtered by `isSidechain` and included in `DashboardState.subagents`.
 - Token usage comes from `message.usage` on assistant lines, deduplicated by `message.id` + `requestId`. `<synthetic>` models are skipped.
-- Incoming messages have `origin.kind === "peer"`. Subagent hand-backs (body starts with `[Subagent hand-back]` or has `senderTaskId`) are kept separate from session-to-session messages. Outgoing messages are `SendMessage` tool_use blocks. The session-to-session format is **unconfirmed against real data**; check a real transcript before changing the parser.
+- Incoming messages have `origin.kind === "peer"`. Subagent hand-backs appear both ways: (1) tool_result with `status === "completed"` when the spawner reads the Agent tool result; (2) peer origin with `senderTaskId` on user lines (body starts with `[Subagent hand-back]`, older form). Outgoing messages are `SendMessage` tool_use blocks. Session-to-session format is **unconfirmed**; subagent hand-backs both confirmed.
 - Rate-limit hits are lines with `quotaLimits.status === "rejected"`.
 - `~/.claude.json` → `cachedUsageUtilization` is the fallback for limits; `projects[...].hasTrustDialogAccepted` is the CLI trust flag per folder.
 
@@ -84,7 +85,7 @@ Run `npm run typecheck` and `npm test` after every change.
 - `DASHBOARD_COMMANDS` (`0` removes all command endpoints)
 - `DASHBOARD_LIVE_USAGE` (polling on by default; `0` turns it off)
 - `DASHBOARD_DATA_DIR` (`./.dashboard`)
-- `PROJECTS_ROOT` (`N:\Projects`), `CLAUDE_DIR` (`~/.claude`), `CLAUDE_JSON` (`~/.claude.json`)
+- `PROJECTS_ROOT` (`N:\Projects`), `CLAUDE_DIR` (`$CLAUDE_CONFIG_DIR`, else `~/.claude`), `CLAUDE_JSON` (`$CLAUDE_CONFIG_DIR/.claude.json`, else `~/.claude.json`); Claude Code relocates both when `CLAUDE_CONFIG_DIR` is set, as on this PC (`N:\ClaudeData\config`)
 - `CLAUDE_BIN` (default: newest `claude.exe` in the VS Code extension), `CLAUDE_BIN_ARGS` (JSON array prefix, used by tests), `OPENSSL`
 
 ## Claude CLI behaviour (verified)
@@ -124,6 +125,7 @@ Also see `.claude/skills/` for 24 reusable skills.
 
 - Colors use the validated palette from the `dataviz` skill, defined once in `style.scss` with light and dark versions. Dark mode follows the OS and can be overridden with `data-theme` on `<html>`.
 - Project colors are assigned by project name in alphabetical order, never by rank. A filter must not recolor the projects that stay visible.
+- **No inline styles in new client code:** sizes, colours, animation delays are defined as CSS classes in `style.scss` (e.g. `.tint-N`, `.shirt-N`, `.skin-N`, `.building__svg--cols-N`). Existing inline styles (chart bars, legend swatch in `app.ts`) pre-date this rule and are not changed.
 - Escape every interpolated string with `esc()` (`util.ts`), since rendering uses `innerHTML`.
 - Forms (run panel, follow-up box) are never re-rendered by state pushes, so typing isn't interrupted; `updateControls()` only patches options.
 

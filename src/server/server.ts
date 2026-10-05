@@ -19,7 +19,7 @@ import {
 import { buildState } from './state.ts';
 import { ensureCert, lanAddresses } from './tls.ts';
 import { readTranscriptPage } from './transcript-view.ts';
-import { scanTranscripts, transcriptIndex } from './transcripts.ts';
+import { scanTranscripts, subagentPaths, transcriptIndex } from './transcripts.ts';
 
 const PUBLIC_DIR = join(APP_ROOT, 'public');
 const TYPES: Record<string, string> = {
@@ -200,6 +200,17 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
       res.write(`data: ${JSON.stringify(state())}\n\n`);
       clients.add(res);
       req.on('close', () => clients.delete(res));
+      return;
+    }
+
+    // Subagent transcripts: the path comes from the scanner's index, never from the request.
+    const sm = url.pathname.match(/^\/api\/subagents\/([A-Za-z0-9_-]{6,64})\/transcript$/);
+    if (sm && method === 'GET') {
+      scanTranscripts();
+      const path = subagentPaths.get(sm[1]);
+      if (!path) throw new CommandError(404, 'unknown subagent');
+      const limit = Math.min(500, Math.max(1, Number(url.searchParams.get('limit')) || 100));
+      send(res, 200, await readTranscriptPage(path, limit, url.searchParams.get('before') ?? undefined, undefined, true));
       return;
     }
 

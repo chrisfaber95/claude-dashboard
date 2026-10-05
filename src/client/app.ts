@@ -1,4 +1,5 @@
 import type { DashboardState, MessageInfo, SessionInfo, TokenCounts, UsageDay } from '../shared/types.ts';
+import { initBuilding, updateBuilding } from './building.ts';
 import { initControls, updateControls } from './controls.ts';
 import { $, ago, api, esc } from './util.ts';
 
@@ -26,12 +27,15 @@ function uptime(ms: number): string {
 
 // Project colour follows the project (alphabetical, fixed order), never its rank.
 let colorOf = (_name: string) => 'var(--s1)';
+let tintOf = (_name: string) => 'tint-1';
 function setColors(names: string[]) {
   const sorted = [...names].sort((a, b) => a.localeCompare(b));
-  colorOf = (n) => {
+  const slot = (n: string) => {
     const i = sorted.indexOf(n);
-    return i >= 0 && i < 8 ? `var(--s${i + 1})` : 'var(--muted)';
+    return i >= 0 && i < 8 ? i + 1 : 0;
   };
+  colorOf = (n) => (slot(n) ? `var(--s${slot(n)})` : 'var(--muted)');
+  tintOf = (n) => (slot(n) ? `tint-${slot(n)}` : 'tint-muted');
 }
 
 const tip = $('tip');
@@ -86,18 +90,22 @@ function renderLimits(s: DashboardState) {
 }
 
 function renderProjects(s: DashboardState) {
+  const subsWorking = (project: string) => s.subagents.filter((a) => a.project === project && a.state === 'working').length;
+  // The cards are re-rendered on every push; keep keyboard focus on the one the user is on.
+  const focused = document.activeElement?.closest('[data-building]')?.getAttribute('data-building') ?? null;
   $('projects').innerHTML = `<h2 id="h-projects">Projects</h2><div class="grid">${s.projects
     .map(
-      (p) => `<div class="card">
+      (p) => `<div class="card card--click" data-building="${esc(p.name)}" role="button" tabindex="0" aria-label="${esc(`Open the ${p.name} building`)}">
         <div class="card__head"><span><span class="card__swatch" style="background:${colorOf(p.name)}"></span>${esc(p.name)}</span>
           <span class="badge ${p.liveSessions ? 'badge--live' : ''}">${p.liveSessions ? `${p.liveSessions} live` : 'idle'}</span></div>
         <div class="sub">${p.branch ? esc(p.branch) : 'no git'}${p.isWorktree ? ' · worktree' : ''}${
           s.features.commands && !p.trusted ? ' · <span data-tip="Run claude once in this folder and accept the trust prompt to allow background tasks.">not trusted for tasks</span>' : ''
         }</div>
-        <div class="sub">active ${ago(p.lastActiveMs)}</div>
+        <div class="sub">active ${ago(p.lastActiveMs)}${subsWorking(p.name) ? ` · ${subsWorking(p.name)} subagent${subsWorking(p.name) === 1 ? '' : 's'} working` : ''}</div>
         <div class="sub">today ${fmt(p.tokensToday)} · 7d ${fmt(p.tokens7d)} tokens</div></div>`,
     )
     .join('')}</div>`;
+  if (focused) $('projects').querySelector<HTMLElement>(`[data-building="${CSS.escape(focused)}"]`)?.focus();
 }
 
 function renderSessions(s: DashboardState) {
@@ -282,6 +290,8 @@ document.addEventListener('click', (e) => {
 
 let last: DashboardState | null = null;
 function render(s: DashboardState) {
+  // A server started before the subagent feature doesn't send this field; don't let that break the whole page.
+  s.subagents ??= [];
   last = s;
   setColors(s.projects.map((p) => p.name));
   renderLimits(s);
@@ -290,9 +300,11 @@ function render(s: DashboardState) {
   renderComms(s);
   renderUsage(s);
   updateControls(s);
+  updateBuilding(s, tintOf);
 }
 
 initControls();
+initBuilding();
 
 // ---- theme + transport ----
 

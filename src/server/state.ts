@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { CLAUDE_DIR, CLAUDE_JSON, COMMANDS_ENABLED, LAN_MODE, PROJECTS_ROOT, emptyTokens, localDay, normPath } from './config.ts';
 import { getLimits } from './limits.ts';
 import {
+  buildSubagents,
   dayAgg,
   messages,
   modelTotals,
@@ -171,6 +172,7 @@ export function buildState(features: { lan?: boolean; commands?: boolean } = {})
     generatedAtMs: now,
     projects,
     sessions,
+    subagents: buildSubagents(liveIds, now),
     messages: msgs,
     usage: { days, totals, byModel: { ...modelTotals } },
     limits: getLimits(),
