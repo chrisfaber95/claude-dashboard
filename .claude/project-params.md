@@ -81,3 +81,15 @@ keeps your edits. Values marked unknown should be filled in.
 - components: `src/server` (Node HTTP server, transcripts, limits, auth, CLI wrapper), `src/client` (vanilla TS/SCSS), `src/shared/types.ts` (API types), `public/` (build output only), `.dashboard/` (secrets and audit log)
 - performance_targets: single user; `/api/events` pushes state every 2s; transcript scans are incremental (16 MB chunks), viewer reads at most the last 32 MB of a file; at most 4 CLI processes at once (CLAUDE.md "Layout" and "Rules")
 <!-- /params:architecture -->
+
+<!-- params:playwright -->
+## playwright (frontend-tester)
+- package_folder: . (package.json in the project root; the client is built from `src/client/` into `public/`)
+- app_url: http://127.0.0.1:4777 (`PORT` default in src/server/config.ts; localhost mode only answers loopback `Host` headers, so use `127.0.0.1` or `localhost`)
+- dev_command: `npm start` (package.json: builds the client, then serves; no login in localhost mode)
+- test_dir: `tests/e2e` (default; `npm test` only matches `tests/**/*.test.ts`, so name Playwright files `*.spec.ts` to keep the two runners apart)
+- browsers: chromium (default, no playwright.config yet)
+- backend_needed: none beyond the dashboard server itself; it reads `CLAUDE_DIR`, `CLAUDE_JSON` and `PROJECTS_ROOT`. In the `webServer` env, point those at a temp fixture (like `makeFixture()` in tests/helpers.ts), set `DASHBOARD_LIVE_USAGE=0` (no network), `DASHBOARD_COMMANDS=0` (no Claude CLI runs), and a separate `DASHBOARD_DATA_DIR` and `DASHBOARD_PORT`, so tests never touch real user files (CLAUDE.md "Tests")
+- test_accounts: none in localhost mode; LAN mode logs in with the token in `.dashboard/token`, which must never be read or printed (CLAUDE.md "Layout")
+- staging_url: (empty: localhost only)
+<!-- /params:playwright -->
