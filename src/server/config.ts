@@ -1,0 +1,37 @@
+import { homedir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+export const PORT = Number(process.env.DASHBOARD_PORT ?? 4777);
+export const HOST = process.env.DASHBOARD_HOST ?? (process.argv.includes('--lan') ? '0.0.0.0' : '127.0.0.1');
+/** LAN mode = bound to anything other than loopback: HTTPS + login required. */
+export const LAN_MODE = !['127.0.0.1', 'localhost', '::1'].includes(HOST);
+export const COMMANDS_ENABLED = process.env.DASHBOARD_COMMANDS !== '0';
+export const PROJECTS_ROOT = process.env.PROJECTS_ROOT ?? 'N:\\Projects';
+export const CLAUDE_DIR = process.env.CLAUDE_DIR ?? join(homedir(), '.claude');
+export const CLAUDE_JSON = process.env.CLAUDE_JSON ?? join(homedir(), '.claude.json');
+export const APP_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+/** Secrets (login token, TLS key) and the audit log. Never served. */
+export const DATA_DIR = process.env.DASHBOARD_DATA_DIR ?? join(APP_ROOT, '.dashboard');
+
+/** Mirror Claude Code's transcript folder naming: every non-alphanumeric char becomes '-'. */
+export function cwdSlug(cwd: string): string {
+  return cwd.replace(/[^a-zA-Z0-9]/g, '-');
+}
+
+export function normPath(p: string): string {
+  return p.replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase();
+}
+
+export function emptyTokens() {
+  return { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+}
+
+export function localDay(ms: number): string {
+  const d = new Date(ms);
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
+export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

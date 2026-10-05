@@ -1,0 +1,4 @@
+node_modules/
+public/
+.dashboard/
+.claude/settings.local.json

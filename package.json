@@ -1,0 +1,22 @@
+{
+  "name": "claude-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:js": "esbuild src/client/app.ts src/client/login.ts --bundle --outdir=public --target=es2022 --sourcemap",
+    "build:css": "sass --no-source-map src/client/style.scss public/style.css",
+    "build:html": "node scripts/copy-html.mjs",
+    "build": "npm run build:js && npm run build:css && npm run build:html",
+    "start": "npm run build && node src/server/server.ts",
+    "start:lan": "npm run build && node src/server/server.ts --lan",
+    "test": "node --test \"tests/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "sass": "^1.89.0",
+    "typescript": "^5.9.0",
+    "@types/node": "^24.0.0"
+  }
+}

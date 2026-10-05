@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Claude Dashboard</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="top">
+    <h1>Claude Dashboard</h1>
+    <div class="top__meta">
+      <span id="conn" class="conn">connecting…</span>
+      <button id="theme" class="btn" type="button" aria-label="Toggle theme">Theme</button>
+      <form id="logout" method="post" action="/logout" hidden><button class="btn" type="submit">Log out</button></form>
+    </div>
+  </header>
+  <main>
+    <section id="limits" class="panel" aria-labelledby="h-limits"></section>
+    <section id="run" class="panel" aria-labelledby="h-run" hidden>
+      <h2 id="h-run">Run a task</h2>
+      <form id="run-form" class="run">
+        <div class="run__row">
+          <label>Project <select id="run-project" required></select></label>
+          <label>Permissions <select id="run-mode"></select></label>
+        </div>
+        <label class="run__prompt">Prompt <textarea id="run-prompt" rows="3" maxlength="20000" required placeholder="What should Claude do?"></textarea></label>
+        <div class="run__row">
+          <button class="btn btn--primary" type="submit">Start background session</button>
+          <span id="run-status" class="sub" role="status"></span>
+        </div>
+      </form>
+    </section>
+    <section id="projects" class="panel" aria-labelledby="h-projects"></section>
+    <section id="sessions" class="panel" aria-labelledby="h-sessions"></section>
+    <section id="comms" class="panel" aria-labelledby="h-comms"></section>
+    <section id="usage" class="panel" aria-labelledby="h-usage"></section>
+  </main>
+  <aside id="drawer" class="drawer" aria-labelledby="drawer-title" hidden>
+    <div class="drawer__head">
+      <div>
+        <h2 id="drawer-title"></h2>
+        <div id="drawer-sub" class="sub"></div>
+      </div>
+      <button id="drawer-close" class="btn" type="button" aria-label="Close transcript">Close</button>
+    </div>
+    <div id="drawer-body" class="drawer__body"></div>
+    <form id="drawer-form" class="drawer__form" hidden>
+      <textarea id="drawer-prompt" rows="2" maxlength="20000" required placeholder="Send a follow-up (runs as a background continuation)"></textarea>
+      <div class="run__row">
+        <select id="drawer-mode" aria-label="Permission mode"></select>
+        <button class="btn btn--primary" type="submit">Send</button>
+        <span id="drawer-status" class="sub" role="status"></span>
+      </div>
+    </form>
+  </aside>
+  <div id="tip" class="tip" role="tooltip" hidden></div>
+  <script src="/app.js"></script>
+</body>
+</html>
