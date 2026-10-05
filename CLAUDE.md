@@ -107,17 +107,18 @@ Run `npm run typecheck` and `npm test` after every change.
 
 ## Project agents (`.claude/agents/`)
 
-The folder contains 12 agents, originally from VoltAgent (agent-installer, debugger, frontend-developer, security-auditor) and chris-marketplace (the rest). Use them when the task matches:
+The folder contains 13 agents, originally from VoltAgent (agent-installer, debugger, frontend-developer, security-auditor) and chris-marketplace (the rest). Use them when the task matches:
 
 - `typescript-pro`, `node-specialist`: server and type work
 - `frontend-developer`: client UI in `src/client/`
 - `test-automator`: new or changed `node:test` suites
+- `frontend-tester`: Playwright browser end-to-end tests (from chris-marketplace `playwright`; uses the `playwright` MCP server in `.mcp.json`)
 - `code-reviewer`: review before finishing larger changes
 - `security-auditor` (read-only): run it after any change to auth, request checks, `claude-cli.ts`, `limits.ts`, the static file handler or client rendering
 - `debugger`: parser or aggregation results that don't match the raw transcripts
 - `agent-installer`, `architect-reviewer`, `dependency-manager`, `documentation-engineer`, `git-workflow-manager`: used when their task matches
 
-Also see `.claude/skills/` for 20 reusable skills.
+Also see `.claude/skills/` for 24 reusable skills.
 
 ## UI conventions
 
@@ -249,6 +250,21 @@ technology choices) and architecture decision records to the `architect-reviewer
 
 The agent is read-only for source code and reports findings with evidence and options. It works
 on its own; if it lists follow-ups, you decide who does them.
+
+## Frontend Testing
+
+Delegate all frontend testing work (setting up Playwright, writing or reviewing tests, running
+tests, debugging failures) to the `frontend-tester` agent in `.claude/agents/`. In the
+delegation prompt, include:
+- what to test: the URL or feature, user flow, or test scenarios
+- whether running tests is authorized and on which environment (local is default; for staging,
+  name it by full URL)
+
+The agent uses the Playwright MCP server (`playwright` in `.mcp.json`) for browser exploration
+and to generate stable selectors. It may install `@playwright/test` as a dev dependency, download
+browsers, and start the local dev server. It does not commit; it reports the test files and any
+`package.json` changes in its result. It works on its own; follow-ups it lists are for you to
+route.
 
 Handoffs: the agent's result may end with Handoffs entries (`to`, `why`, `task`, `context`,
 `needs authorization`). Route an entry to the named agent only if that agent is installed (it is
