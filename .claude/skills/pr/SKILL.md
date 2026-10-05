@@ -10,8 +10,9 @@ Open a pull request for the current branch. Base branch (may be empty): $ARGUMEN
 Every unit of work gets a PR; never merge a branch into the default branch directly.
 
 Confirmation: in a main session, ask the user before pushing or creating the PR. When running as
-the git-workflow-manager subagent, push or create the PR only if the delegation prompt authorized
-it ("push", "open the PR"). Otherwise stop after drafting and return the title, the body and the
+the git-workflow-manager subagent, pushing the branch and creating the PR are authorized by
+default: do not stop for confirmation. Only if the delegation prompt restricts them ("draft
+only", "no push", "commit only"), stop after drafting and return the title, the body and the
 exact commands.
 
 ## Steps
@@ -69,7 +70,8 @@ exact commands.
    what was left for later. Avoid generic statements such as "Implemented feature."; be specific
    ("Added tests for order creation covering the payment call, stock and price validation, and the
    confirmation email, with the payment provider and mail mocked").
-6. Show the title and body, and say whether a push is needed. Ask for confirmation (see above).
+6. In a main session, show the title and body, say whether a push is needed, and ask for
+   confirmation. As the subagent, continue unless restricted (see above).
 7. If the work depends on an unmerged branch (avoid this), create the PR with
    `--base <parent-branch>` and say so at the top of the description. The `merge` skill covers
    how stacked PRs are merged.
@@ -83,4 +85,6 @@ exact commands.
      EOF
      )"
      ```
-9. Return the PR number and URL.
+9. Return the PR number and URL. As the subagent with merge authorized (the default unless the
+   prompt restricts it or the project parameters set `merge_mode: ask`), continue with the
+   `merge` skill for this PR.

@@ -1,6 +1,6 @@
 ---
 name: merge
-description: "Procedure for verifying CI, merging a GitHub pull request, and cleaning up afterwards: gh pr checks, merge gates, squash merge, merged-branch deletion with a tip check, local main update. Followed by the git-workflow-manager agent; merge only when the delegation authorizes 'merge'."
+description: "Procedure for verifying CI, merging a GitHub pull request, and cleaning up afterwards: gh pr checks, merge gates, squash merge, merged-branch deletion with a tip check, local main update. Followed by the git-workflow-manager agent; merge is authorized by default once every gate passes, unless the delegation restricts it or the project sets merge_mode: ask."
 argument-hint: "<PR number or URL>"
 allowed-tools: [Bash, Read, Grep]
 ---
@@ -10,8 +10,10 @@ Verify CI for a pull request, merge it if every gate passes, and clean up. PR: $
 
 Never use `gh pr merge --admin`, and never bypass failed checks, branch protection or required
 reviews just to get a PR merged. In a main session, ask the user before merging. When running as
-the git-workflow-manager subagent, merge only if the delegation prompt authorized "merge", and
-delete branches only if it authorized "merge" or "cleanup". Otherwise stop after the gate report.
+the git-workflow-manager subagent, merging is authorized by default once every gate passes,
+unless the delegation prompt restricts it ("don't merge") or the project parameters set
+`merge_mode: ask`, in which case merge only if the prompt says "merge". Delete branches only as
+part of that merge or when "cleanup" is authorized. Otherwise stop after the gate report.
 
 Read the project parameters first: the `git` section of `.claude/project-params.md`, or a root
 `WORKFLOW.md` if that file does not exist. They may add merge gates, required local documents
