@@ -8,6 +8,7 @@
     }
   },
   "enabledPlugins": {
+    "git@chris-marketplace": true,
     "node@chris-marketplace": true,
     "typescript@chris-marketplace": true,
     "testing@chris-marketplace": true,
