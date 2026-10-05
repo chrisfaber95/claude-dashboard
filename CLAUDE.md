@@ -107,7 +107,7 @@ Run `npm run typecheck` and `npm test` after every change.
 
 ## Project agents (`.claude/agents/`)
 
-Chosen for this codebase (Node + TypeScript server, vanilla TS/SCSS client, no database, no deployment). Use them when the task matches:
+The folder contains 12 agents, originally from VoltAgent (agent-installer, debugger, frontend-developer, security-auditor) and chris-marketplace (the rest). Use them when the task matches:
 
 - `typescript-pro`, `node-specialist`: server and type work
 - `frontend-developer`: client UI in `src/client/`
@@ -115,9 +115,9 @@ Chosen for this codebase (Node + TypeScript server, vanilla TS/SCSS client, no d
 - `code-reviewer`: review before finishing larger changes
 - `security-auditor` (read-only): run it after any change to auth, request checks, `claude-cli.ts`, `limits.ts`, the static file handler or client rendering
 - `debugger`: parser or aggregation results that don't match the raw transcripts
-- `agent-installer`: browse and install more agents from VoltAgent/awesome-claude-code-subagents
+- `agent-installer`, `architect-reviewer`, `dependency-manager`, `documentation-engineer`, `git-workflow-manager`: used when their task matches
 
-Agents were installed unmodified from that repo. Remove any that stay unused instead of letting the folder grow.
+Also see `.claude/skills/` for 20 reusable skills.
 
 ## UI conventions
 
@@ -134,8 +134,8 @@ Project parameters for the agents: @.claude/project-params.md
 ## Git
 
 Delegate every git and GitHub operation (commit, push, branch, PR, CI check, merge, branch
-cleanup, release, merge/rebase conflicts, git setup) to the `git-workflow-manager` agent from the
-`git` plugin. Do not run these yourself. Project-specific git rules live in the `git` section
+cleanup, release, merge/rebase conflicts, git setup) to the `git-workflow-manager` agent in
+`.claude/agents/`. Do not run these yourself. Project-specific git rules live in the `git` section
 of `.claude/project-params.md`; the agent reads it.
 
 In every delegation prompt, include:
@@ -158,7 +158,7 @@ to move on to the next planned item.
 
 Delegate Node-specific problems (slow or memory-hungry processes, blocked event loop, async and
 error-handling bugs, stream and shutdown problems, Node security review) to the
-`node-specialist` agent from the `node` plugin when the task clearly matches. In the delegation
+`node-specialist` agent in `.claude/agents/` when the task clearly matches. In the delegation
 prompt, include:
 - the symptom or area to review, and how to reproduce it
 - the Node version and framework if known
@@ -170,8 +170,8 @@ never touches production; if it lists follow-ups, you decide who does them.
 ## TypeScript
 
 Delegate type-system work (designing types, fixing type errors, typing API and config
-boundaries, migrating JavaScript to TypeScript step by step) to the `typescript-pro` agent from
-the `typescript` plugin, in projects that use or are adopting TypeScript. In the delegation
+boundaries, migrating JavaScript to TypeScript step by step) to the `typescript-pro` agent in
+`.claude/agents/`, in projects that use or are adopting TypeScript. In the delegation
 prompt, include:
 - the files or area, and the current `tsconfig` strictness
 - whether runtime behavior must stay unchanged (it normally must)
@@ -182,8 +182,7 @@ convert anything. It works on its own; follow-ups it lists are for you to route.
 ## Automated testing
 
 Delegate unit, integration and API tests (writing them, reproducing a bug with a failing test,
-fixing flaky tests, finding coverage gaps) to the `test-automator` agent from the `testing`
-plugin. In the delegation prompt, include:
+fixing flaky tests, finding coverage gaps) to the `test-automator` agent in `.claude/agents/`. In the delegation prompt, include:
 - what to test, or the change to cover
 - the package folder, and how tests are run if it is not obvious
 
@@ -194,8 +193,7 @@ its own; follow-ups it lists are for you to route.
 
 ## Dependencies
 
-Delegate dependency audits and upgrades to the `dependency-manager` agent from the
-`dependencies` plugin. In the delegation prompt, include:
+Delegate dependency audits and upgrades to the `dependency-manager` agent in `.claude/agents/`. In the delegation prompt, include:
 - the package folder to work in (for repos with several independent packages)
 - whether it should only audit, or also upgrade (it upgrades only when asked)
 - any dependency policy (packages that must not change, how install scripts are handled)
@@ -207,8 +205,8 @@ lists are for you to route.
 
 ## Code review
 
-Before committing or merging, delegate a review of the change to the `code-reviewer` agent from
-the `review` plugin. In the delegation prompt, include:
+Before committing or merging, delegate a review of the change to the `code-reviewer` agent in
+`.claude/agents/`. In the delegation prompt, include:
 - what to review: the working-tree diff, a branch against its base, a PR number, or named files
 - what the change is meant to do
 - whether it should also do a security-focused pass (it does for anything touching auth, input,
@@ -221,7 +219,7 @@ follow-ups needing a specialist, you decide who handles them.
 ## Documentation
 
 Delegate documentation work (README, guides, API reference, architecture overview, and updating
-docs after a change) to the `documentation-engineer` agent from the `docs` plugin. In the
+docs after a change) to the `documentation-engineer` agent in `.claude/agents/`. In the
 delegation prompt, include:
 - what to document, or what changed (a diff or branch)
 - the audience, and where the project keeps its docs
@@ -235,8 +233,8 @@ works on its own; follow-ups it lists are for you to route.
 ## Architecture review
 
 Delegate design reviews (boundaries, coupling, data ownership, scalability, failure modes,
-technology choices) and architecture decision records to the `architect-reviewer` agent from the
-`architecture` plugin, when the task clearly matches. In the delegation prompt, include:
+technology choices) and architecture decision records to the `architect-reviewer` agent in
+`.claude/agents/`, when the task clearly matches. In the delegation prompt, include:
 - what to review (files, a diff, or a description of the proposed design)
 - the goals, constraints and any numbers the design must meet
 - whether you want a decision record written (otherwise it only reports)
