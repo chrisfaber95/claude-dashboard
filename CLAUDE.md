@@ -8,6 +8,8 @@ Web dashboard for Claude Code activity: the projects in `N:\Projects`, live sess
 
 - `npm start`: build the client, then serve on http://127.0.0.1:4777 (no login)
 - `npm run start:lan`: same, but on all interfaces over HTTPS with a token login (`--lan` flag)
+- `npm run dev`: watch mode: rebuild HTML on change, esbuild watch for `app.ts` and `login.ts`, sass watch for styles, server restarts on `src/server/` or `src/shared/` changes (client changes don't restart); refresh browser tab manually
+- `npm run dev:lan`: same, but server listens on all interfaces over HTTPS with login (`--lan` flag)
 - `npm test`: `node:test` suites in `tests/`
 - `npm run typecheck`: `tsc --noEmit` over `src` and `tests`
 - `npm run build`: esbuild `src/client/app.ts` + `login.ts` → `public/`, sass `style.scss` → `public/style.css`, copy `index.html` + `login.html`
@@ -33,6 +35,7 @@ Run `npm run typecheck` and `npm test` after every change.
   - `util.ts`: `esc()` and `api()`
 - `src/shared/types.ts`: API types shared by server and client (SessionInfo, SubagentInfo, MessageInfo, etc.); change both sides together
 - `public/`: **build output only**; edit `src/client/` instead
+- `scripts/dev.mjs`: dev mode orchestrator (watches for HTML changes, esbuild and sass in watch mode, server with hot restart on source changes)
 - `.dashboard/`: login `token`, TLS `key.pem`/`cert.pem`, `commands.log`. **Holds secrets**: never print, serve or commit it
 
 ## TypeScript constraints
