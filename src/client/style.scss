@@ -487,6 +487,88 @@ textarea {
   }
 }
 
+.notice {
+  background: color-mix(in srgb, var(--warn) 18%, var(--surface));
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: var(--ink);
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+.recent {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--grid);
+
+  &[hidden] {
+    display: none;
+  }
+
+  &__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+
+    h3 {
+      font-size: 13px;
+      margin: 0;
+    }
+  }
+
+  &__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 6px;
+  }
+
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+  }
+
+  &__dot {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+  }
+
+  &__item.is-live &__dot {
+    background: var(--good);
+  }
+
+  &__main {
+    flex: 1;
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+  }
+
+  &__project {
+    font-weight: 600;
+  }
+
+  &__prompt {
+    color: var(--ink-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
 .drawer {
   position: fixed;
   z-index: 5;

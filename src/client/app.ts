@@ -289,18 +289,33 @@ document.addEventListener('click', (e) => {
 });
 
 let last: DashboardState | null = null;
+const warn = $('render-warn');
 function render(s: DashboardState) {
   // A server started before the subagent feature doesn't send this field; don't let that break the whole page.
   s.subagents ??= [];
   last = s;
-  setColors(s.projects.map((p) => p.name));
-  renderLimits(s);
-  renderProjects(s);
-  renderSessions(s);
-  renderComms(s);
-  renderUsage(s);
-  updateControls(s);
-  updateBuilding(s, tintOf);
+  // Each step runs on its own: one failing section must not freeze the others or later pushes.
+  const steps: Array<[string, () => void]> = [
+    ['colors', () => setColors(s.projects.map((p) => p.name))],
+    ['limits', () => renderLimits(s)],
+    ['projects', () => renderProjects(s)],
+    ['sessions', () => renderSessions(s)],
+    ['messages', () => renderComms(s)],
+    ['usage', () => renderUsage(s)],
+    ['controls', () => updateControls(s)],
+    ['building', () => updateBuilding(s, tintOf)],
+  ];
+  let failed = false;
+  for (const [name, run] of steps) {
+    try {
+      run();
+    } catch (err) {
+      failed = true;
+      console.error(`render step "${name}" failed`, err);
+    }
+  }
+  // Fixed text only; the real error goes to the console. Clears itself on the next clean push.
+  warn.hidden = !failed;
 }
 
 initControls();
@@ -331,7 +346,17 @@ const ev = new EventSource('/api/events');
 ev.onmessage = (m) => {
   conn.textContent = 'live';
   conn.classList.add('is-live');
-  render(JSON.parse(m.data));
+  let state: DashboardState;
+  try {
+    const parsed: unknown = JSON.parse(m.data);
+    if (typeof parsed !== 'object' || !parsed) throw new Error('state is not an object');
+    state = parsed as DashboardState;
+  } catch (err) {
+    console.error('bad state push', err);
+    warn.hidden = false;
+    return;
+  }
+  render(state);
 };
 ev.onerror = () => {
   conn.textContent = 'reconnecting…';
