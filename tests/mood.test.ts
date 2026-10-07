@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { SessionInfo, SubagentInfo } from '../src/shared/types.ts';
-import { CORE_LABEL, coreHeadline, coreSummary, moodOf } from '../src/client/mood.ts';
+import { CORE_LABEL, coreHeadline, coreSummary, moodOf, coreHeadlineParts } from '../src/client/mood.ts';
 import type { CoreSummary } from '../src/client/mood.ts';
 
 const session = (status: string, name = 'S'): SessionInfo => ({ status, name }) as unknown as SessionInfo;
@@ -70,4 +70,36 @@ test('coreHeadline for waiting', () => {
   assert.equal(coreHeadline(summary({ mood: 'waiting', waiting: 1, waitingName: 'Alpha' })), 'Alpha is waiting for you');
   assert.equal(coreHeadline(summary({ mood: 'waiting', waiting: 1, busy: 2, waitingName: 'Alpha' })), 'Alpha is waiting for you · 2 more working');
   assert.equal(coreHeadline(summary({ mood: 'waiting', waiting: 1 })), 'A session is waiting for you');
+});
+
+const CASES: Array<[string, CoreSummary, string, string]> = [
+  ['standby', summary({}), 'All quiet. ', 'Nothing running.'],
+  ['sessions and subagents', summary({ mood: 'working', busy: 3, subagentsWorking: 2 }), '3 sessions working · ', '2 subagents'],
+  ['one of each', summary({ mood: 'working', busy: 1, subagentsWorking: 1 }), '1 session working · ', '1 subagent'],
+  ['single session', summary({ mood: 'working', busy: 1 }), '1 session working', ''],
+  ['subagents only', summary({ mood: 'working', subagentsWorking: 2 }), '2 subagents working', ''],
+  ['waiting', summary({ mood: 'waiting', waiting: 1, waitingName: 'Alpha' }), 'Alpha is waiting for you', ''],
+  ['waiting with busy', summary({ mood: 'waiting', waiting: 1, busy: 2, waitingName: 'Alpha' }), 'Alpha is waiting for you · ', '2 more working'],
+  ['waiting without a name', summary({ mood: 'waiting', waiting: 1 }), 'A session is waiting for you', ''],
+  ['waiting without a name, with busy', summary({ mood: 'waiting', waiting: 1, busy: 1 }), 'A session is waiting for you · ', '1 more working'],
+];
+
+for (const [label, c, lead, accent] of CASES) {
+  test(`coreHeadlineParts: ${label}`, () => {
+    assert.deepEqual(coreHeadlineParts(c), { lead, accent });
+    assert.equal(coreHeadline(c), lead + accent);
+  });
+}
+
+test('coreHeadlineParts: a waiting session name with ". " or " · " stays whole in lead', () => {
+  for (const name of ['Fix v1. Release', 'a · b', 'x. y · z']) {
+    for (const busy of [0, 2]) {
+      const c = summary({ mood: 'waiting', waiting: 1, busy, waitingName: name });
+      const p = coreHeadlineParts(c);
+      assert.ok(p.lead.startsWith(`${name} is waiting for you`), `${name}: lead ${JSON.stringify(p.lead)}`);
+      assert.equal(p.accent, busy ? '2 more working' : '');
+      assert.ok(!p.accent.includes(name) && !name.split(/ · |\. /).some((part) => part.length > 2 && p.accent.includes(part)));
+      assert.equal(coreHeadline(c), p.lead + p.accent);
+    }
+  }
 });

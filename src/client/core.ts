@@ -1,7 +1,7 @@
-// Live "core" strip for the Co-pilot skin. The markup is built once; updates only toggle a class and
+// Live "core" strip for the Co-pilot and Root skins. The markup is built once; updates only toggle a class and
 // change text when it differs, so the 2 s state pushes never restart the CSS animations.
 import type { DashboardState } from '../shared/types.ts';
-import { CORE_LABEL, coreHeadline, coreSummary } from './mood.ts';
+import { CORE_LABEL, coreHeadlineParts, coreSummary } from './mood.ts';
 import type { CoreMood } from './mood.ts';
 import { $ } from './util.ts';
 
@@ -10,6 +10,8 @@ const BARS = 41;
 let root: HTMLElement | null = null;
 let label: HTMLElement | null = null;
 let headline: HTMLElement | null = null;
+let lead: HTMLElement | null = null;
+let accent: HTMLElement | null = null;
 let lastMood: CoreMood | null = null;
 let lastLabel = '';
 let lastHeadline = '';
@@ -37,6 +39,9 @@ export function initCore(): void {
   pill.append(label);
 
   headline = el('p', 'core__headline');
+  lead = el('span', 'core__lead');
+  accent = el('span', 'core__accent'); // last clause; the Root skin colours it
+  headline.append(lead, accent);
   live.append(pill, headline);
 
   const eq = el('div', 'core__eq');
@@ -51,25 +56,38 @@ export function initCore(): void {
   badge.setAttribute('aria-hidden', 'true');
   badge.append(el('span', 'core__badge-mic'));
 
-  root.append(title, live, eq, scan, badge);
+  // Root skin parts (hidden in Co-pilot). root-scene.ts adds the seed artwork, so other skins never load it.
+  const seedwrap = el('div', 'core__seedwrap');
+  seedwrap.setAttribute('aria-hidden', 'true');
+  for (let i = 0; i < 3; i++) seedwrap.append(el('span', 'core__ripple'));
+  seedwrap.append(el('div', 'core__seed'));
+
+  const think = el('div', 'core__think');
+  think.setAttribute('aria-hidden', 'true');
+  for (let i = 0; i < 3; i++) think.append(el('span', 'core__think-dot'));
+
+  root.append(title, live, eq, scan, badge, seedwrap, think);
 }
 
 export function updateCore(s: DashboardState): void {
-  if (!root || !label || !headline) return;
+  if (!root || !label || !headline || !lead || !accent) return;
   const c = coreSummary(s);
   if (c.mood !== lastMood) {
     root.classList.remove('core--standby', 'core--working', 'core--waiting');
     root.classList.add(`core--${c.mood}`);
     lastMood = c.mood;
+    document.documentElement.setAttribute('data-mood', c.mood); // read by the Root scene
   }
   const l = CORE_LABEL[c.mood];
   if (l !== lastLabel) {
     label.textContent = l;
     lastLabel = l;
   }
-  const h = coreHeadline(c);
-  if (h !== lastHeadline) {
-    headline.textContent = h;
-    lastHeadline = h;
+  const p = coreHeadlineParts(c);
+  const key = `${p.lead}\u0000${p.accent}`;
+  if (key !== lastHeadline) {
+    lead.textContent = p.lead;
+    accent.textContent = p.accent;
+    lastHeadline = key;
   }
 }
