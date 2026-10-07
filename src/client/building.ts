@@ -1,5 +1,6 @@
 import type { DashboardState, SessionInfo, SubagentInfo, TokenCounts } from '../shared/types.ts';
 import { openSubagentTranscript, openTranscript } from './controls.ts';
+import { moodOf, type SessionMood } from './mood.ts';
 import { $, esc } from './util.ts';
 
 // Room geometry (SVG units).
@@ -41,8 +42,7 @@ function uptime(ms: number): string {
   return h ? `${h}h ${m}m` : `${m}m`;
 }
 
-type Mood = 'busy' | 'waiting' | 'idle';
-const moodOf = (s: SessionInfo): Mood => (s.status === 'busy' ? 'busy' : s.status === 'waiting' ? 'waiting' : 'idle');
+type Mood = SessionMood;
 const isBackground = (s: SessionInfo) => s.kind === 'background' || s.kind === 'bg';
 
 function statLine(s: SessionInfo): string {

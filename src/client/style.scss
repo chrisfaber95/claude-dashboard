@@ -1,4 +1,5 @@
 @use "sass:list";
+@use "sass:meta";
 // Palette: validated reference palette (dataviz skill). Categorical slots stay in fixed order.
 $series: (#2a78d6, #eb6834, #1baf7a, #eda100, #e87ba4, #008300, #4a3aa7, #e34948);
 $series-dark: (#3987e5, #d95926, #199e70, #c98500, #d55181, #008300, #9085e9, #e66767);
@@ -43,6 +44,13 @@ $series-dark: (#3987e5, #d95926, #199e70, #c98500, #d55181, #008300, #9085e9, #e
 
 :root {
   @include light;
+  // Skin tokens: Classic values; a skin partial overrides them.
+  --font-ui: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, Consolas, monospace;
+  --accent: var(--seq);
+  --on-accent: #fff;
+  --radius-panel: 12px;
+  --radius-btn: 8px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -51,8 +59,9 @@ $series-dark: (#3987e5, #d95926, #199e70, #c98500, #d55181, #008300, #9085e9, #e
   }
 }
 
-:root[data-theme='dark'] {
-  @include dark;
+:root[data-theme='dark'],
+:root[data-skin='copilot'] {
+  @include dark; // Co-pilot is dark-only and keeps the validated chart palette
 }
 
 * {
@@ -63,7 +72,7 @@ body {
   margin: 0;
   background: var(--page);
   color: var(--ink);
-  font: 14px/1.45 system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font: 14px/1.45 var(--font-ui);
 }
 
 .top {
@@ -93,13 +102,15 @@ main {
   margin: 0 auto;
   padding: 0 16px 48px;
   display: grid;
+  // minmax(0, …) stops wide tables and charts from stretching the column past the viewport.
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
 }
 
 .panel {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-panel);
   padding: 16px;
 
   h2 {
@@ -121,7 +132,7 @@ main {
   background: transparent;
   color: var(--ink);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-btn);
   padding: 4px 10px;
   cursor: pointer;
   font: inherit;
@@ -245,6 +256,8 @@ table {
 }
 
 .table-wrap {
+  // Positioned so absolutely placed children (.sr-only headers) stay inside the scroll box.
+  position: relative;
   overflow-x: auto;
 }
 
@@ -277,7 +290,7 @@ table {
   &__fill {
     height: 100%;
     border-radius: 4px;
-    background: var(--seq);
+    background: var(--accent);
 
     &.is-warn {
       background: var(--warn);
@@ -391,12 +404,12 @@ svg.chart {
 // ---- controls ----
 
 .btn--primary {
-  background: var(--seq);
-  border-color: var(--seq);
-  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
 
   &:hover {
-    background: var(--seq);
+    background: var(--accent);
     filter: brightness(1.1);
   }
 }
@@ -466,7 +479,7 @@ input {
   color: var(--ink);
   background: var(--page);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-btn);
   padding: 6px 8px;
 }
 
@@ -646,7 +659,7 @@ textarea {
   &--tool,
   &--result {
     .msg__text {
-      font-family: ui-monospace, Consolas, monospace;
+      font-family: var(--font-mono);
       font-size: 12px;
       color: var(--ink-2);
     }
@@ -665,7 +678,7 @@ textarea {
 .logs {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font: 12px/1.4 ui-monospace, Consolas, monospace;
+  font: 12px/1.4 var(--font-mono);
   margin: 0;
 }
 
@@ -752,7 +765,7 @@ textarea {
     flex-direction: column;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 12px;
+    border-radius: var(--radius-panel);
     box-shadow: 0 8px 40px rgba(0, 0, 0, 0.3);
     overflow: hidden;
   }
@@ -1315,3 +1328,7 @@ $hair: (#2b2118, #6b4423, #c9a24b, #a33b2a, #555555);
     opacity: 0;
   }
 }
+
+// ---- skins: one partial each (src/client/_skin-<name>.scss), scoped to :root[data-skin='<name>'].
+// Loaded last so they win ties. Add the next skin with another load-css line. ----
+@include meta.load-css('skin-copilot');

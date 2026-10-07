@@ -5,18 +5,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Claude Dashboard</title>
   <link rel="stylesheet" href="/style.css">
+  <script src="/boot.js"></script>
 </head>
 <body>
   <header class="top">
     <h1>Claude Dashboard</h1>
     <div class="top__meta">
       <span id="conn" class="conn">connecting…</span>
+      <select id="skin" aria-label="Skin">
+        <option value="classic">Classic</option>
+        <option value="copilot">Co-pilot</option>
+      </select>
       <button id="theme" class="btn" type="button" aria-label="Toggle theme">Theme</button>
       <form id="logout" method="post" action="/logout" hidden><button class="btn" type="submit">Log out</button></form>
     </div>
   </header>
   <main>
     <div id="render-warn" class="notice" role="status" hidden>Some sections failed to render. The next update may fix it.</div>
+    <section id="core" class="core" aria-labelledby="h-core"></section>
     <section id="limits" class="panel" aria-labelledby="h-limits"></section>
     <section id="run" class="panel" aria-labelledby="h-run" hidden>
       <h2 id="h-run">Run a task</h2>
