@@ -2,6 +2,7 @@ import type { DashboardState, MessageInfo, SessionInfo, TokenCounts, UsageDay } 
 import { initBuilding, updateBuilding } from './building.ts';
 import { initControls, updateControls } from './controls.ts';
 import { initCore, updateCore } from './core.ts';
+import { ensureRootScene } from './root-scene.ts';
 import { parseSkin } from './skin.ts';
 import type { Skin } from './skin.ts';
 import { $, ago, api, esc } from './util.ts';
@@ -340,8 +341,9 @@ function applySkin(skin: Skin) {
   if (skin === 'classic') root.removeAttribute('data-skin');
   else root.setAttribute('data-skin', skin);
   skinSelect.value = skin;
-  // Co-pilot is dark only, so the light/dark toggle has nothing to do there.
-  themeBtn.hidden = skin === 'copilot';
+  // Co-pilot and Root are dark only, so the light/dark toggle has nothing to do there.
+  themeBtn.hidden = skin === 'copilot' || skin === 'root';
+  if (skin === 'root') ensureRootScene(); // builds the artwork once; other skins never load it
 }
 let savedSkin: string | null = null;
 try {

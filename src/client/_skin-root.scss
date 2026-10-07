@@ -1,0 +1,1390 @@
+// Skin "Root": Eywa and the Tree of Souls. Deep-blue glass panels, a glowing willow tree and floating seeds.
+// Everything is scoped to :root[data-skin='root']. Loaded from style.scss (meta.load-css) after Co-pilot.
+// Fonts and artwork are self-hosted (CSP is default-src 'self') and only fetched when this skin is used:
+// the fonts through @font-face below, the SVG artwork through root-scene.ts (built lazily).
+// The scene reacts to the status core: core.ts sets data-mood="standby|working|waiting" on <html>.
+// Per-element layout of the seeds, dots, moss and haze is generated below from the design's hash, so no inline styles are needed.
+@use 'sass:list';
+@use 'sass:math';
+
+@font-face {
+  font-family: 'Cormorant Garamond';
+  src: url('/fonts/cormorant-garamond.woff2') format('woff2');
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Cormorant Garamond';
+  src: url('/fonts/cormorant-garamond-italic.woff2') format('woff2');
+  font-weight: 300 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Nunito Sans';
+  src: url('/fonts/nunito-sans.woff2') format('woff2');
+  font-weight: 200 1000;
+  font-style: normal;
+  font-display: swap;
+}
+
+$rt-ink: #eaf6ff;
+$rt-ink-2: #bcd8f0;
+$rt-ink-3: #d6e9f8;
+$rt-accent: #9fe8ff;
+$rt-tint: #b49cff;
+$rt-page: #040d20;
+$rt-deep: #06142e;
+$rt-panel: rgba(8, 24, 58, 0.64);
+$rt-line: rgba(159, 232, 255, 0.18);
+$rt-line-strong: rgba(159, 232, 255, 0.32);
+$rt-serif: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+
+@function rnd($n) {
+  $x: math.sin($n * 12.9898) * 43758.5453;
+  @return $x - math.floor($x);
+}
+
+@function fix($v, $p: 100) {
+  @return math.div(math.round($v * $p), $p);
+}
+
+// ---- tokens (dark regardless of OS preference or data-theme; --s1..--s8 come from the shared dark palette) ----
+
+:root[data-skin='root'] {
+  color-scheme: dark;
+  --page: #{$rt-page};
+  --surface: #0a1a3c; // opaque: used by SVG fills, drawer, tooltip, toast
+  --ink: #{$rt-ink};
+  --ink-2: #{$rt-ink-2};
+  --muted: #8fb0cf;
+  --grid: #14305c;
+  --axis: #2c4c7c;
+  --border: #{$rt-line};
+  --good: #0ca30c;
+  --warn: #fab219;
+  --crit: #d03b3b;
+  --seq: #{$rt-accent};
+  --accent: #{$rt-accent};
+  --on-accent: #{$rt-deep};
+  --font-ui: 'Nunito Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --radius-panel: 28px;
+  --radius-btn: 999px;
+}
+
+// ---- page and header ----
+
+[data-skin='root'] {
+  body {
+    background: var(--page);
+  }
+
+  .top h1 {
+    font-family: $rt-serif;
+    font-style: italic;
+    font-weight: 500;
+    font-size: 28px;
+    line-height: 1.1;
+    letter-spacing: 0;
+    color: $rt-ink;
+    text-shadow: 0 0 18px rgba(4, 12, 30, 0.9);
+  }
+
+  .conn {
+    font-size: 13px;
+    color: $rt-ink-2;
+  }
+
+  .conn::before {
+    background: #5b7ea3;
+  }
+
+  .conn.is-live::before {
+    background: $rt-accent;
+    box-shadow: 0 0 10px $rt-accent;
+    animation: rs-ping 2.4s ease-in-out infinite;
+  }
+}
+
+@keyframes rs-ping {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+// ---- panels and text ----
+
+[data-skin='root'] {
+  .panel,
+  .card {
+    background: $rt-panel;
+    border-color: $rt-line;
+    box-shadow: 0 10px 40px rgba(2, 8, 24, 0.35), inset 0 1px 0 rgba(234, 246, 255, 0.05);
+  }
+
+  .card {
+    border-radius: 20px;
+  }
+
+  .panel h2,
+  .building__head h2,
+  .drawer__head h2 {
+    font-family: $rt-serif;
+    font-style: italic;
+    font-weight: 500;
+    font-size: 26px;
+    line-height: 1.15;
+    letter-spacing: 0;
+    color: $rt-ink;
+    margin-bottom: 14px;
+  }
+
+  .building__head h2,
+  .drawer__head h2 {
+    margin-bottom: 2px;
+  }
+
+  .h3,
+  .recent__head h3 {
+    font-family: $rt-serif;
+    font-style: italic;
+    font-weight: 500;
+    font-size: 20px;
+    letter-spacing: 0;
+    margin: 0;
+  }
+
+  .sub,
+  .feed__meta,
+  .msg__meta {
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .num,
+  td.num,
+  th.num,
+  .gauge__value {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .gauge__value {
+    font-family: $rt-serif;
+    font-weight: 500;
+    font-size: 34px;
+    line-height: 1.1;
+  }
+
+  .card--click:hover {
+    border-color: $rt-line-strong;
+    background: rgba(14, 38, 82, 0.72);
+  }
+
+  .card--click:focus-visible,
+  .btn:focus-visible,
+  .link:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  input:focus-visible {
+    outline: 2px solid $rt-accent;
+    outline-offset: 2px;
+  }
+
+  table th {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+  }
+
+  table th,
+  table td {
+    border-bottom-color: rgba(159, 232, 255, 0.1);
+  }
+
+  .badge {
+    font-size: 12px;
+    background: rgba(159, 232, 255, 0.06);
+    border-color: $rt-line-strong;
+  }
+
+  .badge--live {
+    color: $rt-accent;
+    border-color: rgba(159, 232, 255, 0.5);
+  }
+
+  .dot.is-busy {
+    background: var(--warn);
+  }
+
+  .dot.is-idle {
+    background: #8fb0cf;
+  }
+}
+
+// ---- buttons and form controls ----
+
+[data-skin='root'] {
+  .btn {
+    background: rgba(159, 232, 255, 0.07);
+    border-color: $rt-line-strong;
+    color: $rt-ink;
+    padding: 6px 18px;
+    min-height: 32px;
+    transition: background 0.2s ease;
+
+    &:hover {
+      background: rgba(159, 232, 255, 0.16);
+    }
+  }
+
+  .btn--sm {
+    padding: 2px 14px;
+    min-height: 28px;
+  }
+
+  // Luminous pale fill with dark text (about 15:1).
+  .btn--primary {
+    background: $rt-ink;
+    border-color: $rt-ink;
+    color: $rt-deep;
+    min-height: 44px;
+    padding: 8px 26px;
+    font-weight: 600;
+    box-shadow: 0 0 24px rgba(159, 232, 255, 0.3);
+
+    &:hover {
+      background: #fff;
+      filter: none;
+    }
+  }
+
+  // Touch targets: the main buttons are at least 44px tall.
+  .top .btn,
+  .building__head .btn,
+  .drawer__head .btn {
+    min-height: 44px;
+  }
+
+  .link {
+    color: $rt-accent;
+    text-decoration-color: rgba(159, 232, 255, 0.5);
+  }
+
+  label {
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  select,
+  textarea,
+  input {
+    background: rgba(4, 12, 30, 0.55);
+    color: $rt-ink;
+    border-color: $rt-line-strong;
+    border-radius: 16px;
+    font-family: var(--font-ui);
+  }
+
+  select {
+    border-radius: 999px;
+    padding: 6px 14px;
+    min-height: 44px;
+  }
+
+  textarea {
+    padding: 10px 14px;
+  }
+
+  select:focus,
+  textarea:focus,
+  input:focus {
+    outline: 2px solid $rt-accent;
+    outline-offset: 1px;
+    border-color: $rt-accent;
+    box-shadow: 0 0 18px rgba(159, 232, 255, 0.25);
+  }
+
+  ::placeholder {
+    color: #7f9dbd;
+  }
+
+  .recent__item {
+    border-color: $rt-line;
+    border-radius: 16px;
+  }
+
+  .recent__item.is-live .recent__dot {
+    background: $rt-accent;
+  }
+}
+
+// ---- gauges: pale fill with a cyan shimmer ----
+
+[data-skin='root'] {
+  .gauge__track {
+    background: rgba(159, 232, 255, 0.1);
+    height: 8px;
+    border-radius: 999px;
+  }
+
+  .gauge__fill {
+    position: relative;
+    overflow: hidden;
+    border-radius: 999px;
+    // Neutral pale fill: the cyan is only the shimmer, so warn and crit keep their meaning.
+    background: linear-gradient(90deg, #7f9dbd, $rt-ink-3);
+
+    &::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: 40%;
+      background: linear-gradient(90deg, transparent, rgba(159, 232, 255, 0.9), transparent);
+      animation: rs-gauge-sweep 3.6s ease-in-out infinite;
+    }
+
+    &.is-warn {
+      background: var(--warn);
+    }
+
+    &.is-crit {
+      background: var(--crit);
+    }
+  }
+}
+
+@keyframes rs-gauge-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+
+// ---- charts and legend ----
+
+[data-skin='root'] {
+  .legend {
+    font-size: 12px;
+    color: var(--ink-2);
+  }
+
+  .legend button,
+  .legend [data-toggle] {
+    background: rgba(159, 232, 255, 0.06);
+    border: 1px solid $rt-line-strong;
+    border-radius: 999px;
+    padding: 2px 12px;
+    color: $rt-ink;
+    font: inherit;
+    cursor: pointer;
+
+    &:hover {
+      background: rgba(159, 232, 255, 0.16);
+    }
+
+    &:focus-visible {
+      outline: 2px solid $rt-accent;
+      outline-offset: 2px;
+    }
+  }
+
+  svg.chart text {
+    font-family: var(--font-ui);
+    fill: var(--muted);
+  }
+
+  svg.chart .grid-line {
+    stroke: rgba(159, 232, 255, 0.1);
+  }
+
+  svg.chart .axis {
+    stroke: rgba(159, 232, 255, 0.28);
+  }
+}
+
+// ---- overlays: drawer, building, tooltip, toast, notice ----
+
+[data-skin='root'] {
+  .drawer {
+    background: var(--surface);
+    border-left-color: $rt-line-strong;
+    box-shadow: -8px 0 48px rgba(2, 8, 24, 0.7);
+  }
+
+  .drawer__head,
+  .drawer__form {
+    border-color: $rt-line;
+  }
+
+  .msg {
+    border-left-color: $rt-line-strong;
+  }
+
+  .tip {
+    font-size: 12px;
+    background: var(--surface);
+    border-color: $rt-line-strong;
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(2, 8, 24, 0.7);
+  }
+
+  .toast {
+    background: var(--surface);
+    border-color: $rt-line-strong;
+    border-radius: 18px;
+    box-shadow: 0 8px 32px rgba(2, 8, 24, 0.7);
+  }
+
+  .notice {
+    background: rgba(250, 178, 25, 0.1);
+    border-color: rgba(250, 178, 25, 0.5);
+    border-radius: 16px;
+  }
+
+  .empty {
+    color: var(--muted);
+  }
+
+  .building {
+    background: rgba(2, 6, 18, 0.8);
+  }
+
+  .building__panel {
+    background: var(--surface);
+    border-color: $rt-line-strong;
+    box-shadow: 0 8px 60px rgba(2, 8, 24, 0.75), 0 0 90px rgba(159, 232, 255, 0.07);
+  }
+
+  .building__scene {
+    background: linear-gradient(to bottom, #050d24, #0d2250);
+    border-color: $rt-line;
+  }
+
+  // The scene is toned down to night colours: dim walls and floors, no bright daylight.
+  .building__body {
+    fill: #11264f;
+  }
+
+  .building__title {
+    stroke: rgba(2, 8, 24, 0.7);
+  }
+
+  .building__base {
+    fill: #1c3868;
+  }
+
+  .building__door {
+    fill: #2a3a5e;
+  }
+
+  .building .cloud {
+    fill: #2a3a6a;
+    opacity: 0.45;
+  }
+
+  .building__beacon {
+    fill: $rt-accent;
+  }
+
+  .room__wall {
+    fill: #0c1c40;
+  }
+
+  .room__floor {
+    fill: #17305c;
+  }
+
+  .room__window {
+    fill: #1d3d70;
+  }
+
+  .room__desk,
+  .annex__desk {
+    fill: #5b7ea3;
+  }
+
+  .room__chair {
+    fill: #2c4c7c;
+  }
+
+  .room--busy .room__wall {
+    fill: color-mix(in srgb, var(--warn) 9%, #0c1c40);
+  }
+
+  .room--waiting .room__wall {
+    fill: color-mix(in srgb, var(--warn) 18%, #0c1c40);
+  }
+
+  .room--idle .room__wall {
+    fill: #0a1836;
+  }
+
+  .room--empty .room__wall {
+    fill: #081430;
+  }
+
+  .room__mug,
+  .room__handle {
+    opacity: 0.85;
+  }
+
+  .annex__wall {
+    fill: #0a1836;
+    stroke: #2c4c7c;
+  }
+
+  .annex__cube:hover .annex__wall,
+  .annex__cube:focus-visible .annex__wall,
+  .room:hover .room__focus,
+  .room:focus-visible .room__focus {
+    stroke: $rt-accent;
+  }
+
+  .annex__mail {
+    fill: #0a1836;
+  }
+}
+
+// ---- the scene ----
+// Hero (scrolls with the page): curtain, mist, haze, willow, tree, mood glows, horizon, moss, reflection.
+// Fixed layer (stays in the viewport behind the panels): moss, dots, floating seeds.
+// Only transform and opacity are animated; blur filters sit on static layers.
+
+.rs-hero,
+.rs-fx {
+  display: none;
+}
+
+[data-skin='root'] {
+  .rs-hero,
+  .rs-fx {
+    display: block;
+    position: absolute;
+    z-index: -1;
+    pointer-events: none;
+    overflow: hidden;
+  }
+
+  .rs-hero {
+    // --hz is the horizon line, --tb-h the height of the tree artwork (1440 x 600 viewBox).
+    --hz: 600px;
+    --tb-h: 600px;
+    --rise: -470px;
+    --rf: 85px;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 700px;
+    background: radial-gradient(ellipse at 50% 34%, #2f68a4 0%, #1b4479 38%, #0e2650 62%, #071530 100%);
+  }
+
+  .rs-fx {
+    position: fixed;
+    inset: 0;
+  }
+
+  .rs-hero > *,
+  .rs-fx > * {
+    position: absolute;
+  }
+
+  .rs-hero span,
+  .rs-fx span {
+    display: block;
+    position: absolute;
+  }
+
+  // curtain: dark blurred root strokes (blur is on a static image; oversized so the edges stay soft)
+  .rs-curtain {
+    left: -24px;
+    top: -24px;
+    width: calc(100% + 48px);
+    height: calc(100% + 48px);
+    object-fit: cover;
+    filter: blur(16px);
+    opacity: 0.7;
+  }
+
+  .rs-mist {
+    left: 50%;
+    top: -160px;
+    width: 1200px;
+    height: 640px;
+    margin-left: -600px;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, rgba(245, 238, 255, 0.55), rgba(180, 156, 255, 0.35) 45%, rgba(180, 156, 255, 0));
+    animation: rs-mist 8s ease-in-out infinite;
+  }
+
+  .rs-haze {
+    left: 0;
+    right: 0;
+    top: 0;
+    height: var(--hz);
+    filter: blur(16px);
+
+    span {
+      border-radius: 40px;
+      background: linear-gradient(to bottom, rgba(180, 156, 255, 0.35), rgba(180, 156, 255, 0.55) 45%, rgba(180, 156, 255, 0.25));
+    }
+  }
+
+  // the tree artwork box: full width on desktop, a fixed-width box centred on phones
+  .rs-stage {
+    left: 0;
+    top: calc(var(--hz) - var(--tb-h));
+    width: 100%;
+    height: var(--tb-h);
+  }
+
+  .rs-limbs {
+    filter: blur(1.5px);
+    opacity: 0.92;
+  }
+
+  .rs-sway {
+    transform-origin: 50% 0;
+    will-change: transform;
+    animation: rs-sway 11s ease-in-out infinite;
+  }
+
+  .rs-layer {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .rs-glow {
+    filter: blur(5px);
+  }
+
+  .rs-shimmer {
+    animation: rs-shimmer 4s ease-in-out infinite;
+  }
+
+  // mood overlays (always in the DOM; CSS switches them on data-mood)
+  .rs-dim {
+    left: 0;
+    right: 0;
+    top: 0;
+    height: var(--hz);
+    background: rgba(4, 12, 30, 0.3);
+    transition: opacity 0.9s ease;
+  }
+
+  .rs-listen {
+    left: 50%;
+    top: calc(var(--hz) - 130px);
+    width: 1200px;
+    height: 260px;
+    margin-left: -600px;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, rgba(200, 180, 255, 0.5), rgba(160, 140, 255, 0));
+    opacity: 0;
+    transition: opacity 0.9s ease;
+  }
+
+  .rs-orbs {
+    display: none;
+    left: 50%;
+    top: calc(var(--hz) - 40px);
+    width: 70px;
+    height: 70px;
+    margin-left: -35px;
+
+    span {
+      top: 0;
+      left: 0;
+      width: 70px;
+      height: 70px;
+      border-radius: 50%;
+      background: radial-gradient(closest-side, rgba(255, 255, 255, 0.95), rgba(190, 170, 255, 0.5) 45%, rgba(190, 170, 255, 0));
+      animation: rs-rise 2.6s ease-in infinite;
+    }
+
+    span:nth-child(2) {
+      animation-delay: -0.87s;
+    }
+
+    span:nth-child(3) {
+      animation-delay: -1.73s;
+    }
+  }
+
+  .rs-baseglow {
+    left: 50%;
+    top: calc(var(--hz) - 80px);
+    width: 1000px;
+    height: 160px;
+    margin-left: -500px;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, rgba(180, 156, 255, 0.45), rgba(180, 156, 255, 0));
+  }
+
+  .rs-ground {
+    left: 0;
+    right: 0;
+    top: var(--hz);
+    height: 400px;
+    background: linear-gradient(to bottom, rgba(6, 18, 42, 0.55), $rt-page 100px);
+  }
+
+  .rs-horizon {
+    left: 0;
+    right: 0;
+    top: var(--hz);
+    height: 2px;
+    background: linear-gradient(90deg, rgba(180, 160, 255, 0), rgba(230, 220, 255, 0.7), rgba(180, 160, 255, 0));
+  }
+
+  // reflection: the glow pass flipped below the horizon (opacity and mask on the static wrapper, ripple on the inner one, blur on the image itself)
+  .rs-reflect {
+    top: var(--hz);
+    opacity: 0.3;
+    // Fade out below the horizon and toward the sides, so no box edge shows (mask on the static wrapper).
+    mask-image: linear-gradient(to bottom, #000 0, transparent var(--rf)), linear-gradient(to right, transparent 15%, #000 35%, #000 65%, transparent 85%);
+    mask-composite: intersect;
+    -webkit-mask-image: linear-gradient(to bottom, #000 0, transparent var(--rf)), linear-gradient(to right, transparent 15%, #000 35%, #000 65%, transparent 85%);
+    -webkit-mask-composite: source-in;
+  }
+
+  // The bottom of the hero fades into the exact page colour (same value as --page), so there is no visible edge.
+  .rs-hero::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 160px;
+    background: linear-gradient(to bottom, rgba(4, 13, 32, 0), $rt-page);
+  }
+
+  .rs-reflect .rs-layer {
+    filter: blur(5px); // on the image, which is not animated
+  }
+
+  .rs-reflect__in {
+    position: absolute;
+    inset: 0;
+    animation: rs-ripple 6s ease-in-out infinite;
+  }
+}
+
+// moods: standby = idle (dim), working = thinking (orbs, lit tree), waiting = listening (lavender ground glow)
+:root[data-skin='root'][data-mood='working'] {
+  .rs-dim {
+    opacity: 0;
+  }
+
+  .rs-orbs {
+    display: block;
+  }
+}
+
+:root[data-skin='root'][data-mood='waiting'] {
+  .rs-dim {
+    opacity: 0;
+  }
+
+  .rs-listen {
+    opacity: 1;
+  }
+}
+
+@keyframes rs-shimmer {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes rs-sway {
+  0%,
+  100% {
+    transform: skewX(-0.5deg);
+  }
+  50% {
+    transform: skewX(0.5deg);
+  }
+}
+
+@keyframes rs-mist {
+  0%,
+  100% {
+    opacity: 0.75;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes rs-ripple {
+  0%,
+  100% {
+    transform: scaleY(-1) translateX(0);
+  }
+  50% {
+    transform: scaleY(-1) translateX(4px);
+  }
+}
+
+@keyframes rs-rise {
+  0% {
+    transform: translateY(0) scale(0.7);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(var(--rise)) scale(1.4);
+    opacity: 0;
+  }
+}
+
+@keyframes rs-glint {
+  0%,
+  100% {
+    opacity: 0.2;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+@keyframes rs-float {
+  0% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(12px, -20px);
+  }
+  50% {
+    transform: translate(-4px, -38px);
+  }
+  75% {
+    transform: translate(-14px, -16px);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+@keyframes rs-pulse {
+  0% {
+    transform: scale(1, 1) skewX(0deg);
+  }
+  14% {
+    transform: scale(0.72, 1.14) skewX(0deg);
+  }
+  30% {
+    transform: scale(1.08, 0.92) skewX(-2deg);
+  }
+  50% {
+    transform: scale(1.02, 0.98) skewX(2deg);
+  }
+  75% {
+    transform: scale(1, 1) skewX(-1deg);
+  }
+  100% {
+    transform: scale(1, 1) skewX(0deg);
+  }
+}
+
+@keyframes rs-thrust {
+  0% {
+    transform: translateY(0) rotate(0deg);
+  }
+  14% {
+    transform: translateY(-8px) rotate(-1deg);
+  }
+  34% {
+    transform: translateY(-30px) rotate(1deg);
+  }
+  55% {
+    transform: translateY(-33px) rotate(2deg);
+  }
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+}
+
+@keyframes rs-spin {
+  from {
+    transform: rotateX(-16deg) rotateY(0deg);
+  }
+  to {
+    transform: rotateX(-16deg) rotateY(360deg);
+  }
+}
+
+@keyframes rs-ripple2 {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(2.4);
+    opacity: 0;
+  }
+}
+
+@keyframes rs-dotp {
+  0%,
+  100% {
+    transform: scale(0.7);
+    opacity: 0.4;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+}
+
+// ---- seed of Eywa (halo, 11 rotating strand slices, fixed body) ----
+
+.rs-sprite {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  perspective: 360px;
+
+  &__halo {
+    position: absolute;
+    left: 2px;
+    top: 0;
+    width: 96px;
+    height: 90px;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, rgba(190, 225, 255, 0.26), rgba(63, 123, 255, 0));
+  }
+
+  &__rig {
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+    animation: rs-spin 20s linear infinite;
+  }
+
+  // the artwork has 10 units of padding on each side so the strands are not clipped
+  &__img {
+    position: absolute;
+    left: -10px;
+    top: -10px;
+    width: 120px;
+    height: 120px;
+    display: block;
+  }
+}
+
+@for $i from 1 through 11 {
+  .rs-sprite__rig > .rs-sprite__img:nth-child(#{$i}) {
+    transform: rotateY(#{fix(($i - 1) * math.div(180, 11), 10)}deg);
+  }
+}
+
+.rs-pulse {
+  width: 100px;
+  height: 100px;
+  transform-origin: 50% 48%;
+  animation: rs-pulse ease-in-out infinite;
+}
+
+.rs-seed {
+  position: absolute;
+  width: 100px;
+  height: 100px;
+
+  &__float {
+    width: 100px;
+    height: 100px;
+    animation: rs-float ease-in-out infinite;
+  }
+
+  &__scale,
+  &__thrust {
+    width: 100px;
+    height: 100px;
+  }
+
+  &__thrust {
+    animation: rs-thrust cubic-bezier(0.3, 0, 0.4, 1) infinite;
+  }
+}
+
+// 22 seeds: position, depth (scale, opacity; no blur, the seeds animate) and timings from the design's hash.
+@for $n from 0 to 22 {
+  $r1: rnd($n + 1);
+  $r2: rnd($n + 51);
+  $r3: rnd($n + 91);
+  $r4: rnd($n + 151);
+  $left: $r1 * 94 + 1;
+  $top: $r3 * 82 + 2;
+  @if $left > 22 and $left < 74 and $top > 50 and $top < 92 {
+    $top: $top - 36;
+  }
+
+  [data-skin='root'] .rs-seed:nth-child(#{$n + 1}) {
+    left: fix($left, 10) * 1%;
+    top: fix($top, 10) * 1%;
+    // Depth comes from scale and opacity (no blur: filters stay off animated content); the nearest and farthest seeds are dimmer.
+    @if $r2 > 0.85 or $r2 < 0.18 {
+      opacity: #{fix((0.5 + $r2 * 0.5) * 0.8)};
+    } @else {
+      opacity: #{fix(0.5 + $r2 * 0.5)};
+    }
+
+    .rs-seed__float {
+      animation-duration: #{fix(12 + $r4 * 12, 10)}s;
+      animation-delay: -#{fix($r1 * 16, 10)}s;
+    }
+
+    .rs-seed__scale {
+      transform: scale(#{fix(0.4 + $r2 * 1.2)});
+    }
+
+    .rs-seed__thrust,
+    .rs-pulse {
+      animation-duration: #{fix(2.8 + $r4 * 2.2)}s;
+      animation-delay: -#{fix($r3 * 5)}s;
+    }
+
+    .rs-sprite__rig {
+      animation-duration: #{fix(16 + $r2 * 14, 10)}s;
+      animation-delay: -#{fix($r1 * 30, 10)}s;
+      @if $r4 <= 0.5 {
+        animation-direction: reverse;
+      }
+    }
+  }
+}
+
+// ---- dots, moss ----
+
+$moss-cols: (#7fe9ff, #3f9bff, #a993ff, #62f0d8);
+
+.rs-dots span {
+  border-radius: 50%;
+  background: #e9f9ff;
+  animation: rs-glint 4s ease-in-out infinite;
+}
+
+.rs-moss span {
+  border-radius: 50%;
+  animation: rs-glint 4s ease-in-out infinite;
+}
+
+.rs-dots,
+.rs-moss,
+.rs-seeds {
+  inset: 0;
+}
+
+@for $n from 0 to 50 {
+  $r1: rnd($n + 801);
+  $r2: rnd($n + 851);
+  $r3: rnd($n + 901);
+  $size: fix(1.5 + $r2 * 2.5, 10);
+
+  .rs-dots span:nth-child(#{$n + 1}) {
+    left: fix($r1 * 100, 10) * 1%;
+    top: fix($r3 * 100, 10) * 1%;
+    width: #{$size}px;
+    height: #{$size}px;
+    box-shadow: 0 0 #{math.round($size * 3)}px #9fe8ff;
+    animation-delay: -#{fix($r1 * 3 + $r2)}s;
+  }
+}
+
+// 80 moss glints along the bottom of the viewport, 40 along the horizon of the hero.
+@for $n from 0 to 120 {
+  $near: $n < 80;
+  $j: $n; // the design numbers the horizon moss from 100
+  $base: 2.5;
+  $range: 4;
+  @if not $near {
+    $j: $n - 80 + 100;
+    $base: 2;
+    $range: 3;
+  }
+  $m2: rnd($j + 2301);
+  $m3: rnd($j + 2401);
+  $m4: rnd($j + 2501);
+  $size: math.round($base + $m2 * $range);
+  $col: list.nth($moss-cols, math.floor($m3 * 4) + 1);
+
+  @if $near {
+    $r1: rnd($n + 2101);
+    $r2: rnd($n + 2201);
+    $r3: rnd($n + 2601);
+    .rs-moss--ground span:nth-child(#{$n + 1}) {
+      left: fix($r1 * 100, 10) * 1%;
+      bottom: #{math.round(6 + $r2 * $r3 * 220)}px;
+      width: #{$size}px;
+      height: #{$size}px;
+      background: $col;
+      box-shadow: 0 0 #{$size * 3}px $col;
+      animation-duration: #{fix(3 + $m2 * 2.5, 10)}s;
+      animation-delay: -#{fix($m4 * 4, 10)}s;
+    }
+  } @else {
+    $i: $n - 80;
+    $r1: rnd($i + 2701);
+    $r2: rnd($i + 2801);
+    .rs-moss--horizon span:nth-child(#{$i + 1}) {
+      left: fix(18 + $r1 * 62, 10) * 1%;
+      top: calc(var(--hz) + #{math.round(-14 + ($r2 - 0.5) * 26)}px);
+      width: #{$size}px;
+      height: #{$size}px;
+      background: $col;
+      box-shadow: 0 0 #{$size * 3}px $col;
+      animation-duration: #{fix(3 + $m2 * 2.5, 10)}s;
+      animation-delay: -#{fix($m4 * 4, 10)}s;
+    }
+  }
+}
+
+// 34 haze columns under the canopy
+@for $n from 0 to 34 {
+  $r1: rnd($n + 1001);
+  $r2: rnd($n + 1101);
+  $r3: rnd($n + 1201);
+  $x: 23 + math.div($n + $r1, 34) * 49;
+  $t: math.div($x - 52, 28);
+  $top: 110 + $t * $t * 200 - 30;
+  @if $x < 52 {
+    $top: $top + (52 - $x) * 1.2;
+  }
+
+  .rs-haze span:nth-child(#{$n + 1}) {
+    left: fix($x) * 1%;
+    top: #{math.round($top)}px;
+    width: #{math.round(26 + $r2 * 40)}px;
+    height: calc(var(--hz) - #{math.round($top) + 10}px);
+    opacity: #{fix(0.5 + $r3 * 0.5)};
+  }
+}
+
+// ---- live core: the seed at the foot of the tree, label, headline (Root parts hidden elsewhere) ----
+
+.core__seedwrap,
+.core__think {
+  display: none;
+}
+
+[data-skin='root'] {
+  .core {
+    display: grid;
+    justify-items: center;
+    gap: 14px;
+    // Room for the tree: the seed sits at the foot of the tree, overlapping the bottom of the hero.
+    padding: 420px 0 8px;
+    text-align: center;
+  }
+
+  .core__eq,
+  .core__scan,
+  .core__badge {
+    display: none;
+  }
+
+  .core__seedwrap {
+    display: block;
+    order: 1;
+    position: relative;
+    width: 140px;
+    height: 140px;
+  }
+
+  .core__live {
+    order: 2;
+    display: grid;
+    justify-items: center;
+    gap: 14px;
+  }
+
+  .core__think {
+    order: 3;
+  }
+
+  .core__seed {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    margin: 20px;
+    transform: scale(1.4);
+
+    .rs-pulse {
+      animation-duration: 3.6s;
+    }
+
+    .rs-sprite__rig {
+      animation-duration: 22s;
+    }
+  }
+
+  .core__ripple {
+    display: none;
+    top: 30px;
+    left: 30px;
+    width: 80px;
+    height: 80px;
+    border: 1.5px solid $rt-accent;
+    border-radius: 50%;
+    animation: rs-ripple2 2.4s ease-out infinite;
+    position: absolute;
+  }
+
+  .core__ripple:nth-child(2) {
+    animation-delay: -0.8s;
+  }
+
+  .core__ripple:nth-child(3) {
+    animation-delay: -1.6s;
+  }
+
+  .core__pill {
+    gap: 10px;
+    padding: 0;
+    min-height: 0;
+    border: 0;
+    background: none;
+    border-radius: 0;
+    font-family: var(--font-ui);
+    font-size: 16px;
+    font-weight: 300;
+    letter-spacing: 0.02em;
+    text-transform: none;
+    color: $rt-ink-2;
+    text-shadow: 0 0 12px rgba(4, 12, 30, 0.95), 0 0 4px rgba(4, 12, 30, 0.9);
+  }
+
+  .core__dot {
+    width: 7px;
+    height: 7px;
+    background: #e9f9ff;
+    box-shadow: 0 0 10px $rt-accent;
+    animation: rs-glint 4s ease-in-out infinite;
+  }
+
+  .core__headline {
+    font-family: $rt-serif;
+    font-style: italic;
+    font-weight: 500;
+    font-size: clamp(34px, 4.4vw, 54px);
+    line-height: 1.12;
+    letter-spacing: 0;
+    color: $rt-ink;
+    text-shadow: 0 0 24px rgba(4, 12, 30, 0.95);
+    max-width: min(900px, 100%);
+  }
+
+  .core__accent {
+    color: $rt-accent;
+  }
+
+  .core--waiting .core__headline {
+    color: $rt-ink-3;
+  }
+
+  .core--working .core__dot,
+  .core--waiting .core__dot {
+    background: #e9f9ff;
+    animation: rs-glint 1.4s ease-in-out infinite;
+  }
+
+  .core--waiting .core__ripple {
+    display: block;
+  }
+
+  .core--working .core__think {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    height: 62px;
+  }
+
+  .core__think-dot {
+    position: static;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 0 14px $rt-accent, 0 0 30px $rt-accent;
+    animation: rs-dotp 1.4s ease-in-out infinite;
+  }
+
+  .core__think-dot:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+
+  .core__think-dot:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+}
+
+// ---- phones: the tree shrinks (kept centred), fewer seeds, dots and moss ----
+
+@media (max-width: 600px) {
+  [data-skin='root'] {
+    .rs-hero {
+      --hz: 440px;
+      --tb-h: 375px;
+      --rise: -300px;
+      --rf: 65px;
+      height: 520px;
+    }
+
+    .rs-stage {
+      left: 50%;
+      width: 900px;
+      margin-left: -450px;
+    }
+
+    .rs-listen {
+      width: 700px;
+      margin-left: -350px;
+    }
+
+    .rs-baseglow {
+      width: 700px;
+      margin-left: -350px;
+    }
+
+    .top h1 {
+      font-size: 24px;
+    }
+
+    .core {
+      padding-top: 250px;
+    }
+
+    .rs-seed:nth-child(n + 9),
+    .rs-dots span:nth-child(n + 21),
+    .rs-moss--ground span:nth-child(n + 41),
+    .rs-moss--horizon span:nth-child(n + 21) {
+      display: none;
+    }
+
+    // The long tooltip-free layout keeps the panels readable over the scene.
+    .panel,
+    .card {
+      background: rgba(8, 24, 58, 0.78);
+    }
+  }
+}

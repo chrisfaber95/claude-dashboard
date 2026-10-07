@@ -40,14 +40,28 @@ export function coreSummary(s: Pick<DashboardState, 'sessions' | 'subagents'>): 
 
 const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
 
-export function coreHeadline(c: CoreSummary): string {
-  if (c.mood === 'standby') return 'All quiet. Nothing running.';
+export interface HeadlineParts {
+  /** Main text; may end in a separator. */
+  lead: string;
+  /** Last clause, shown in the accent colour by the Root skin; can be empty. */
+  accent: string;
+}
+
+export function coreHeadlineParts(c: CoreSummary): HeadlineParts {
+  if (c.mood === 'standby') return { lead: 'All quiet. ', accent: 'Nothing running.' };
   if (c.mood === 'waiting') {
     const head = `${c.waitingName ?? 'A session'} is waiting for you`;
-    return c.busy > 0 ? `${head} · ${c.busy} more working` : head;
+    return c.busy > 0 ? { lead: `${head} · `, accent: `${c.busy} more working` } : { lead: head, accent: '' };
   }
-  const parts: string[] = [];
-  if (c.busy > 0) parts.push(`${plural(c.busy, 'session', 'sessions')} working`);
-  if (c.subagentsWorking > 0) parts.push(plural(c.subagentsWorking, 'subagent', 'subagents') + (c.busy > 0 ? '' : ' working'));
-  return parts.join(' · ');
+  if (c.busy > 0 && c.subagentsWorking > 0) {
+    return { lead: `${plural(c.busy, 'session', 'sessions')} working · `, accent: plural(c.subagentsWorking, 'subagent', 'subagents') };
+  }
+  if (c.busy > 0) return { lead: `${plural(c.busy, 'session', 'sessions')} working`, accent: '' };
+  if (c.subagentsWorking > 0) return { lead: `${plural(c.subagentsWorking, 'subagent', 'subagents')} working`, accent: '' };
+  return { lead: '', accent: '' };
+}
+
+export function coreHeadline(c: CoreSummary): string {
+  const p = coreHeadlineParts(c);
+  return p.lead + p.accent;
 }
