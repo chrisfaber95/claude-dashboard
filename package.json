@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:js": "esbuild src/client/app.ts src/client/login.ts --bundle --outdir=public --target=es2022 --sourcemap",
+    "build:js": "esbuild src/client/app.ts src/client/login.ts src/client/boot.ts --bundle --outdir=public --target=es2022 --sourcemap",
     "build:css": "sass --no-source-map src/client/style.scss public/style.css",
     "build:html": "node scripts/copy-html.mjs",
     "build": "npm run build:js && npm run build:css && npm run build:html",

@@ -12,7 +12,7 @@ Web dashboard for Claude Code activity: the projects in `N:\Projects`, live sess
 - `npm run dev:lan`: same, but server listens on all interfaces over HTTPS with login (`--lan` flag)
 - `npm test`: `node:test` suites in `tests/`
 - `npm run typecheck`: `tsc --noEmit` over `src` and `tests`
-- `npm run build`: esbuild `src/client/app.ts` + `login.ts` → `public/`, sass `style.scss` → `public/style.css`, copy `index.html` + `login.html`
+- `npm run build`: esbuild `src/client/app.ts` + `login.ts` + `boot.ts` → `public/`, sass `style.scss` → `public/style.css`, copy `index.html` + `login.html` + `src/client/fonts` → `public/fonts` (via `scripts/copy-fonts.mjs`)
 
 Run `npm run typecheck` and `npm test` after every change, except changes that only touch documentation (Markdown, agent/skill/parameter files, comments).
 
@@ -29,13 +29,20 @@ Run `npm run typecheck` and `npm test` after every change, except changes that o
   - `claude-cli.ts`: the **only** place that runs `claude.exe` (`--bg`, `--bg --resume`, `stop`, `logs`), plus the audit log
   - `transcript-view.ts`: turns a transcript into readable entries for the viewer (last 32 MB of a file at most; `sidechain` flag for subagent transcripts)
 - `src/client/`: vanilla TypeScript and SCSS, no framework, charts drawn as inline SVG
-  - `app.ts`: renders the sections (projects, sessions, usage, limits, messages); shows subagent counts on project cards
-  - `building.ts`: renders the project building popup; rooms for each live session (worker animation by status: busy/waiting/idle, hard hat for background), annex below with cubicles for subagents (one per room, up to 24 per session); pipes show who handed work down (main → bus/stub; subagent → dashed pipe from parent); animations: envelope while working, tick when handed back; click room or cubicle to read transcript
+  - `app.ts`: renders the sections (projects, sessions, usage, limits, messages); shows subagent counts on project cards; skin picker in header (localStorage `skin`, applies `data-skin` attribute to `<html>`, hides Theme button in Co-pilot skin)
+  - `boot.ts`: head script that applies the saved skin and theme before first paint (runs before any other JS to avoid flashing Classic when Co-pilot is chosen)
+  - `building.ts`: renders the project building popup; rooms for each live session (worker animation by status: busy/waiting/idle, hard hat for background), annex below with cubicles for subagents (one per room, up to 24 per session); pipes show who handed work down (main → bus/stub; subagent → dashed pipe from parent); animations: envelope while working, tick when handed back; click room or cubicle to read transcript; uses `moodOf` from `mood.ts` for status
   - `controls.ts`: the run panel and the transcript drawer (read-write for main sessions, read-only for subagents with `kind: 'subagent'`)
+  - `core.ts`: Co-pilot live status strip built once; updates only toggle a mood class and set text, so 2 s SSE pushes never restart CSS animations
+  - `mood.ts`: pure session/subagent mood logic (`moodOf`, `coreSummary`, `coreHeadline`), shared with `building.ts` and `core.ts`, testable with `node --test`
+  - `skin.ts`: `Skin` type and the `parseSkin` allowlist
   - `util.ts`: `esc()` and `api()`
+  - `_skin-copilot.scss`: KITT-inspired dark skin (near-black, red accent `#ff3b30`, Space Grotesk/JetBrains Mono fonts); loaded last via `meta.load-css`, scoped to `:root[data-skin='copilot']`
+  - `fonts/`: self-hosted Space Grotesk and JetBrains Mono woff2 files with OFL licences; the CSP (`default-src 'self'`) blocks remote fonts, so fonts must be self-hosted
 - `src/shared/types.ts`: API types shared by server and client (SessionInfo, SubagentInfo, MessageInfo, etc.); change both sides together
 - `public/`: **build output only**; edit `src/client/` instead
-- `scripts/dev.mjs`: dev mode orchestrator (watches for HTML changes, esbuild and sass in watch mode, server with hot restart on source changes)
+- `scripts/dev.mjs`: dev mode orchestrator (watches for HTML changes, esbuild and sass in watch mode, server with hot restart on source changes); calls `copyFonts()` at startup
+- `scripts/copy-fonts.mjs`: copies self-hosted skin fonts (`src/client/fonts`) → `public/fonts`, skipping symlinks and copying only `.woff2` and `.txt` (licence) files; used by `copy-html.mjs` and `dev.mjs`
 - `.dashboard/`: login `token`, TLS `key.pem`/`cert.pem`, `commands.log`. **Holds secrets**: never print, serve or commit it
 
 ## TypeScript constraints
@@ -108,6 +115,7 @@ Run `npm run typecheck` and `npm test` after every change, except changes that o
 - Mock `globalThis.fetch` in tests; tests must never touch the network or real user files.
 - Command tests use `tests/fake-claude.mjs` via `CLAUDE_BIN=node` + `CLAUDE_BIN_ARGS`. It records argv and cwd to `FAKE_CLAUDE_LOG`. Assert exact argument arrays.
 - Use `raw()` from `helpers.ts` for HTTP tests that must set `Host`, `Origin` or cookies exactly (`fetch` normalises these).
+- Test files: `tests/mood.test.ts` (session/subagent mood logic), `tests/skin.test.ts` (skin parsing), `tests/static-fonts.test.ts` (font file validation).
 
 ## Project agents (`.claude/agents/`)
 
@@ -133,6 +141,9 @@ Also see `.claude/skills/` for 24 reusable skills.
 ## UI conventions
 
 - Colors use the validated palette from the `dataviz` skill, defined once in `style.scss` with light and dark versions. Dark mode follows the OS and can be overridden with `data-theme` on `<html>`.
+- **Skins:** two CSS themes swap tokens (`--font-ui`, `--font-mono`, `--accent`, `--radius-panel`, etc.) and must keep the validated chart series `--s1..--s8` (for accessibility). Classic (light/dark, OS-following, system fonts); Co-pilot (dark only, KITT-inspired: near-black, red accent, self-hosted fonts). New skins: add `_skin-<name>.scss` with one `meta.load-css` line, extend `Skin`/`SKINS` types, add an `<option>` to the selector. A "Root" skin (Eywa / Tree of Souls) is planned.
+- Fonts must be self-hosted under `/fonts/` (files + OFL licence .txt); the CSP (`default-src 'self'`) blocks Google Fonts. Never relax the CSP for fonts.
+- Sections re-rendered by SSE pushes restart CSS animations: build animated elements once and patch them (toggle class, set text), or replace their HTML only when it changed.
 - Project colors are assigned by project name in alphabetical order, never by rank. A filter must not recolor the projects that stay visible.
 - **No inline styles in new client code:** sizes, colours, animation delays are defined as CSS classes in `style.scss` (e.g. `.tint-N`, `.shirt-N`, `.skin-N`, `.building__svg--cols-N`). Existing inline styles (chart bars, legend swatch in `app.ts`) pre-date this rule and are not changed.
 - Escape every interpolated string with `esc()` (`util.ts`), since rendering uses `innerHTML`.

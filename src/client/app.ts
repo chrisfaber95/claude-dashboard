@@ -1,6 +1,9 @@
 import type { DashboardState, MessageInfo, SessionInfo, TokenCounts, UsageDay } from '../shared/types.ts';
 import { initBuilding, updateBuilding } from './building.ts';
 import { initControls, updateControls } from './controls.ts';
+import { initCore, updateCore } from './core.ts';
+import { parseSkin } from './skin.ts';
+import type { Skin } from './skin.ts';
 import { $, ago, api, esc } from './util.ts';
 
 const fmt = (n: number) =>
@@ -57,6 +60,8 @@ document.addEventListener('mousemove', (e) => {
 
 // ---- sections ----
 
+// Rebuilding #limits restarts the gauge sweep animation, so skip the write when nothing changed.
+let limitsHtml = '';
 function renderLimits(s: DashboardState) {
   const l = s.limits;
   const gauges = l.windows
@@ -84,9 +89,12 @@ function renderLimits(s: DashboardState) {
       : l.source === 'cache'
         ? `from Claude Code's local cache · updated ${ago(l.fetchedAtMs)}`
         : 'no limit data';
-  $('limits').innerHTML = `<h2 id="h-limits">Subscription limits</h2>
+  const html = `<h2 id="h-limits">Subscription limits</h2>
     ${gauges ? `<div class="gauges">${gauges}</div>` : '<div class="empty">No limit data available.</div>'}
     <p class="sub">${esc(src)}${l.error ? ` · ${esc(l.error)}` : ''}</p>${hits}`;
+  if (html === limitsHtml) return;
+  limitsHtml = html;
+  $('limits').innerHTML = html;
 }
 
 function renderProjects(s: DashboardState) {
@@ -304,6 +312,7 @@ function render(s: DashboardState) {
     ['usage', () => renderUsage(s)],
     ['controls', () => updateControls(s)],
     ['building', () => updateBuilding(s, tintOf)],
+    ['core', () => updateCore(s)],
   ];
   let failed = false;
   for (const [name, run] of steps) {
@@ -320,13 +329,40 @@ function render(s: DashboardState) {
 
 initControls();
 initBuilding();
+initCore();
 
-// ---- theme + transport ----
+// ---- skin + theme + transport ----
 
 const root = document.documentElement;
+const skinSelect = $<HTMLSelectElement>('skin');
+const themeBtn = $<HTMLButtonElement>('theme');
+function applySkin(skin: Skin) {
+  if (skin === 'classic') root.removeAttribute('data-skin');
+  else root.setAttribute('data-skin', skin);
+  skinSelect.value = skin;
+  // Co-pilot is dark only, so the light/dark toggle has nothing to do there.
+  themeBtn.hidden = skin === 'copilot';
+}
+let savedSkin: string | null = null;
+try {
+  savedSkin = localStorage.getItem('skin');
+} catch {
+  // storage unavailable; use Classic
+}
+applySkin(parseSkin(savedSkin));
+skinSelect.addEventListener('change', () => {
+  const skin = parseSkin(skinSelect.value);
+  applySkin(skin);
+  try {
+    localStorage.setItem('skin', skin);
+  } catch {
+    // ignore
+  }
+});
+
 try {
   const saved = localStorage.getItem('theme');
-  if (saved) root.setAttribute('data-theme', saved);
+  if (saved === 'light' || saved === 'dark') root.setAttribute('data-theme', saved);
 } catch {
   // storage unavailable; follow OS
 }

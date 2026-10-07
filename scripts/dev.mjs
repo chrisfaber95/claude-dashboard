@@ -3,6 +3,7 @@
 import { spawn } from 'node:child_process';
 import { copyFileSync, mkdirSync, watch } from 'node:fs';
 import { context } from 'esbuild';
+import { copyFonts } from './copy-fonts.mjs';
 
 const serverArgs = process.argv.slice(2);
 
@@ -11,12 +12,14 @@ const copyHtml = () => {
   for (const f of ['index.html', 'login.html']) copyFileSync(`src/client/${f}`, `public/${f}`);
 };
 copyHtml();
+// Fonts rarely change, so copy them once at startup.
+copyFonts();
 watch('src/client', (_event, name) => {
   if (name === 'index.html' || name === 'login.html') copyHtml();
 });
 
 const js = await context({
-  entryPoints: ['src/client/app.ts', 'src/client/login.ts'],
+  entryPoints: ['src/client/app.ts', 'src/client/login.ts', 'src/client/boot.ts'],
   bundle: true,
   outdir: 'public',
   target: 'es2022',

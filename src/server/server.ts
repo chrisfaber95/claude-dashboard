@@ -28,6 +28,7 @@ const TYPES: Record<string, string> = {
   '.css': 'text/css; charset=utf-8',
   '.map': 'application/json',
   '.svg': 'image/svg+xml',
+  '.woff2': 'font/woff2',
 };
 /** Reachable without a login session. */
 const PUBLIC_PATHS = new Set(['/login', '/login.js', '/style.css']);
