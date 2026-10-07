@@ -876,20 +876,3 @@ $cp-bars: 41;
     }
   }
 }
-
-@media (prefers-reduced-motion: reduce) {
-  [data-skin='copilot'] {
-    body::before,
-    .gauge__fill::after,
-    .conn.is-live::before {
-      animation: none;
-    }
-
-    .core *,
-    .core *::before,
-    .core *::after {
-      animation: none !important;
-      transition: none !important;
-    }
-  }
-}

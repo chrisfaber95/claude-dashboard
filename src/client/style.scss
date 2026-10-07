@@ -224,12 +224,6 @@ main {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .dot.is-busy {
-    animation: none;
-  }
-}
-
 table {
   width: 100%;
   border-collapse: collapse;
@@ -1019,13 +1013,6 @@ textarea {
 @keyframes drift {
   to {
     transform: translateX(40px);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .building *,
-  .room * {
-    animation: none !important;
   }
 }
 
