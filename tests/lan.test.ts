@@ -6,6 +6,8 @@ import { join } from 'node:path';
 import { makeFixture, raw } from './helpers.ts';
 
 const fx = makeFixture();
+// Never read the real team-hq board: a ticket in review would add alerts.
+process.env.TEAM_HQ_DIR = join(fx.root, 'no-team-hq');
 const publicDir = join(fx.root, 'public');
 mkdirSync(publicDir);
 writeFileSync(join(publicDir, 'index.html'), '<!doctype html><title>dash</title>');
@@ -92,6 +94,15 @@ test('path traversal stays blocked over HTTPS', async () => {
   for (const p of ['/../secret.txt', '/%2e%2e/secret.txt', '/..%5csecret.txt']) {
     const r = await get(p, { Cookie: cookie });
     assert.notEqual(r.body, 'nope', p);
+  }
+});
+
+test('alert endpoints need the login', async () => {
+  for (const path of ['/api/alerts/dismiss', '/api/settings/alerts']) {
+    const anon = await post(path, '{}', { 'X-Dashboard': '1' });
+    assert.equal(anon.status, 401, path);
+    const authed = await post(path, '{}', { Cookie: cookie, 'X-Dashboard': '1' });
+    assert.equal(authed.status, 400, `${path} reaches validation with a session`);
   }
 });
 

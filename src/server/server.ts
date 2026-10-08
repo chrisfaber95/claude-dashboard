@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { APP_ROOT, COMMANDS_ENABLED, DATA_DIR, HOST, LAN_MODE, PORT, PROJECTS_ROOT, UUID_RE, normPath } from './config.ts';
+import { dismissAlert, setAlertThreshold } from './alerts.ts';
 import { createAuth, loadOrCreateToken, type Auth } from './auth.ts';
 import {
   CommandError,
@@ -276,6 +277,23 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
         }
         return;
       }
+    }
+
+    if (url.pathname === '/api/alerts/dismiss' && method === 'POST') {
+      const body = await readJson(req);
+      if (typeof body.id !== 'string' || body.id.length === 0 || body.id.length > 200) throw new CommandError(400, 'invalid alert id');
+      // Only an alert that is open right now can be dismissed, so the store can't be filled with arbitrary ids.
+      if (!state().alerts.items.some((a) => a.id === body.id)) throw new CommandError(404, 'unknown alert');
+      dismissAlert(body.id);
+      send(res, 200, { ok: true });
+      return;
+    }
+
+    if (url.pathname === '/api/settings/alerts' && method === 'POST') {
+      const body = await readJson(req);
+      if (typeof body.threshold !== 'number' || !setAlertThreshold(body.threshold)) throw new CommandError(400, 'threshold must be a whole number from 1 to 100');
+      send(res, 200, { ok: true });
+      return;
     }
 
     if (url.pathname === '/api/commands' && method === 'POST') {
