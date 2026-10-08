@@ -8,6 +8,7 @@ export const HOST = process.env.DASHBOARD_HOST ?? (process.argv.includes('--lan'
 export const LAN_MODE = !['127.0.0.1', 'localhost', '::1'].includes(HOST);
 export const COMMANDS_ENABLED = process.env.DASHBOARD_COMMANDS !== '0';
 export const PROJECTS_ROOT = process.env.PROJECTS_ROOT ?? 'N:\\Projects';
+export const TEAM_HQ_DIR = process.env.TEAM_HQ_DIR ?? 'N:\\team-hq';
 // Claude Code moves its whole data folder, `.claude.json` included, when CLAUDE_CONFIG_DIR is set; follow it.
 const CONFIG_DIR = process.env.CLAUDE_CONFIG_DIR;
 export const CLAUDE_DIR = process.env.CLAUDE_DIR ?? CONFIG_DIR ?? join(homedir(), '.claude');

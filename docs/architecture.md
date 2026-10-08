@@ -8,7 +8,8 @@ Reference sections moved out of `CLAUDE.md` (which links here) so they load only
   - `config.ts`: paths, ports, env overrides, small helpers
   - `transcripts.ts`: incremental JSONL scanner (16 MB chunks) and all in-memory aggregates (tokens, messages, rate-limit hits, session → transcript index, subagent index); `buildSubagents()` filters live subagents; `subagentPaths` maps agent id to transcript path
   - `limits.ts`: live usage API poll with fallback to the `.claude.json` cache
-  - `state.ts`: builds the `DashboardState` (live sessions, projects, subagents of live sessions, git info, CLI trust, feature flags)
+  - `state.ts`: builds the `DashboardState` (live sessions, projects, subagents of live sessions, git info, CLI trust, feature flags, `team`)
+  - `team.ts`: read-only reader of the team-hq board (`TEAM_HQ_DIR/board/`): ticket counts per column, in-progress/review/blocked tickets (id and title, max 20 each) and unticked `- [ ]` lines of `NEEDS-YOU.md`; returns `null` when the folder or its `board/` is missing, which hides the Team section; never writes
   - `server.ts`: HTTP(S) server: Host/Origin/CSRF checks, login, `/api/state`, `/api/events` (SSE every 2s), transcript and subagent transcript endpoints, command endpoints, static files from `public/`
   - `auth.ts`: login token file, timing-safe login, per-IP rate limit, in-memory cookie sessions
   - `tls.ts`: self-signed cert for LAN mode via Git's `openssl`
@@ -23,6 +24,7 @@ Reference sections moved out of `CLAUDE.md` (which links here) so they load only
   - `mood.ts`: pure session/subagent mood logic (`moodOf`, `coreSummary`, `coreHeadlineParts` returns `{ lead, accent }`, `coreHeadline` returns `lead + accent`), shared with `building.ts` and `core.ts`, testable with `node --test`
   - `root-scene.ts`: builds the Root skin hero scene once, lazily, and fills the central seed; only loaded when Root is active
   - `skin.ts`: `Skin` type and the `parseSkin` allowlist
+  - `team.ts`: Team section (column tiles, in-progress/review/blocked lists, "Needs you" list); hidden when `DashboardState.team` is `null`; rebuilds its HTML only when it changed
   - `util.ts`: `esc()` and `api()`
   - `_skin-copilot.scss`: KITT-inspired dark skin (near-black, red accent `#ff3b30`, Space Grotesk/JetBrains Mono fonts); loaded via `meta.load-css`, scoped to `:root[data-skin='copilot']`
   - `_skin-root.scss`: Eywa / Tree of Souls skin (deep blue, glowing willow tree, floating seeds; Cormorant Garamond italic headings, Nunito Sans body); loaded via `meta.load-css`, scoped to `:root[data-skin='root']`, reacts to `data-mood` on `<html>`
@@ -53,6 +55,7 @@ Reference sections moved out of `CLAUDE.md` (which links here) so they load only
 - `DASHBOARD_COMMANDS` (`0` removes all command endpoints)
 - `DASHBOARD_LIVE_USAGE` (polling on by default; `0` turns it off)
 - `DASHBOARD_DATA_DIR` (`./.dashboard`)
+- `TEAM_HQ_DIR` (`N:\team-hq`): team-hq board folder read by `team.ts` (read-only); the Team section is hidden if `board/` is missing
 - `PROJECTS_ROOT` (`N:\Projects`), `CLAUDE_DIR` (`$CLAUDE_CONFIG_DIR`, else `~/.claude`), `CLAUDE_JSON` (`$CLAUDE_CONFIG_DIR/.claude.json`, else `~/.claude.json`); Claude Code relocates both when `CLAUDE_CONFIG_DIR` is set, as on this PC (`N:\ClaudeData\config`)
 - `CLAUDE_BIN` (default: the CLI found in this order: `claude.exe` in a `PATH` folder, then the newest `claude.exe` in `~/.vscode/extensions/anthropic.claude-code-*/resources/native-binary/`), `CLAUDE_BIN_ARGS` (JSON array prefix, used by tests), `OPENSSL`
 
@@ -73,7 +76,7 @@ Reference sections moved out of `CLAUDE.md` (which links here) so they load only
 - Mock `globalThis.fetch` in tests; tests must never touch the network or real user files.
 - Command tests use `tests/fake-claude.mjs` via `CLAUDE_BIN=node` + `CLAUDE_BIN_ARGS`. It records argv and cwd to `FAKE_CLAUDE_LOG`. Assert exact argument arrays.
 - Use `raw()` from `helpers.ts` for HTTP tests that must set `Host`, `Origin` or cookies exactly (`fetch` normalises these).
-- Test files: `tests/mood.test.ts` (session/subagent mood logic), `tests/skin.test.ts` (skin parsing), `tests/static-fonts.test.ts` (font file validation), `tests/root-assets.test.ts` (Root skin SVG guard), `tests/copy-assets.test.ts` (asset copying), `tests/claude-bin.test.ts` (Claude CLI lookup order).
+- Test files: `tests/mood.test.ts` (session/subagent mood logic), `tests/skin.test.ts` (skin parsing), `tests/static-fonts.test.ts` (font file validation), `tests/root-assets.test.ts` (Root skin SVG guard), `tests/copy-assets.test.ts` (asset copying), `tests/claude-bin.test.ts` (Claude CLI lookup order), `tests/team.test.ts` (team-hq board reader, `DashboardState.team`).
 
 ## UI conventions
 
