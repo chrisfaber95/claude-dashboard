@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { CLAUDE_DIR, CLAUDE_JSON, COMMANDS_ENABLED, LAN_MODE, PROJECTS_ROOT, emptyTokens, localDay, normPath } from './config.ts';
+import { buildAlerts } from './alerts.ts';
 import { getLimits } from './limits.ts';
 import { readTeamBoard } from './team.ts';
 import {
@@ -169,6 +170,8 @@ export function buildState(features: { lan?: boolean; commands?: boolean } = {})
       return { day, byProject: d.byProject, byModel: d.byModel, tokens: d.tokens };
     });
 
+  const limits = getLimits();
+  const team = readTeamBoard();
   return {
     generatedAtMs: now,
     projects,
@@ -176,9 +179,10 @@ export function buildState(features: { lan?: boolean; commands?: boolean } = {})
     subagents: buildSubagents(liveIds, now),
     messages: msgs,
     usage: { days, totals, byModel: { ...modelTotals } },
-    limits: getLimits(),
+    limits,
     recentSessions,
     features: { lan: features.lan ?? LAN_MODE, commands: features.commands ?? COMMANDS_ENABLED, permissionModes: PERMISSION_MODES },
-    team: readTeamBoard(),
+    team,
+    alerts: buildAlerts({ sessions, limits, team, nowMs: now }),
   };
 }
