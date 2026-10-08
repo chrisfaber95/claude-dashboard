@@ -4,7 +4,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { request } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
-import { makeFixture } from './helpers.ts';
+import { makeFixture, raw } from './helpers.ts';
 
 const fx = makeFixture();
 const publicDir = join(fx.root, 'public');
@@ -74,4 +74,57 @@ test('blocks path traversal out of the public dir', async () => {
     assert.notEqual(r.body, 'nope', p);
     assert.ok([403, 404].includes(r.status), `${p} -> ${r.status}`);
   }
+});
+
+function apiPost(path: string, body: unknown, headers: Record<string, string> = {}) {
+  const { port } = server.address() as AddressInfo;
+  const host = `127.0.0.1:${port}`;
+  return raw(port, { method: 'POST', path, body: typeof body === 'string' ? body : JSON.stringify(body), headers: { Host: host, Origin: `http://${host}`, 'X-Dashboard': '1', ...headers } });
+}
+const alertIds = async () => ((await (await fetch(`${base}/api/state`)).json()) as { alerts: { items: { id: string }[]; threshold: number } }).alerts;
+
+test('POST /api/alerts/dismiss hides an open alert and rejects anything else', async () => {
+  writeFileSync(join(fx.claudeDir, 'sessions', `${process.pid}.json`), JSON.stringify({ pid: process.pid, sessionId: 'wait-1', name: 'waiter', cwd: fx.root, status: 'waiting' }));
+  assert.deepEqual((await alertIds()).items.map((a) => a.id), ['session:wait-1']);
+
+  const noHeader = await apiPost('/api/alerts/dismiss', { id: 'session:wait-1' }, { 'X-Dashboard': '' });
+  assert.equal(noHeader.status, 403);
+  const badOrigin = await apiPost('/api/alerts/dismiss', { id: 'session:wait-1' }, { Origin: 'http://evil.example' });
+  assert.equal(badOrigin.status, 403);
+  assert.equal((await alertIds()).items.length, 1, 'rejected calls change nothing');
+
+  for (const body of [{}, { id: 5 }, { id: '' }, { id: 'x'.repeat(201) }, '[1]', 'nope']) {
+    const r = await apiPost('/api/alerts/dismiss', body);
+    assert.equal(r.status, 400, JSON.stringify(body));
+  }
+  const unknown = await apiPost('/api/alerts/dismiss', { id: 'session:not-open' });
+  assert.equal(unknown.status, 404);
+  assert.deepEqual(JSON.parse(unknown.body), { error: 'unknown alert' }, 'fixed string, id not echoed');
+
+  const ok = await apiPost('/api/alerts/dismiss', { id: 'session:wait-1' });
+  assert.equal(ok.status, 200);
+  assert.deepEqual(JSON.parse(ok.body), { ok: true });
+  assert.deepEqual((await alertIds()).items, []);
+
+  const big = await apiPost('/api/alerts/dismiss', JSON.stringify({ id: 'a'.repeat(70_000) }));
+  assert.equal(big.status, 413);
+});
+
+test('POST /api/settings/alerts sets the threshold used by the next state build', async () => {
+  const noHeader = await apiPost('/api/settings/alerts', { threshold: 50 }, { 'X-Dashboard': '' });
+  assert.equal(noHeader.status, 403);
+  assert.equal((await alertIds()).threshold, 80);
+
+  for (const body of [{}, { threshold: '50' }, { threshold: 0 }, { threshold: 101 }, { threshold: 55.5 }, { threshold: null }]) {
+    const r = await apiPost('/api/settings/alerts', body);
+    assert.equal(r.status, 400, JSON.stringify(body));
+    assert.deepEqual(JSON.parse(r.body), { error: 'threshold must be a whole number from 1 to 100' });
+  }
+  assert.equal((await apiPost('/api/settings/alerts', '[]')).status, 400);
+  assert.equal((await alertIds()).threshold, 80);
+
+  const ok = await apiPost('/api/settings/alerts', { threshold: 42 });
+  assert.equal(ok.status, 200);
+  assert.deepEqual(JSON.parse(ok.body), { ok: true });
+  assert.equal((await alertIds()).threshold, 42);
 });

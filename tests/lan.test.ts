@@ -95,6 +95,15 @@ test('path traversal stays blocked over HTTPS', async () => {
   }
 });
 
+test('alert endpoints need the login', async () => {
+  for (const path of ['/api/alerts/dismiss', '/api/settings/alerts']) {
+    const anon = await post(path, '{}', { 'X-Dashboard': '1' });
+    assert.equal(anon.status, 401, path);
+    const authed = await post(path, '{}', { Cookie: cookie, 'X-Dashboard': '1' });
+    assert.equal(authed.status, 400, `${path} reaches validation with a session`);
+  }
+});
+
 test('logout revokes the session', async () => {
   const r = await post('/logout', '', { Cookie: cookie });
   assert.equal(r.status, 303);
