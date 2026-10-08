@@ -2,6 +2,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { CLAUDE_DIR, CLAUDE_JSON, COMMANDS_ENABLED, LAN_MODE, PROJECTS_ROOT, emptyTokens, localDay, normPath } from './config.ts';
 import { getLimits } from './limits.ts';
+import { readTeamBoard } from './team.ts';
 import {
   buildSubagents,
   dayAgg,
@@ -178,5 +179,6 @@ export function buildState(features: { lan?: boolean; commands?: boolean } = {})
     limits: getLimits(),
     recentSessions,
     features: { lan: features.lan ?? LAN_MODE, commands: features.commands ?? COMMANDS_ENABLED, permissionModes: PERMISSION_MODES },
+    team: readTeamBoard(),
   };
 }

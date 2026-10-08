@@ -5,6 +5,7 @@ import { initCore, updateCore } from './core.ts';
 import { ensureRootScene } from './root-scene.ts';
 import { parseSkin } from './skin.ts';
 import type { Skin } from './skin.ts';
+import { renderTeam } from './team.ts';
 import { $, ago, api, esc } from './util.ts';
 
 const fmt = (n: number) =>
@@ -307,6 +308,7 @@ function render(s: DashboardState) {
   const steps: Array<[string, () => void]> = [
     ['colors', () => setColors(s.projects.map((p) => p.name))],
     ['limits', () => renderLimits(s)],
+    ['team', () => renderTeam(s)],
     ['projects', () => renderProjects(s)],
     ['sessions', () => renderSessions(s)],
     ['messages', () => renderComms(s)],
