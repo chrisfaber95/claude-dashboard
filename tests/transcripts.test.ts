@@ -151,6 +151,58 @@ test('classifies peer messages and outgoing SendMessage calls', () => {
   assert.deepEqual([out.kind, out.direction, out.peer, out.snippet], ['session', 'out', 'webshop-1a', 'ping']);
 });
 
+const PIPE = String.raw`\\.\pipe\LOCAL\cc-msg-0000000000000000000000000000000a`;
+const peerAttachment = (sid: string, ts: string, origin: object) => ({
+  parentUuid: '00000000-0000-4000-8000-000000000001', isSidechain: false, type: 'attachment', sessionId: sid, cwd: cwdA, timestamp: ts,
+  attachment: { type: 'queued_command', commandMode: 'prompt', origin, timestamp: ts, isMeta: true },
+});
+
+test('real Claude Code 2.1.295 cross-session lines: queued_command attachment in, SendMessage out, queue-operation ignored', () => {
+  const d = freshDir(cwdA);
+  const body = 'T-003 format probe from probe-T-003';
+  writeFileSync(
+    join(d, 'x1.jsonl'),
+    jsonl([
+      { type: 'queue-operation', operation: 'enqueue', timestamp: '2026-10-08T20:57:05.600Z', sessionId: 'x1', content: `<cross-session-message from="uds:${PIPE}" from-name="probe-T-003">\n${body}\n</cross-session-message>` },
+      peerAttachment('x1', '2026-10-08T20:57:05.614Z', { kind: 'peer', from: `uds:${PIPE}`, msg_id: '00000000-0000-4000-8000-000000000004', name: 'probe-T-003', fromMode: 'prompting', body }),
+      assistantLine({
+        sessionId: 'x1', cwd: cwdA, ts: '2026-10-08T20:57:05.592Z', id: 'out1',
+        content: [{ type: 'tool_use', id: 'toolu_fixture', name: 'SendMessage', input: { to: 'baseline-T-003', message: body, summary: 's', type: 'message', recipient: 'baseline-T-003', recipient_kind: 'name', content: body }, caller: { type: 'direct' } }],
+      }),
+    ]),
+  );
+  T.scanTranscripts();
+  const mine = T.messages.filter((m) => m.sessionId === 'x1');
+  assert.equal(mine.length, 2);
+  const inc = mine.find((m) => m.direction === 'in')!;
+  const out = mine.find((m) => m.direction === 'out')!;
+  assert.deepEqual([inc.kind, inc.peer], ['session', 'probe-T-003']);
+  assert.ok(inc.snippet.includes(body));
+  assert.deepEqual([out.kind, out.peer], ['session', 'baseline-T-003']);
+});
+
+test('an unnamed peer on a local pipe address shows as unknown, an unnamed plain from is kept', () => {
+  const d = freshDir(cwdA);
+  writeFileSync(
+    join(d, 'x2.jsonl'),
+    jsonl([
+      peerAttachment('x2', '2026-10-08T21:00:00Z', { kind: 'peer', from: `uds:${PIPE}`, body: 'via pipe' }),
+      peerAttachment('x2', '2026-10-08T21:00:01Z', { kind: 'peer', from: 'shopapp-0c', body: 'plain' }),
+    ]),
+  );
+  T.scanTranscripts();
+  const peers = T.messages.filter((m) => m.sessionId === 'x2').map((m) => m.peer);
+  assert.deepEqual(peers, ['unknown', 'shopapp-0c']);
+});
+
+test('strips the ListAgents ref suffix from an outgoing recipient', () => {
+  const d = freshDir(cwdA);
+  const content = [{ type: 'tool_use', name: 'SendMessage', input: { to: 'worker [3fa9c1]', message: 'hi' } }];
+  writeFileSync(join(d, 'x3.jsonl'), jsonl([assistantLine({ sessionId: 'x3', cwd: cwdA, ts: '2026-10-08T21:10:00Z', id: 'o1', content })]));
+  T.scanTranscripts();
+  assert.deepEqual(T.messages.filter((m) => m.sessionId === 'x3').map((m) => m.peer), ['worker']);
+});
+
 test('records rate-limit rejections', () => {
   const d = freshDir(cwdA);
   writeFileSync(

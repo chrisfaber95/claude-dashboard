@@ -49,6 +49,26 @@ test('turns transcript lines into readable entries', () => {
   assert.ok(!JSON.stringify(entries).includes('secret thoughts'));
 });
 
+test('peer messages: queued_command attachment and user line, name else from, uds: pipe becomes unknown', () => {
+  const pipe = String.raw`uds:\\.\pipe\LOCAL\cc-msg-0000000000000000000000000000000a`;
+  const entries = parseEntries([
+    L({
+      type: 'attachment', uuid: 'at1', timestamp: ts,
+      attachment: { type: 'queued_command', prompt: '<cross-session-message>x</cross-session-message>', origin: { kind: 'peer', from: pipe, name: 'probe-T-003', body: 'T-003 format probe from probe-T-003' }, isMeta: true },
+    }),
+    L({ type: 'user', uuid: 'up1', timestamp: ts, origin: { kind: 'peer', from: pipe, body: 'no name' } }),
+    // A subagent hand-back attachment is left out: the Agent tool result already carries the report.
+    L({
+      type: 'attachment', uuid: 'at2', timestamp: ts,
+      attachment: { type: 'queued_command', origin: { kind: 'peer', from: 'a1b2c3', senderTaskId: 'a1b2c3', name: 'Explore', body: '[Subagent hand-back] Done.', handback: true } },
+    }),
+  ]);
+  assert.deepEqual(
+    entries.map((e) => [e.role, e.from, e.text]),
+    [['peer', 'probe-T-003', 'T-003 format probe from probe-T-003'], ['peer', 'unknown', 'no name']],
+  );
+});
+
 test('truncates long tool results to 2 KB', () => {
   const [e] = parseEntries([L({ type: 'user', uuid: 'r', message: { content: [{ type: 'tool_result', content: 'x'.repeat(5000) }] } })]);
   assert.ok(e.text.startsWith('x'.repeat(2048)));
