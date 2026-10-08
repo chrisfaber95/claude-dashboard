@@ -152,6 +152,29 @@ export interface TeamBoard {
   needsYou: string[];
 }
 
+export type AlertKind = 'session' | 'usage' | 'ticket';
+
+/** Something that needs the user. The id is deterministic per condition, so it never duplicates. */
+export interface Alert {
+  /** `session:<sessionId>`, `usage:<windowKey>` or `ticket:<T-id>`. */
+  id: string;
+  kind: AlertKind;
+  /** Session name, limit window label or ticket id. */
+  title: string;
+  /** What is wrong, e.g. "Waiting for you", "87% used" or the ticket title. */
+  detail: string;
+  /** When the condition started (the first state build that saw it when the source has no time). */
+  sinceMs: number;
+  /** Usage alerts: when the window resets. */
+  resetsAtMs: number | null;
+}
+
+export interface AlertsInfo {
+  items: Alert[];
+  /** Usage percentage (1-100) at which a limit window raises an alert. */
+  threshold: number;
+}
+
 export interface DashboardState {
   generatedAtMs: number;
   projects: ProjectInfo[];
@@ -165,4 +188,6 @@ export interface DashboardState {
   features: { lan: boolean; commands: boolean; permissionModes: readonly PermissionMode[] };
   /** Team board summary; null = no board found (hidden). */
   team: TeamBoard | null;
+  /** Things that need the user, derived on the server and de-duplicated by id. */
+  alerts: AlertsInfo;
 }

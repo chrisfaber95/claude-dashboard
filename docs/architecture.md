@@ -10,6 +10,7 @@ Reference sections moved out of `CLAUDE.md` (which links here) so they load only
   - `limits.ts`: live usage API poll with fallback to the `.claude.json` cache
   - `state.ts`: builds the `DashboardState` (live sessions, projects, subagents of live sessions, git info, CLI trust, feature flags, `team`)
   - `team.ts`: read-only reader of the team-hq board (`TEAM_HQ_DIR/board/`): ticket counts per column, in-progress/review/blocked tickets (id and title, max 20 each) and unticked `- [ ]` lines of `NEEDS-YOU.md`; returns `null` when the folder or its `board/` is missing, which hides the Team section; never writes
+  - `alerts.ts`: needs-attention alerts: pure `deriveAlerts()` (waiting sessions, limit windows at or above the threshold, tickets in review; ids `session:<id>`, `usage:<key>`, `ticket:<T-id>`) and a small store of dismissed ids and the threshold (default 80) in `DATA_DIR/alerts.json`, written only on change (tmp + rename), defaults on a missing or corrupt file; dismissals are dropped once their condition is gone (usage ones are kept while `limits.source === 'none'`); `buildAlerts()` is called from `state.ts` and fills `DashboardState.alerts`; no endpoints yet
   - `server.ts`: HTTP(S) server: Host/Origin/CSRF checks, login, `/api/state`, `/api/events` (SSE every 2s), transcript and subagent transcript endpoints, command endpoints, static files from `public/`
   - `auth.ts`: login token file, timing-safe login, per-IP rate limit, in-memory cookie sessions
   - `tls.ts`: self-signed cert for LAN mode via Git's `openssl`
@@ -40,6 +41,7 @@ Reference sections moved out of `CLAUDE.md` (which links here) so they load only
 ## Data sources (format of Claude Code's internal files, not a public API)
 
 - `~/.claude/sessions/<pid>.json`: one file per session (`kind`, `status`, `name`, `cwd`). A session counts as live only if its `pid` is still running.
+  - Whether `status` becomes `waiting` on a permission prompt: not checked (no live session file was available to inspect).
 - `~/.claude/projects/<slug>/<sessionId>.jsonl`: transcripts. The slug is the cwd with every non-alphanumeric character replaced by `-`. Subagent transcripts live in `<sessionId>/subagents/agent-<id>.jsonl` (one per Agent tool call) plus `.meta.json` with `agentType`, `description`, `toolUseId` (links to spawner's Agent tool_use id), and request shape. All subagent transcripts are filtered by `isSidechain` and included in `DashboardState.subagents`.
 - Token usage comes from `message.usage` on assistant lines, deduplicated by `message.id` + `requestId`. `<synthetic>` models are skipped.
 - Incoming messages have `origin.kind === "peer"`. Subagent hand-backs appear both ways: (1) tool_result with `status === "completed"` when the spawner reads the Agent tool result; (2) peer origin with `senderTaskId` on user lines (body starts with `[Subagent hand-back]`, older form). Outgoing messages are `SendMessage` tool_use blocks. Subagent hand-backs both confirmed.
@@ -76,7 +78,7 @@ Reference sections moved out of `CLAUDE.md` (which links here) so they load only
 - Mock `globalThis.fetch` in tests; tests must never touch the network or real user files.
 - Command tests use `tests/fake-claude.mjs` via `CLAUDE_BIN=node` + `CLAUDE_BIN_ARGS`. It records argv and cwd to `FAKE_CLAUDE_LOG`. Assert exact argument arrays.
 - Use `raw()` from `helpers.ts` for HTTP tests that must set `Host`, `Origin` or cookies exactly (`fetch` normalises these).
-- Test files: `tests/mood.test.ts` (session/subagent mood logic), `tests/skin.test.ts` (skin parsing), `tests/static-fonts.test.ts` (font file validation), `tests/root-assets.test.ts` (Root skin SVG guard), `tests/copy-assets.test.ts` (asset copying), `tests/claude-bin.test.ts` (Claude CLI lookup order), `tests/team.test.ts` (team-hq board reader, `DashboardState.team`).
+- Test files: `tests/mood.test.ts` (session/subagent mood logic), `tests/skin.test.ts` (skin parsing), `tests/static-fonts.test.ts` (font file validation), `tests/root-assets.test.ts` (Root skin SVG guard), `tests/copy-assets.test.ts` (asset copying), `tests/claude-bin.test.ts` (Claude CLI lookup order), `tests/team.test.ts` (team-hq board reader, `DashboardState.team`), `tests/alerts.test.ts` (alert derivation and dismissal store).
 
 ## UI conventions
 
