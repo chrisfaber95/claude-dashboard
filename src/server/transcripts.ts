@@ -1,7 +1,7 @@
 import { closeSync, openSync, readFileSync, readSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { CLAUDE_DIR, PROJECTS_ROOT, emptyTokens, localDay, normPath } from './config.ts';
-import { toolSummary } from './transcript-view.ts';
+import { peerName, peerOrigin, toolSummary } from './transcript-view.ts';
 import type { LimitHit, MessageInfo, SubagentInfo, TokenCounts } from '../shared/types.ts';
 
 interface FileState {
@@ -231,12 +231,6 @@ function trackSubagents(o: any, sub: SubagentRec | null, ts: number) {
   }
 }
 
-/** The peer origin of a line: on the user line itself, or (newer Claude Code) on a queued_command attachment. */
-function peerOrigin(o: any): any {
-  const origin = o.type === 'user' ? o.origin : o.type === 'attachment' && o.attachment?.type === 'queued_command' ? o.attachment.origin : undefined;
-  return origin?.kind === 'peer' ? origin : undefined;
-}
-
 const STALE_MS = 5 * 60_000;
 const RECENT_MS = 15 * 60_000;
 const RESUME_SLACK_MS = 10_000;
@@ -385,7 +379,7 @@ function handleLine(raw: string, st: FileState, filePath: string) {
       direction: 'in',
       sessionId: sid,
       sessionName: '',
-      peer: String(peer.name ?? peer.from ?? 'unknown'),
+      peer: peerName(peer),
       snippet: snippet(handbackBody(body)),
     });
   }
@@ -401,7 +395,8 @@ function handleLine(raw: string, st: FileState, filePath: string) {
           direction: 'out',
           sessionId: sid,
           sessionName: '',
-          peer: String(c.input?.to ?? 'unknown'),
+          // `to` may carry a ListAgents ref to pick between sessions of the same name: "worker [3fa9c1]".
+          peer: String(c.input?.to || 'unknown').replace(/ \[[0-9A-Za-z]+\]$/, ''),
           snippet: snippet(typeof msg === 'string' ? msg : JSON.stringify(msg ?? '')),
         });
       }

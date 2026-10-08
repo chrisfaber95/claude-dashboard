@@ -27,8 +27,25 @@ export function toolSummary(name: string, input: Record<string, unknown> | undef
   return `${name}: ${s.replace(/\s+/g, ' ').slice(0, max)}`;
 }
 
+/** The peer origin of a line: on the user line itself, or (newer Claude Code) on a queued_command attachment. */
+export function peerOrigin(o: any): any {
+  const origin = o.type === 'user' ? o.origin : o.type === 'attachment' && o.attachment?.type === 'queued_command' ? o.attachment.origin : undefined;
+  return origin?.kind === 'peer' ? origin : undefined;
+}
+
 /**
- * Turn raw JSONL lines into readable entries. Thinking, attachments and system reminders are dropped.
+ * Who sent a peer message: the session or subagent name, else `from`. Sessions on this PC send from a
+ * local pipe address (`uds:\\.\pipe\...`), which means nothing to a reader, so that becomes 'unknown'.
+ */
+export function peerName(peer: any): string {
+  if (peer.name) return String(peer.name);
+  const from = String(peer.from ?? '');
+  return from && !from.startsWith('uds:') ? from : 'unknown';
+}
+
+/**
+ * Turn raw JSONL lines into readable entries. Thinking, attachments and system reminders are dropped,
+ * except session-to-session messages, which arrive as queued_command attachments.
  * Subagent transcripts mark every line as a sidechain, so they are only parsed with `sidechain` set.
  */
 export function parseEntries(lines: string[], sidechain = false): TranscriptEntry[] {
@@ -44,11 +61,13 @@ export function parseEntries(lines: string[], sidechain = false): TranscriptEntr
     if (o.isMeta || (o.isSidechain && !sidechain)) continue;
     const base = { uuid: String(o.uuid ?? ''), tsMs: o.timestamp ? Date.parse(o.timestamp) : 0 };
 
+    // Subagent hand-backs in attachment form stay out: their report also comes back as the Agent tool result.
+    const peer = peerOrigin(o);
+    if (peer && (o.type === 'user' || !peer.senderTaskId)) {
+      out.push({ ...base, role: 'peer', from: peerName(peer), text: clip(String(peer.body ?? textOf(o.message?.content)), TEXT_MAX) });
+      continue;
+    }
     if (o.type === 'user') {
-      if (o.origin?.kind === 'peer') {
-        out.push({ ...base, role: 'peer', from: String(o.origin.from ?? ''), text: clip(String(o.origin.body ?? textOf(o.message?.content)), TEXT_MAX) });
-        continue;
-      }
       const content = o.message?.content;
       if (Array.isArray(content)) {
         for (const c of content) {
