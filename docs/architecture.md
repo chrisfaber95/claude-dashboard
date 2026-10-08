@@ -51,11 +51,11 @@ Reference sections moved out of `CLAUDE.md` (which links here) so they load only
 - `DASHBOARD_LIVE_USAGE` (polling on by default; `0` turns it off)
 - `DASHBOARD_DATA_DIR` (`./.dashboard`)
 - `PROJECTS_ROOT` (`N:\Projects`), `CLAUDE_DIR` (`$CLAUDE_CONFIG_DIR`, else `~/.claude`), `CLAUDE_JSON` (`$CLAUDE_CONFIG_DIR/.claude.json`, else `~/.claude.json`); Claude Code relocates both when `CLAUDE_CONFIG_DIR` is set, as on this PC (`N:\ClaudeData\config`)
-- `CLAUDE_BIN` (default: newest `claude.exe` in the VS Code extension), `CLAUDE_BIN_ARGS` (JSON array prefix, used by tests), `OPENSSL`
+- `CLAUDE_BIN` (default: the CLI found in this order: `claude.exe` in a `PATH` folder, then the newest `claude.exe` in `~/.vscode/extensions/anthropic.claude-code-*/resources/native-binary/`), `CLAUDE_BIN_ARGS` (JSON array prefix, used by tests), `OPENSSL`
 
 ## Claude CLI behaviour (verified)
 
-- `claude` is not on PATH; the binary ships with the VS Code extension.
+- Binary lookup order: `CLAUDE_BIN` (+ `CLAUDE_BIN_ARGS`); `claude.exe` (`claude` off Windows) in an absolute `PATH` folder (on Windows only drive-letter paths, no drive-less or UNC entries), native binaries only since `execFile` can't run `.cmd` shims; newest `claude.exe` in the VS Code extension. None found: "Claude CLI not found (set CLAUDE_BIN)". On this PC: `C:\Users\Chris\.local\bin\claude.exe` (2.1.295, found via `PATH`).
 - The CLI refuses folders it doesn't trust ("Workspace not trusted"). Trust is only granted by running `claude` interactively in that folder once. The dashboard shows trust status and passes the refusal through as `needsTrust`. Never edit `.claude.json` to grant trust.
 - `claude agents --json` lists the same live sessions as `~/.claude/sessions/*.json`.
 - **Unverified until a folder is trusted:**
@@ -70,7 +70,7 @@ Reference sections moved out of `CLAUDE.md` (which links here) so they load only
 - Mock `globalThis.fetch` in tests; tests must never touch the network or real user files.
 - Command tests use `tests/fake-claude.mjs` via `CLAUDE_BIN=node` + `CLAUDE_BIN_ARGS`. It records argv and cwd to `FAKE_CLAUDE_LOG`. Assert exact argument arrays.
 - Use `raw()` from `helpers.ts` for HTTP tests that must set `Host`, `Origin` or cookies exactly (`fetch` normalises these).
-- Test files: `tests/mood.test.ts` (session/subagent mood logic), `tests/skin.test.ts` (skin parsing), `tests/static-fonts.test.ts` (font file validation), `tests/root-assets.test.ts` (Root skin SVG guard), `tests/copy-assets.test.ts` (asset copying).
+- Test files: `tests/mood.test.ts` (session/subagent mood logic), `tests/skin.test.ts` (skin parsing), `tests/static-fonts.test.ts` (font file validation), `tests/root-assets.test.ts` (Root skin SVG guard), `tests/copy-assets.test.ts` (asset copying), `tests/claude-bin.test.ts` (Claude CLI lookup order).
 
 ## UI conventions
 
