@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
-import { appendFileSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
+import { accessSync, appendFileSync, constants, existsSync, mkdirSync, readdirSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, isAbsolute, join } from 'node:path';
 import { DATA_DIR, UUID_RE } from './config.ts';
 import { PERMISSION_MODES, type CommandResult, type PermissionMode } from '../shared/types.ts';
 
@@ -21,12 +21,46 @@ export class CommandError extends Error {
   }
 }
 
-/** `CLAUDE_BIN` (+ optional JSON `CLAUDE_BIN_ARGS` prefix, used by tests), else the newest VS Code extension binary. */
+const BIN_NAME = process.platform === 'win32' ? 'claude.exe' : 'claude';
+
+/**
+ * Windows PATH entries must start with a drive letter: drive-less `\dir` resolves against a different
+ * drive at spawn time than at stat time, and UNC shares would make every command contact another host.
+ */
+const WIN_DRIVE_PATH_RE = /^[A-Za-z]:[\\/]/;
+
+/**
+ * `claude.exe` (`claude` elsewhere) in a `PATH` folder. Only native binaries: `execFile` can't run
+ * `.cmd` shims without a shell. Relative entries are skipped so the cwd can never supply the binary.
+ */
+function claudeOnPath(): string | null {
+  for (const entry of (process.env.PATH ?? '').split(delimiter)) {
+    const dir = entry.trim().replace(/^"(.*)"$/, '$1');
+    if (!(process.platform === 'win32' ? WIN_DRIVE_PATH_RE.test(dir) : isAbsolute(dir))) continue;
+    const bin = join(dir, BIN_NAME);
+    try {
+      if (statSync(bin).isFile()) {
+        if (process.platform !== 'win32') accessSync(bin, constants.X_OK);
+        return bin;
+      }
+    } catch {
+      // not in this folder, or not executable
+    }
+  }
+  return null;
+}
+
+/**
+ * `CLAUDE_BIN` (+ optional JSON `CLAUDE_BIN_ARGS` prefix, used by tests), else `claude` on `PATH`,
+ * else the newest VS Code extension binary.
+ */
 export function resolveClaudeBin(): { bin: string; prefix: string[] } | null {
   if (process.env.CLAUDE_BIN) {
     const prefix = process.env.CLAUDE_BIN_ARGS ? (JSON.parse(process.env.CLAUDE_BIN_ARGS) as string[]) : [];
     return { bin: process.env.CLAUDE_BIN, prefix };
   }
+  const onPath = claudeOnPath();
+  if (onPath) return { bin: onPath, prefix: [] };
   const extDir = join(homedir(), '.vscode', 'extensions');
   let dirs: string[] = [];
   try {
@@ -41,7 +75,7 @@ export function resolveClaudeBin(): { bin: string; prefix: string[] } | null {
     return 0;
   });
   for (const d of dirs.reverse()) {
-    const bin = join(extDir, d, 'resources', 'native-binary', process.platform === 'win32' ? 'claude.exe' : 'claude');
+    const bin = join(extDir, d, 'resources', 'native-binary', BIN_NAME);
     if (existsSync(bin)) return { bin, prefix: [] };
   }
   return null;
