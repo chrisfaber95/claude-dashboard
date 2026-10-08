@@ -7,6 +7,8 @@ import { join } from 'node:path';
 import { makeFixture, raw } from './helpers.ts';
 
 const fx = makeFixture();
+// Never read the real team-hq board: a ticket in review would add alerts.
+process.env.TEAM_HQ_DIR = join(fx.root, 'no-team-hq');
 const publicDir = join(fx.root, 'public');
 mkdirSync(publicDir);
 writeFileSync(join(publicDir, 'index.html'), '<!doctype html><title>t</title>');
