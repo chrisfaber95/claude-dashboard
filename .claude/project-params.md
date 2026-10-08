@@ -10,8 +10,8 @@ keeps your edits. Values marked unknown should be filled in.
 - branch_naming: `<type>/<short-kebab-description>` with type `feat`, `fix`, `chore`, `docs`, `refactor` or `test`, for example `fix/sse-reconnect` (conventional default, chosen by the user)
 - commit_convention: Conventional Commits, `type(scope): subject` in the imperative, subject under 72 characters, scope is a module such as `server`, `client` or `auth`; PR titles use the same format (conventional default, chosen by the user)
 - revision_id_format: none (no project docs mention revision ids)
-- ci_workflows: none (no `.github/workflows`)
-- required_checks: none (no CI jobs); run `npm run typecheck` and `npm test` locally before merging (CLAUDE.md). Skip them when the change consists only of documentation (`*.md` files, `docs/`, `.claude/` agent, skill and parameter files, comments); any change to code, config, `package.json` or tests still needs them. In the PR description, state that the checks were skipped because the change is documentation only.
+- ci_workflows: `.github/workflows/ci.yml` (job `check`: `npm ci`, `npm run typecheck`, `npm test` on windows-latest, Node 24; runs on every PR and push to main)
+- required_checks: CI job `check` must be green before merging; also run `npm run typecheck` and `npm test` locally before merging (CLAUDE.md). Skip them when the change consists only of documentation (`*.md` files, `docs/`, `.claude/` agent, skill and parameter files, comments); any change to code, config, `package.json` or tests still needs them. In the PR description, state that the checks were skipped because the change is documentation only.
 - branch_protection: none, and GitHub can't enforce it on a private repo without Pro; by convention work on a branch, merge by PR, and don't push directly to `main` after the initial commit
 - extra_merge_gates: none documented
 - after_merge_checks: `npm run typecheck`, `npm test` (CLAUDE.md "Commands"); skipped for documentation-only changes (see required_checks)
