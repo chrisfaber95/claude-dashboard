@@ -25,28 +25,8 @@
   <main>
     <div id="render-warn" class="notice" role="status" hidden>Some sections failed to render. The next update may fix it.</div>
     <section id="core" class="core" aria-labelledby="h-core"></section>
+    <nav id="popup-bar" class="popup-bar" aria-label="Open a panel"></nav>
     <section id="limits" class="panel" aria-labelledby="h-limits"></section>
-    <section id="run" class="panel" aria-labelledby="h-run" hidden>
-      <h2 id="h-run">Run a task</h2>
-      <form id="run-form" class="run">
-        <div class="run__row">
-          <label>Project <select id="run-project" required></select></label>
-          <label>Permissions <select id="run-mode"></select></label>
-        </div>
-        <label class="run__prompt">Prompt <textarea id="run-prompt" rows="3" maxlength="20000" required placeholder="What should Claude do?"></textarea></label>
-        <div class="run__row">
-          <button class="btn btn--primary" type="submit">Start background session</button>
-          <span id="run-status" class="sub" role="status"></span>
-        </div>
-      </form>
-      <div id="recent" class="recent" hidden>
-        <div class="recent__head">
-          <h3 id="h-recent">Recent tasks</h3>
-          <button id="recent-clear" class="btn btn--sm" type="button">Clear</button>
-        </div>
-        <ul id="recent-list" class="recent__list" aria-labelledby="h-recent"></ul>
-      </div>
-    </section>
     <section id="alerts" class="panel alerts" aria-labelledby="h-alerts">
       <h2 id="h-alerts">Needs attention</h2>
       <ul id="alerts-list" class="alerts__list"></ul>
@@ -56,75 +36,122 @@
         <span id="alerts-status" class="sub" role="status"></span>
       </form>
     </section>
-    <section id="chat" class="panel chat" aria-labelledby="h-chat">
-      <h2 id="h-chat">Ask the dashboard</h2>
-      <div id="chat-log" class="chat__log" role="log" aria-live="polite">
-        <div id="chat-confirm" class="chat__confirm" hidden>
-          <div>Send to <strong id="chat-confirm-name"></strong>:</div>
-          <pre id="chat-confirm-text" class="chat__quote"></pre>
-          <div class="chat__actions">
-            <button id="chat-confirm-yes" class="btn btn--sm btn--primary" type="button">Confirm</button>
-            <button id="chat-confirm-no" class="btn btn--sm" type="button">Cancel</button>
+    <section id="sessions" class="panel" aria-labelledby="h-sessions"></section>
+  </main>
+  <div id="popups" class="popups" hidden>
+    <div id="popup-projects" class="popup" role="dialog" aria-modal="true" aria-label="Projects" hidden>
+      <button class="btn popup__close" type="button" data-popup-close aria-label="Close Projects">Close</button>
+      <section id="projects" class="panel" aria-labelledby="h-projects"></section>
+    </div>
+    <div id="popup-comms" class="popup" role="dialog" aria-modal="true" aria-label="Session messages" hidden>
+      <button class="btn popup__close" type="button" data-popup-close aria-label="Close Session messages">Close</button>
+      <section id="comms" class="panel" aria-labelledby="h-comms"></section>
+    </div>
+    <div id="popup-team" class="popup" role="dialog" aria-modal="true" aria-label="Team board" hidden>
+      <button class="btn popup__close" type="button" data-popup-close aria-label="Close Team board">Close</button>
+      <section id="team" class="panel team" aria-labelledby="h-team" hidden></section>
+    </div>
+    <div id="popup-usage" class="popup" role="dialog" aria-modal="true" aria-label="Token usage" hidden>
+      <button class="btn popup__close" type="button" data-popup-close aria-label="Close Token usage">Close</button>
+      <section id="usage" class="panel" aria-labelledby="h-usage"></section>
+    </div>
+    <div id="popup-chat" class="popup" role="dialog" aria-modal="true" aria-label="Chat" hidden>
+      <button class="btn popup__close" type="button" data-popup-close aria-label="Close Chat">Close</button>
+      <section id="chat" class="panel chat" aria-labelledby="h-chat">
+        <h2 id="h-chat">Ask the dashboard</h2>
+        <div id="chat-log" class="chat__log" role="log" aria-live="polite">
+          <div id="chat-confirm" class="chat__confirm" hidden>
+            <div>Send to <strong id="chat-confirm-name"></strong>:</div>
+            <pre id="chat-confirm-text" class="chat__quote"></pre>
+            <div class="chat__actions">
+              <button id="chat-confirm-yes" class="btn btn--sm btn--primary" type="button">Confirm</button>
+              <button id="chat-confirm-no" class="btn btn--sm" type="button">Cancel</button>
+            </div>
           </div>
         </div>
-      </div>
-      <form id="chat-form" class="chat__form">
-        <input id="chat-input" type="text" maxlength="2000" autocomplete="off" aria-label="Ask the dashboard" placeholder="What is going on?">
-        <button class="btn btn--sm" type="submit">Send</button>
-      </form>
-      <div class="chat__setting">
-        <label>Session summaries
-          <select id="summary-mode">
-            <option value="recap">Recap (no model)</option>
-            <option value="model">Model (haiku, one CLI call)</option>
-          </select>
-        </label>
-        <span id="summary-status" class="sub" role="status"></span>
-        <span id="summary-note" class="sub" hidden>Commands are off, so summaries use the recap.</span>
-      </div>
-    </section>
-    <section id="team" class="panel team" aria-labelledby="h-team" hidden></section>
-    <section id="devices" class="panel devices" aria-labelledby="h-devices" hidden>
-      <h2 id="h-devices">Devices</h2>
-      <ul id="devices-list" class="devices__list"></ul>
-      <form id="devices-form" class="devices__form">
-        <label>Device name <input id="devices-name" type="text" maxlength="40" autocomplete="off" required></label>
-        <button class="btn btn--sm" type="submit">Add</button>
-      </form>
-      <div id="devices-token" class="devices__token" hidden>
-        <div class="sub">New device token (shown once)</div>
-        <code id="devices-token-value" class="devices__token-value"></code>
-        <div class="devices__token-actions">
-          <button id="devices-token-copy" class="btn btn--sm" type="button">Copy</button>
-          <button id="devices-token-dismiss" class="btn btn--sm" type="button">Dismiss</button>
+        <form id="chat-form" class="chat__form">
+          <input id="chat-input" type="text" maxlength="2000" autocomplete="off" aria-label="Ask the dashboard" placeholder="What is going on?">
+          <button class="btn btn--sm" type="submit">Send</button>
+        </form>
+        <div class="chat__setting">
+          <label>Session summaries
+            <select id="summary-mode">
+              <option value="recap">Recap (no model)</option>
+              <option value="model">Model (haiku, one CLI call)</option>
+            </select>
+          </label>
+          <span id="summary-status" class="sub" role="status"></span>
+          <span id="summary-note" class="sub" hidden>Commands are off, so summaries use the recap.</span>
         </div>
-      </div>
-      <div id="devices-qr" class="devices__qr" hidden>
-        <div class="sub"><strong id="devices-qr-name"></strong>: scan with the phone. Works once, for 10 minutes.</div>
-        <select id="devices-qr-addr" aria-label="Address the QR code points to" hidden></select>
-        <div id="devices-qr-draw" class="devices__qr-draw"></div>
-        <div id="devices-qr-expiry" class="sub"></div>
-        <div id="devices-qr-note" class="sub"></div>
-        <div class="devices__token-actions">
-          <button id="devices-qr-close" class="btn btn--sm" type="button">Close</button>
+      </section>
+    </div>
+    <div id="popup-run" class="popup" role="dialog" aria-modal="true" aria-label="Run a task" hidden>
+      <button class="btn popup__close" type="button" data-popup-close aria-label="Close Run a task">Close</button>
+      <section id="run" class="panel" aria-labelledby="h-run" hidden>
+        <h2 id="h-run">Run a task</h2>
+        <form id="run-form" class="run">
+          <div class="run__row">
+            <label>Project <select id="run-project" required></select></label>
+            <label>Permissions <select id="run-mode"></select></label>
+          </div>
+          <label class="run__prompt">Prompt <textarea id="run-prompt" rows="3" maxlength="20000" required placeholder="What should Claude do?"></textarea></label>
+          <div class="run__row">
+            <button class="btn btn--primary" type="submit">Start background session</button>
+            <span id="run-status" class="sub" role="status"></span>
+          </div>
+        </form>
+        <div id="recent" class="recent" hidden>
+          <div class="recent__head">
+            <h3 id="h-recent">Recent tasks</h3>
+            <button id="recent-clear" class="btn btn--sm" type="button">Clear</button>
+          </div>
+          <ul id="recent-list" class="recent__list" aria-labelledby="h-recent"></ul>
         </div>
-      </div>
-      <p id="devices-status" class="sub" role="status"></p>
-    </section>
-    <details id="audit" class="panel audit">
-      <summary id="h-audit" class="audit__summary">Activity</summary>
-      <div class="audit__bar">
-        <label>Device <select id="audit-device"><option value="">All devices</option></select></label>
-        <button id="audit-refresh" class="btn btn--sm" type="button">Refresh</button>
-        <span id="audit-status" class="sub" role="status"></span>
-      </div>
-      <ul id="audit-list" class="audit__list"></ul>
-    </details>
-    <section id="projects" class="panel" aria-labelledby="h-projects"></section>
-    <section id="sessions" class="panel" aria-labelledby="h-sessions"></section>
-    <section id="comms" class="panel" aria-labelledby="h-comms"></section>
-    <section id="usage" class="panel" aria-labelledby="h-usage"></section>
-  </main>
+      </section>
+    </div>
+    <div id="popup-devices" class="popup" role="dialog" aria-modal="true" aria-label="Devices" hidden>
+      <button class="btn popup__close" type="button" data-popup-close aria-label="Close Devices">Close</button>
+      <section id="devices" class="panel devices" aria-labelledby="h-devices" hidden>
+        <h2 id="h-devices">Devices</h2>
+        <ul id="devices-list" class="devices__list"></ul>
+        <form id="devices-form" class="devices__form">
+          <label>Device name <input id="devices-name" type="text" maxlength="40" autocomplete="off" required></label>
+          <button class="btn btn--sm" type="submit">Add</button>
+        </form>
+        <div id="devices-token" class="devices__token" hidden>
+          <div class="sub">New device token (shown once)</div>
+          <code id="devices-token-value" class="devices__token-value"></code>
+          <div class="devices__token-actions">
+            <button id="devices-token-copy" class="btn btn--sm" type="button">Copy</button>
+            <button id="devices-token-dismiss" class="btn btn--sm" type="button">Dismiss</button>
+          </div>
+        </div>
+        <div id="devices-qr" class="devices__qr" hidden>
+          <div class="sub"><strong id="devices-qr-name"></strong>: scan with the phone. Works once, for 10 minutes.</div>
+          <select id="devices-qr-addr" aria-label="Address the QR code points to" hidden></select>
+          <div id="devices-qr-draw" class="devices__qr-draw"></div>
+          <div id="devices-qr-expiry" class="sub"></div>
+          <div id="devices-qr-note" class="sub"></div>
+          <div class="devices__token-actions">
+            <button id="devices-qr-close" class="btn btn--sm" type="button">Close</button>
+          </div>
+        </div>
+        <p id="devices-status" class="sub" role="status"></p>
+      </section>
+    </div>
+    <div id="popup-audit" class="popup" role="dialog" aria-modal="true" aria-label="Activity" hidden>
+      <button class="btn popup__close" type="button" data-popup-close aria-label="Close Activity">Close</button>
+      <details id="audit" class="panel audit">
+        <summary id="h-audit" class="audit__summary">Activity</summary>
+        <div class="audit__bar">
+          <label>Device <select id="audit-device"><option value="">All devices</option></select></label>
+          <button id="audit-refresh" class="btn btn--sm" type="button">Refresh</button>
+          <span id="audit-status" class="sub" role="status"></span>
+        </div>
+        <ul id="audit-list" class="audit__list"></ul>
+      </details>
+    </div>
+  </div>
   <div id="building" class="building" role="dialog" aria-modal="true" aria-labelledby="building-title" hidden>
     <div class="building__panel">
       <div class="building__head">

@@ -1692,3 +1692,72 @@ $hair: (#2b2118, #6b4423, #c9a24b, #a33b2a, #555555);
     transform: translateY(8px);
   }
 }
+
+// ---- popups (main view buttons open the other tiles) ----
+
+.popup-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+
+  .btn[aria-expanded='true'] {
+    border-color: var(--seq);
+  }
+
+  .btn[hidden] {
+    display: none;
+  }
+}
+
+.limits__today {
+  margin: 0 0 12px;
+  color: var(--ink-2);
+
+  strong {
+    color: var(--ink);
+  }
+}
+
+.popups {
+  position: fixed;
+  z-index: 3; // below the building dialog (4) and the transcript drawer (5), which open from inside a popup
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.45);
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+.popup {
+  position: relative;
+  width: min(1100px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.3);
+
+  &[hidden] {
+    display: none;
+  }
+
+  // The tile keeps its own markup; inside a popup the popup supplies the frame.
+  > .panel {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    padding-top: 48px; // room for the close button
+  }
+
+  &__close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    z-index: 1;
+  }
+}

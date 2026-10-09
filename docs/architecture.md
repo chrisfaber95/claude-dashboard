@@ -33,6 +33,7 @@ Reference sections moved out of `CLAUDE.md` (which links here) so they load only
   - `controls.ts`: the run panel and the transcript drawer (read-write for main sessions, read-only for subagents with `kind: 'subagent'`)
   - `core.ts`: live status strip; markup built once, updated by mood changes; `data-mood` set on `<html>` on status change, read by skin CSS
   - `mood.ts`: pure session/subagent mood logic (`moodOf`, `coreSummary`, `coreHeadlineParts` returns `{ lead, accent }`, `coreHeadline` returns `lead + accent`), shared with `building.ts` and `core.ts`, testable with `node --test`
+  - `popups.ts` / `popups-logic.ts`: fixed button bar (`#popup-bar`) that opens the projects, session messages, team, usage, chat, run, devices and activity tiles as one-at-a-time `role="dialog"` popups. The tile sections stay in the DOM inside `#popups` and keep rendering on every push (so input, focus and selection survive); open/close rules (toggle, Esc only when building/drawer are closed, backdrop click, hidden-section buttons) are pure in `popups-logic.ts`
   - `root-scene.ts`: builds the Root skin hero scene once, lazily, and fills the central seed; only loaded when Root is active
   - `skin.ts`: `Skin` type and the `parseSkin` allowlist
   - `team.ts`: Team section (column tiles, in-progress/review/blocked lists, "Needs you" list); hidden when `DashboardState.team` is `null`; rebuilds its HTML only when it changed
