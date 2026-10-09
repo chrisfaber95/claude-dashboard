@@ -80,32 +80,73 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 16px;
-  max-width: 1200px;
-  margin: 0 auto;
+  gap: 12px;
+  padding: 8px 16px;
 
   h1 {
-    font-size: 20px;
+    font-size: 16px;
+    white-space: nowrap;
     margin: 0;
   }
 
   &__meta {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
     color: var(--ink-2);
   }
 }
 
+// Cockpit: full width, status first. Phone: one column (alerts, limits, sessions, core).
+// >= 1000px: side column (alerts, limits, core, bar) beside the sessions tile.
+// >= 2200px: three columns (alerts + core | sessions | limits).
 main {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 16px 48px;
+  padding: 0 16px 32px;
   display: grid;
   // minmax(0, …) stops wide tables and charts from stretching the column past the viewport.
   grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
+  grid-template-areas: 'warn' 'alerts' 'limits' 'sessions' 'core' 'bar';
+  gap: 12px;
+  align-items: start;
+
+  > #render-warn {
+    grid-area: warn;
+  }
+
+  > #alerts {
+    grid-area: alerts;
+  }
+
+  > #limits {
+    grid-area: limits;
+  }
+
+  > #sessions {
+    grid-area: sessions;
+    min-width: 0;
+  }
+
+  > #core {
+    grid-area: core;
+  }
+
+  > #popup-bar {
+    grid-area: bar;
+  }
+
+  @media (min-width: 1000px) {
+    grid-template-columns: minmax(340px, 400px) minmax(0, 1fr);
+    grid-template-areas: 'warn warn' 'alerts sessions' 'limits sessions' 'core sessions' 'bar sessions';
+    grid-template-rows: auto auto auto auto 1fr;
+  }
+
+  @media (min-width: 2200px) {
+    grid-template-columns: minmax(380px, 460px) minmax(0, 1fr) minmax(380px, 460px);
+    grid-template-areas: 'warn warn warn' 'alerts sessions limits' 'core sessions limits' 'bar sessions limits';
+    grid-template-rows: auto auto auto 1fr;
+  }
 }
 
 .panel {
@@ -259,7 +300,7 @@ table {
 .gauges {
   display: grid;
   gap: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
 .gauge {
@@ -1387,6 +1428,24 @@ $hair: (#2b2118, #6b4423, #c9a24b, #a33b2a, #555555);
 }
 
 .alerts {
+  &.has-alerts {
+    border-color: var(--warn);
+    box-shadow: inset 4px 0 0 var(--warn);
+  }
+
+  &__count {
+    margin-left: 8px;
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--warn);
+    font-variant-numeric: tabular-nums;
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
   &__list {
     list-style: none;
     margin: 0 0 12px;
@@ -1712,6 +1771,22 @@ $hair: (#2b2118, #6b4423, #c9a24b, #a33b2a, #555555);
 
   .btn[hidden] {
     display: none;
+  }
+}
+
+.limits__top {
+  margin-left: 8px;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+
+  &.is-warn {
+    color: var(--warn);
+  }
+
+  &.is-crit {
+    color: var(--crit);
   }
 }
 
