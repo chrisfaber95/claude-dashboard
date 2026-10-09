@@ -77,17 +77,24 @@ export function parseIntent(text: string, state: Pick<DashboardState, 'alerts' |
     const query = msg[1] as string;
     return { kind: 'message', query, match: matchSession(query, sessions), text: msg[2] as string, needsConfirm: true };
   }
+  // A verb followed by something that is no session or alert ("view usage", "clear alerts") may be a plain
+  // question: only fall through to the keyword intents when nothing matched.
+  const keyword = (): Intent =>
+    ATTENTION_RE.test(t) ? { kind: 'attention' } : USAGE_RE.test(t) ? { kind: 'usage' } : STATUS_RE.test(t) ? { kind: 'status' } : { kind: 'help' };
   const ack = ACK_RE.exec(t);
-  if (ack) return { kind: 'ack', query: ack[1] as string, match: matchAlert(ack[1] as string, state) };
-  const sum = SUMMARY_RE.exec(t);
-  if (sum) return { kind: 'summary', query: sum[1] as string, match: matchSession(sum[1] as string, sessions) };
-  const open = OPEN_RE.exec(t);
-  if (open) return { kind: 'open', query: open[1] as string, match: matchSession(open[1] as string, sessions) };
-
-  if (ATTENTION_RE.test(t)) return { kind: 'attention' };
-  if (USAGE_RE.test(t)) return { kind: 'usage' };
-  if (STATUS_RE.test(t)) return { kind: 'status' };
-  return { kind: 'help' };
+  if (ack) {
+    const match = matchAlert(ack[1] as string, state);
+    if (match.kind !== 'none') return { kind: 'ack', query: ack[1] as string, match };
+    return keyword().kind === 'help' ? { kind: 'ack', query: ack[1] as string, match } : keyword();
+  }
+  for (const [re, k] of [[SUMMARY_RE, 'summary'], [OPEN_RE, 'open']] as const) {
+    const m = re.exec(t);
+    if (!m) continue;
+    const match = matchSession(m[1] as string, sessions);
+    if (match.kind !== 'none') return { kind: k, query: m[1] as string, match };
+    return keyword().kind === 'help' ? { kind: k, query: m[1] as string, match } : keyword();
+  }
+  return keyword();
 }
 
 export const HELP_TEXT = [
@@ -154,8 +161,9 @@ function attentionReply(state: DashboardState): string {
 
 function usageReply(state: DashboardState): string {
   const days = state.usage?.days ?? [];
+  const totals = state.usage?.totals;
   const today = days.find((d) => d.day === dayKey(state.generatedAtMs));
-  const lines = [`Tokens in total: ${fmtTokens(sumTokens(state.usage.totals))}`];
+  const lines = totals ? [`Tokens in total: ${fmtTokens(sumTokens(totals))}`] : [];
   if (today) lines.push(`Tokens today: ${fmtTokens(sumTokens(today.tokens))}`);
   const windows = state.limits?.windows ?? [];
   if (!windows.length) lines.push('No limit data available.');

@@ -181,3 +181,34 @@ test('usage reply shows tokens and limit windows with percentage and reset, neve
 test('fmtTokens scales', () => {
   assert.deepEqual([fmtTokens(999), fmtTokens(1500), fmtTokens(2_500_000), fmtTokens(3e9)], ['999', '1.5k', '2.5M', '3.0B']);
 });
+
+test('verbs that precede a keyword question fall through to that intent', () => {
+  const s = makeState();
+  const cases: Array<[string, string]> = [
+    ['view usage', 'usage'],
+    ['view sessions', 'status'],
+    ['go to alerts', 'attention'],
+    ['clear alerts', 'attention'],
+    ['summary of my usage', 'usage'],
+    ['open the limits', 'usage'],
+  ];
+  for (const [t, k] of cases) assert.equal(kind(t, s), k, t);
+});
+
+test('a verb with a real match still wins over the keyword intents', () => {
+  const s = makeState({ sessions: [session('s1', 'usage-bot', 'p')] });
+  assert.equal(kind('open usage-bot', s), 'open');
+  assert.equal(kind('summarize usage-bot', s), 'summary');
+});
+
+test('a verb with no match and no keyword still replies with no match', () => {
+  assert.equal(kind('open ghost'), 'open');
+  assert.equal(kind('dismiss nothing'), 'ack');
+});
+
+test('usage reply tolerates missing usage data', () => {
+  const s = makeState({ usage: undefined as unknown as DashboardState['usage'] });
+  const r = answer({ kind: 'usage' }, s);
+  assert.match(r, /5-hour: 42% used/);
+  assert.doesNotMatch(r, /Tokens in total/);
+});
