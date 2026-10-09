@@ -1478,9 +1478,46 @@ $hair: (#2b2118, #6b4423, #c9a24b, #a33b2a, #555555);
     user-select: all;
   }
 
-  &__token-actions {
+  &__token-actions,
+  &__actions {
     display: flex;
     gap: 8px;
+  }
+
+  &__qr {
+    &[hidden] {
+      display: none;
+    }
+
+    display: grid;
+    justify-items: start;
+    gap: 6px;
+    margin-top: 12px;
+    background: var(--surface);
+    color: var(--ink);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius-panel);
+    padding: 10px 12px;
+  }
+
+  // Scanners need dark modules on a light ground with a quiet zone, whatever the skin or theme:
+  // this is the one place where hard-coded black and white are right.
+  &__qr-draw {
+    width: min(280px, 100%);
+    background: #fff;
+    color: #000;
+  }
+
+  &__qr-svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    background: #fff;
+
+    path {
+      fill: #000;
+    }
   }
 }
 

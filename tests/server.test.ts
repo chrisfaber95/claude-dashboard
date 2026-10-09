@@ -140,3 +140,9 @@ test('without a login there are no devices: the endpoints 404 and manageDevices 
   const j = (await (await fetch(`${base}/api/state`)).json()) as { features: { manageDevices: boolean } };
   assert.equal(j.features.manageDevices, false);
 });
+
+test('without a login /pair does not exist', async () => {
+  const r = await fetch(`${base}/pair?c=anything`, { redirect: 'manual' });
+  assert.equal(r.status, 404);
+  assert.equal(r.headers.get('set-cookie'), null);
+});
