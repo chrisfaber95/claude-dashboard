@@ -35,7 +35,7 @@ Moved verbatim to `docs/architecture.md` to keep this file small. Read the match
 
 ## Rules
 
-- **`.dashboard/` holds secrets** (login `token`, TLS `key.pem`/`cert.pem`, `commands.log`): never print, serve or commit it.
+- **`.dashboard/` holds secrets** (`devices.json` with device token hashes, `alerts.json`, TLS `key.pem`/`cert.pem`, `commands.log`): never print, serve or commit it.
 - **Never write to `~/.claude` or `~/.claude.json`.** The dashboard only reads them.
 - **The OAuth token** (`~/.claude/.credentials.json` → `claudeAiOauth.accessToken`) is read only inside `pollLive()`, per request:
   - Never log it, return it from the API, or put it in an error message.

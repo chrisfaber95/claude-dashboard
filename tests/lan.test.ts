@@ -1,6 +1,7 @@
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
+import { request as httpsRequest } from 'node:https';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import { makeFixture, raw } from './helpers.ts';
@@ -16,11 +17,14 @@ writeFileSync(join(publicDir, 'style.css'), 'body{}');
 writeFileSync(join(fx.root, 'secret.txt'), 'nope');
 
 const { createDashboardServer } = await import('../src/server/server.ts');
-const { createAuth, loadOrCreateToken } = await import('../src/server/auth.ts');
+const { createAuth } = await import('../src/server/auth.ts');
+const { createDeviceStore } = await import('../src/server/devices.ts');
 const { ensureCert } = await import('../src/server/tls.ts');
 
-const { token } = loadOrCreateToken(fx.dataDir);
-const server = createDashboardServer({ publicDir, auth: createAuth(token), tls: ensureCert(fx.dataDir), commands: true });
+const devices = createDeviceStore(fx.dataDir);
+const { token, id: deviceId } = devices.create('test phone');
+const auth = createAuth(devices);
+const server = createDashboardServer({ publicDir, auth, tls: ensureCert(fx.dataDir), commands: true });
 let port = 0;
 let host = '';
 let cookie = '';
@@ -123,4 +127,65 @@ test('security headers allow same-origin form posts and set a strict CSP', async
 test('cross-site requests never reach the API', async () => {
   const r = await get('/api/state', { Cookie: 'x=1', 'Sec-Fetch-Site': 'cross-site' });
   assert.equal(r.status, 403);
+});
+
+test('this PC (loopback socket and loopback Host) needs no token; anything else still does', async () => {
+  for (const h of [`127.0.0.1:${port}`, `localhost:${port}`]) {
+    assert.equal((await get('/api/state', { Host: h })).status, 200, h);
+    assert.equal((await get('/', { Host: h })).status, 200, h);
+  }
+  // The socket is loopback here, so a non-loopback Host must not be exempt.
+  for (const h of [host, `evil.example:${port}`, `127.0.0.1.evil.example:${port}`]) {
+    assert.equal((await get('/api/state', { Host: h })).status, 401, h);
+    assert.equal((await get('/', { Host: h })).status, 302, h);
+  }
+  // Forwarding headers don't help.
+  assert.equal((await get('/api/state', { 'X-Forwarded-For': '127.0.0.1', Forwarded: 'for=127.0.0.1' })).status, 401);
+});
+
+/** Open /api/events; resolves once the first event (or an error status) arrives. */
+function openStream(headers: Record<string, string>) {
+  return new Promise<{ status: number; ended: Promise<void> }>((resolve, reject) => {
+    const req = httpsRequest({ host: '127.0.0.1', port, path: '/api/events', headers, rejectUnauthorized: false }, (res) => {
+      const ended = new Promise<void>((done) => {
+        res.on('end', done);
+        res.on('close', done);
+        res.on('error', done);
+      });
+      res.once('data', () => resolve({ status: res.statusCode ?? 0, ended }));
+      if (res.statusCode !== 200) resolve({ status: res.statusCode ?? 0, ended });
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+const settled = (p: Promise<void>) => Promise.race([p.then(() => true), new Promise<boolean>((r) => setTimeout(() => r(false), 700))]);
+const form = { 'Content-Type': 'application/x-www-form-urlencoded' };
+
+test('revoking a device ends its session and closes its live-event streams at once, leaving others alone', async () => {
+  const mine = devices.create('to revoke');
+  const kept = devices.create('kept');
+  const signIn = async (tok: string) => {
+    const r = await post('/login', `token=${encodeURIComponent(tok)}`, form);
+    assert.equal(r.status, 303);
+    return String(r.headers['set-cookie']).split(';')[0];
+  };
+  const c1 = await signIn(mine.token);
+  const c2 = await signIn(kept.token);
+  const s1 = await openStream({ Host: host, Cookie: c1 });
+  const s2 = await openStream({ Host: host, Cookie: c2 });
+  const pc = await openStream({ Host: `127.0.0.1:${port}` });
+  assert.deepEqual([s1.status, s2.status, pc.status], [200, 200, 200]);
+
+  assert.equal(auth.revokeDevice(mine.id).found, true);
+  assert.equal(await settled(s1.ended), true, 'the revoked device stream is closed');
+  assert.equal(await settled(s2.ended), false, 'the other device stream stays open');
+  assert.equal(await settled(pc.ended), false, 'the PC stream stays open');
+  assert.equal((await get('/api/state', { Cookie: c1 })).status, 401);
+  assert.equal((await get('/api/state', { Cookie: c2 })).status, 200);
+  assert.equal((await openStream({ Host: host, Cookie: c1 })).status, 401, 'no new stream either');
+  const again = await post('/login', `token=${encodeURIComponent(mine.token)}`, form);
+  assert.equal(again.headers.location, '/login?e=1', 'the revoked token no longer signs in');
+  assert.ok(devices.has(deviceId), 'the main test device is unaffected');
 });
