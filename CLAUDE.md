@@ -20,6 +20,7 @@ Run `npm run typecheck` and `npm test` after every change, except changes that o
 
 Moved verbatim to `docs/architecture.md` to keep this file small. Read the matching section before working in that area:
 
+- **Code style** (`docs/code-style.md`): folder map, naming, size limits, comments. Read before writing or changing any code, and include it in every `frontend-developer` and `typescript-pro` delegation.
 - **Layout**: what each file in `src/`, `scripts/` and `public/` does. Read before adding, moving or editing a module.
 - **Data sources**: formats of Claude Code's files under `~/.claude`. Read before touching `transcripts.ts`, `state.ts` or `limits.ts`.
 - **Environment variables**: `DASHBOARD_*`, `PROJECTS_ROOT`, `CLAUDE_*` and their defaults.
@@ -80,8 +81,8 @@ Also see `.claude/skills/` for 24 reusable skills.
 
 ### Frontend and TypeScript delegation (mandatory)
 
-- **Frontend:** delegate every change in `src/client/` (`.ts`, `.scss`, `index.html`, `login.html`) to the `frontend-developer` agent, including new files such as `building.ts`. The client is vanilla TypeScript and SCSS with no framework (no React, Vue or Angular), so ignore the agent's framework wording. In the delegation prompt, include the "UI conventions" from `docs/architecture.md`, the `esc()` and no-inline-script rules from "Rules", and which `src/shared/types.ts` changes are involved. Trivial one-line fixes may be done directly.
-- **TypeScript:** delegate to `typescript-pro` whenever `src/shared/types.ts` is added to or changed, a new `.ts` module is created, or API, transcript or config boundaries get new types, not only when asked for "type-system work". Honour the "TypeScript constraints" above.
+- **Frontend:** delegate every change in `src/client/` (`.ts`, `.scss`, `index.html`, `login.html`) to the `frontend-developer` agent, including new files such as `building.ts`. The client is vanilla TypeScript and SCSS with no framework (no React, Vue or Angular), so ignore the agent's framework wording. In the delegation prompt, include the "UI conventions" from `docs/architecture.md`, the `esc()` and no-inline-script rules from "Rules", `docs/code-style.md`, and which `src/shared/types.ts` changes are involved. Trivial one-line fixes may be done directly.
+- **TypeScript:** delegate to `typescript-pro` whenever `src/shared/types.ts` is added to or changed, a new `.ts` module is created, or API, transcript or config boundaries get new types, not only when asked for "type-system work". Honour the "TypeScript constraints" above and include `docs/code-style.md` in the delegation prompt.
 - When both apply (a client feature with new shared types), run `typescript-pro` for the types first, then `frontend-developer` for the UI.
 
 <!-- project-setup:start -->
