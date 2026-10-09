@@ -1421,6 +1421,76 @@ $hair: (#2b2118, #6b4423, #c9a24b, #a33b2a, #555555);
   }
 }
 
+.audit {
+  &__summary {
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  &[open] &__summary {
+    margin-bottom: 12px;
+  }
+
+  &__bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  &__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 6px;
+  }
+
+  &__item {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+    min-width: 0;
+  }
+
+  &__line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 10px;
+  }
+
+  &__target {
+    color: var(--ink-2);
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+
+  &__result {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+
+    &--ok {
+      color: var(--ink-2);
+    }
+
+    &--failed {
+      color: var(--crit);
+    }
+  }
+
+  &__prompt {
+    color: var(--ink-2);
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
 .devices {
   &__list {
     list-style: none;

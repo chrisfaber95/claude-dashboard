@@ -1,22 +1,10 @@
 import { open } from 'node:fs/promises';
 import { join } from 'node:path';
 import { DATA_DIR } from './config.ts';
+import type { AuditEntry } from '../shared/types.ts';
 
-/** The only fields that ever leave `commands.log` through the API (never `ip`, ids of targets, names, codes). */
-export interface AuditEntry {
-  ts: string;
-  action: string;
-  /** Name of the device that did it. */
-  device?: string;
-  /** Id of that device; `pc` for this PC (loopback). */
-  deviceId?: string;
-  project?: string;
-  session?: string;
-  mode?: string;
-  ok?: boolean;
-  /** Already cut to 200 characters when it was written; cut again here. */
-  prompt?: string;
-}
+// The only fields that ever leave `commands.log` through the API (never `ip`, ids of targets, names, codes).
+export type { AuditEntry };
 
 export const AUDIT_MAX_ENTRIES = 200;
 /** At most this much of the end of the file is read. */

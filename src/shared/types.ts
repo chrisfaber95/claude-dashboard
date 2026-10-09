@@ -175,6 +175,22 @@ export interface AlertsInfo {
   threshold: number;
 }
 
+/** One command-log entry as served by `GET /api/audit`: allowlisted fields only. */
+export interface AuditEntry {
+  ts: string;
+  action: string;
+  /** Name of the device that did it. */
+  device?: string;
+  /** Id of that device; `pc` for this PC (loopback). */
+  deviceId?: string;
+  project?: string;
+  session?: string;
+  mode?: string;
+  ok?: boolean;
+  /** Cut to 200 characters. */
+  prompt?: string;
+}
+
 /** A LAN device as listed by `GET /api/devices`. Never carries the token or its hash. */
 export interface DeviceInfo {
   id: string;
