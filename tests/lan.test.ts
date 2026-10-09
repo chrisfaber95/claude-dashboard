@@ -19,11 +19,12 @@ writeFileSync(join(fx.root, 'secret.txt'), 'nope');
 const { createDashboardServer } = await import('../src/server/server.ts');
 const { createAuth } = await import('../src/server/auth.ts');
 const { createDeviceStore } = await import('../src/server/devices.ts');
+const { recordFailedSignin } = await import('../src/server/alerts.ts');
 const { ensureCert } = await import('../src/server/tls.ts');
 
 const devices = createDeviceStore(fx.dataDir);
 const { token, id: deviceId } = devices.create('test phone');
-const auth = createAuth(devices);
+const auth = createAuth(devices, { onFailedLogin: recordFailedSignin }); // the same wiring as the real server
 const server = createDashboardServer({ publicDir, auth, tls: ensureCert(fx.dataDir), commands: true });
 let port = 0;
 let host = '';
@@ -375,4 +376,37 @@ test('the device cap answers 409 with a fixed string', async () => {
   const r = await pcCall('POST', '/api/devices', { name: 'one too many' });
   assert.equal(r.status, 409);
   assert.deepEqual(JSON.parse(r.body), { error: 'at most 100 devices' });
+});
+
+// ---- failed sign-in alerts (T-014) ----
+
+test('failed sign-ins show up as one alert per source address, are dismissable, and never carry the attempted token', async () => {
+  const signinAlerts = async () =>
+    (JSON.parse((await pcCall('GET', '/api/state')).body).alerts.items as Array<{ id: string; kind: string; title: string; detail: string }>).filter((a) => a.kind === 'signin');
+  const dismiss = (id: string) => pcCall('POST', '/api/alerts/dismiss', { id });
+  for (const a of await signinAlerts()) assert.equal((await dismiss(a.id)).status, 200); // earlier tests also failed a login
+
+  const secret = 'guess-' + 'q'.repeat(30);
+  for (let i = 0; i < 2; i++) assert.equal((await post('/login', `token=${secret}`, form)).headers.location, '/login?e=1');
+  const [a, ...rest] = await signinAlerts();
+  assert.equal(rest.length, 0, 'one alert for the one source address');
+  assert.equal(a.id, 'signin:127.0.0.1', 'the socket address, not a header');
+  assert.match(a.detail, /^127[.]0[.]0[.]1 · 2 failed attempts · last at [0-9]{2}:[0-9]{2}:[0-9]{2}$/);
+  const state = (await pcCall('GET', '/api/state')).body;
+  assert.ok(!state.includes(secret), 'the attempted token is never kept');
+  assert.ok(!(await openStream({ Host: pcHost() })).first.includes(secret));
+
+  // a forwarded header does not change the source
+  await post('/login', 'token=nope', { ...form, 'X-Forwarded-For': '6.6.6.6' });
+  const after = await signinAlerts();
+  assert.deepEqual(after.map((x) => x.id), ['signin:127.0.0.1']);
+  assert.match(after[0].detail, /3 failed attempts/);
+
+  assert.equal((await dismiss(a.id)).status, 200);
+  assert.deepEqual(await signinAlerts(), []);
+  await post('/login', 'token=again', form);
+  const reopened = await signinAlerts();
+  assert.equal(reopened.length, 1);
+  assert.match(reopened[0].detail, /1 failed attempt /);
+  await dismiss(reopened[0].id);
 });

@@ -129,3 +129,89 @@ test('the file is only written when something changed', () => {
   store.buildAlerts({ sessions: [session('s1', 'waiting')], limits: limits([]), team: null, nowMs: 1 });
   assert.equal(readFileSync(file, 'utf8'), sentinel);
 });
+
+// ---- failed sign-in alerts (T-014) ----
+const signins = (nowMs = 1) => store.buildAlerts({ sessions: [], limits: limits([]), team: null, nowMs }).items.filter((a) => a.kind === 'signin');
+const at = (h: number, m: number, s: number) => new Date(2026, 5, 1, h, m, s).getTime();
+
+test('failed sign-ins update one alert per source address instead of adding new ones', () => {
+  reset();
+  store.recordFailedSignin('192.168.1.20', at(9, 5, 7));
+  store.recordFailedSignin('192.168.1.20', at(9, 5, 9));
+  store.recordFailedSignin('192.168.1.20', at(14, 30, 1));
+  store.recordFailedSignin('192.168.1.99', at(8, 0, 0));
+  const items = signins();
+  assert.deepEqual(items.map((a) => a.id).sort(), ['signin:192.168.1.20', 'signin:192.168.1.99']);
+  const a = items.find((x) => x.id === 'signin:192.168.1.20')!;
+  assert.equal(a.title, 'Failed sign-in');
+  assert.equal(a.detail, '192.168.1.20 · 3 failed attempts · last at 14:30:01');
+  assert.equal(a.sinceMs, at(14, 30, 1));
+  assert.equal(items.find((x) => x.id === 'signin:192.168.1.99')!.detail, '192.168.1.99 · 1 failed attempt · last at 08:00:00');
+  // repeated builds do not duplicate and the alert stays until dismissed
+  assert.equal(signins(2).length, 2);
+  assert.equal(signins(9_999_999_999).length, 2);
+});
+
+test('dismissing a sign-in alert hides it, and a new failure from that address opens it again', () => {
+  reset();
+  store.recordFailedSignin('10.0.0.5', at(10, 0, 0));
+  store.recordFailedSignin('10.0.0.5', at(10, 0, 1));
+  store.dismissAlert('signin:10.0.0.5');
+  assert.deepEqual(signins(), []);
+  assert.deepEqual(signins(5), [], 'stays dismissed');
+  store.recordFailedSignin('10.0.0.5', at(11, 0, 0));
+  const again = signins();
+  assert.equal(again.length, 1);
+  assert.equal(again[0].detail, '10.0.0.5 · 1 failed attempt · last at 11:00:00', 'fresh record, count starts over');
+  // other addresses are untouched by a dismissal
+  store.recordFailedSignin('10.0.0.6', at(11, 0, 1));
+  store.dismissAlert('signin:10.0.0.5');
+  assert.deepEqual(signins().map((a) => a.id), ['signin:10.0.0.6']);
+});
+
+test('sign-in failures are in memory only: nothing about them reaches alerts.json', () => {
+  reset();
+  store.recordFailedSignin('172.16.0.9', at(1, 2, 3));
+  store.dismissAlert('signin:172.16.0.9');
+  store.dismissAlert('session:s1'); // forces a write
+  const text = readFileSync(file, 'utf8');
+  assert.ok(!text.includes('signin') && !text.includes('172.16.0.9'), text);
+  // a stray signin id in the file is ignored on load
+  writeFileSync(file, JSON.stringify({ dismissed: ['signin:172.16.0.9', 'session:s1'], threshold: 80 }));
+  reset();
+  store.recordFailedSignin('172.16.0.9', at(1, 2, 3));
+  assert.equal(signins().length, 1, 'not hidden by the stray id');
+  // and a restart forgets the failures
+  reset();
+  assert.deepEqual(signins(), []);
+});
+
+test('at most 50 addresses are kept; the one that failed longest ago is dropped', () => {
+  reset();
+  for (let i = 0; i < 50; i++) store.recordFailedSignin(`10.1.0.${i}`, 1000 + i);
+  assert.equal(signins().length, 50);
+  store.recordFailedSignin('10.1.0.0', 5000); // the oldest fails again: now the newest
+  store.recordFailedSignin('10.2.0.1', 6000); // a 51st address pushes out 10.1.0.1
+  const ids = signins().map((a) => a.id);
+  assert.equal(ids.length, 50);
+  assert.ok(!ids.includes('signin:10.1.0.1'));
+  assert.ok(ids.includes('signin:10.1.0.0') && ids.includes('signin:10.2.0.1') && ids.includes('signin:10.1.0.2'));
+  // an update of a known address never evicts anything
+  store.recordFailedSignin('10.2.0.1', 7000);
+  assert.equal(signins().length, 50);
+});
+
+test('addresses are normalised and bounded, and the alert holds no token-like input', () => {
+  reset();
+  store.recordFailedSignin('::ffff:192.168.1.7', 1);
+  store.recordFailedSignin('192.168.1.7', 2);
+  store.recordFailedSignin('x'.repeat(500), 3);
+  store.recordFailedSignin('', 4);
+  const items = signins();
+  assert.equal(items.find((a) => a.id === 'signin:192.168.1.7')?.detail.includes('2 failed attempts'), true, 'mapped IPv4 and plain IPv4 are one source');
+  assert.ok(items.every((a) => a.id.length <= 'signin:'.length + 64));
+  assert.ok(items.some((a) => a.id === 'signin:unknown'));
+  // the recorded fields are address, count and time only
+  const json = JSON.stringify(items);
+  assert.ok(!/token|secret|password/i.test(json), json);
+});

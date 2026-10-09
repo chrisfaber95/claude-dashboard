@@ -152,11 +152,11 @@ export interface TeamBoard {
   needsYou: string[];
 }
 
-export type AlertKind = 'session' | 'usage' | 'ticket';
+export type AlertKind = 'session' | 'usage' | 'ticket' | 'signin';
 
 /** Something that needs the user. The id is deterministic per condition, so it never duplicates. */
 export interface Alert {
-  /** `session:<sessionId>`, `usage:<windowKey>` or `ticket:<T-id>`. */
+  /** `session:<sessionId>`, `usage:<windowKey>`, `ticket:<T-id>` or `signin:<address>`. */
   id: string;
   kind: AlertKind;
   /** Session name, limit window label or ticket id. */
