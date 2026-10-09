@@ -482,6 +482,15 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
   return server;
 }
 
+/** Startup address lines. LAN mode splits "this PC, no login" from the addresses other devices sign in on. */
+export function startupLines(lan: boolean, host: string, port: number, lanHosts: string[]): string[] {
+  if (!lan) return [`Claude dashboard on http://${host}:${port}`];
+  const lines = [`Claude dashboard, this PC (no login): https://localhost:${port}`];
+  const others = host === '0.0.0.0' || host === '::' ? lanHosts : [host];
+  for (const h of others) lines.push(`Claude dashboard, other devices (sign in with a device token): https://${h}:${port}`);
+  return lines;
+}
+
 const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
   let opts: ServerOptions = {};
@@ -493,9 +502,7 @@ if (isMain) {
     console.log('Sign-in uses per-device tokens; this PC (loopback address) needs none.');
   }
   createDashboardServer(opts).listen(PORT, HOST, () => {
-    const proto = LAN_MODE ? 'https' : 'http';
-    const hosts = LAN_MODE && (HOST === '0.0.0.0' || HOST === '::') ? lanAddresses() : [HOST];
-    for (const h of hosts) console.log(`Claude dashboard on ${proto}://${h}:${PORT}`);
+    for (const line of startupLines(LAN_MODE, HOST, PORT, lanAddresses())) console.log(line);
     console.log(`Commands ${COMMANDS_ENABLED ? 'enabled' : 'disabled'}${LAN_MODE ? ' · login required' : ''}`);
   });
 }
