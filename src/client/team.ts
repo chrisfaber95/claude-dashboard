@@ -1,6 +1,6 @@
 import type { DashboardState, TeamTicket } from '../shared/types.ts';
 import { TEAM_COLUMNS } from '../shared/types.ts';
-import { patchHtml } from './patch.ts';
+import { forgetHtml, patchHtml } from './patch.ts';
 import { $, esc } from './util.ts';
 
 function ticketList(title: string, items: TeamTicket[]): string {
@@ -10,14 +10,19 @@ function ticketList(title: string, items: TeamTicket[]): string {
 }
 
 /** Read-only team board summary. Hidden when the server sends no board; patches only what changed. */
-export function renderTeam(s: DashboardState): void {
+export function renderTeam(s: DashboardState, draw = true): void {
   const el = $('team');
   const t = s.team ?? null;
   if (!t) {
     if (!el.hidden) {
       el.hidden = true;
       el.innerHTML = '';
+      forgetHtml(el); // the same markup arriving later must patch again, not be skipped
     }
+    return;
+  }
+  if (!draw) {
+    el.hidden = false; // the popup button follows the section; its content renders when the popup opens
     return;
   }
   const tiles = TEAM_COLUMNS.map(

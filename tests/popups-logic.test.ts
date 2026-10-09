@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { UsageDay } from '../src/shared/types.ts';
-import { POPUPS, backdropCloses, escapeClosesPopup, stillOpen, toggled, tokensToday, visiblePopups } from '../src/client/popups-logic.ts';
+import { POPUPS, backdropCloses, openPopup, escapeClosesPopup, stillOpen, toggled, tokensToday, visiblePopups } from '../src/client/popups-logic.ts';
 
 test('the button set and order are fixed', () => {
   assert.deepEqual(
@@ -45,4 +45,18 @@ test("tokensToday sums today's four counters and is 0 without a day", () => {
   const now = new Date(2026, 9, 9, 12);
   assert.equal(tokensToday([day('2026-10-08'), day('2026-10-09')], now), 10);
   assert.equal(tokensToday([day('2026-10-08')], now), 0);
+});
+
+test('drawsSection: closed popup sections are skipped, the open one and non-popup sections draw', async () => {
+  const { drawsSection } = await import('../src/client/popups-logic.ts');
+  assert.equal(drawsSection('usage', null), false);
+  assert.equal(drawsSection('usage', 'projects'), false);
+  assert.equal(drawsSection('usage', 'usage'), true);
+  assert.equal(drawsSection('sessions', null), true);
+});
+
+test('openPopup reveals the popup, then renders it', () => {
+  const calls: string[] = [];
+  openPopup('usage', (id) => calls.push(`reveal ${id}`), (id) => calls.push(`render ${id}`));
+  assert.deepEqual(calls, ['reveal usage', 'render usage']);
 });

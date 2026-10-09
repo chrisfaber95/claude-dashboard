@@ -137,3 +137,17 @@ test('an open <details> stays as the reader left it', () => {
   assert.equal(live.kids[0], d);
   assert.equal(d.getAttribute('open'), '');
 });
+
+test('patchIfChanged: unchanged markup does not call the patcher again', async () => {
+  const { patchIfChanged, forgetHtml } = await import('../src/client/patch.ts');
+  const el = {};
+  let calls = 0;
+  const run = () => calls++;
+  assert.equal(patchIfChanged(el, '<p>a</p>', run), true);
+  assert.equal(patchIfChanged(el, '<p>a</p>', run), false);
+  assert.equal(calls, 1);
+  assert.equal(patchIfChanged(el, '<p>b</p>', run), true);
+  forgetHtml(el);
+  assert.equal(patchIfChanged(el, '<p>b</p>', run), true);
+  assert.equal(calls, 3);
+});

@@ -86,9 +86,26 @@ export function patchChildren(oldParent: PNode, newParent: PNode): void {
   for (const k of oldKids) if (!used.has(k)) oldParent.removeChild(k);
 }
 
-/** Patch `el` to show `html`. An identical render writes nothing to the DOM. */
+const lastHtml = new WeakMap<object, string>();
+
+/** Forget the remembered markup of `el`; call it when something other than `patchHtml` rewrites the element. */
+export function forgetHtml(el: object): void {
+  lastHtml.delete(el);
+}
+
+/** Run `patch` unless `html` equals what was last patched into `el`; returns whether it ran. */
+export function patchIfChanged(el: object, html: string, patch: () => void): boolean {
+  if (lastHtml.get(el) === html) return false;
+  patch();
+  lastHtml.set(el, html);
+  return true;
+}
+
+/** Patch `el` to show `html`. Markup identical to the last call skips the DOM walk; an identical render writes nothing. */
 export function patchHtml(el: HTMLElement, html: string): void {
-  const t = document.createElement('template');
-  t.innerHTML = html;
-  patchChildren(el, t.content);
+  patchIfChanged(el, html, () => {
+    const t = document.createElement('template');
+    t.innerHTML = html;
+    patchChildren(el, t.content);
+  });
 }
