@@ -1,5 +1,7 @@
 import { updateSummaryNote } from './settings.ts';
-import type { CommandResult, DashboardState, TranscriptEntry, TranscriptPage } from '../shared/types.ts';
+import type { AuditEntry, CommandResult, DashboardState, TranscriptEntry, TranscriptPage } from '../shared/types.ts';
+import { launchBody, fieldsAfterLaunch, launchRow, launchState } from './launch-logic.ts';
+import { patchHtml } from './patch.ts';
 import { $, ago, api, esc } from './util.ts';
 
 const ROLE_LABEL: Record<TranscriptEntry['role'], string> = {
@@ -153,46 +155,17 @@ function describe(r: CommandResult): string {
   return r.ok ? `Started${r.id ? ` (${r.id})` : ''}. ${r.output}`.trim() : r.output || 'Command failed.';
 }
 
-// ---- recent tasks (started from the run panel, kept in localStorage) ----
+// ---- recent launches (server-side history from GET /api/launches, the same on every device) ----
 
-interface RecentTask {
-  id: string;
-  project: string;
-  prompt: string;
-  startedAt: number;
-}
-
-const RECENT_KEY = 'recentTasks';
-const RECENT_MAX = 10;
-const PROMPT_MAX = 80;
 let latest: DashboardState | null = null;
-let recent: RecentTask[] = [];
+let launches: AuditEntry[] = [];
 
-function isRecentTask(v: unknown): v is RecentTask {
-  if (typeof v !== 'object' || v === null) return false;
-  const o = v as Record<string, unknown>;
-  return typeof o.id === 'string' && typeof o.project === 'string' && typeof o.prompt === 'string' && typeof o.startedAt === 'number' && Number.isFinite(o.startedAt);
-}
-
-function loadRecent(): RecentTask[] {
+async function loadLaunches() {
   try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]');
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .filter(isRecentTask)
-      .filter((t) => t.id === '' || /^[A-Za-z0-9_-]{4,64}$/.test(t.id))
-      .map((t) => ({ id: t.id.slice(0, 64), project: t.project.slice(0, 200), prompt: t.prompt.slice(0, PROMPT_MAX), startedAt: t.startedAt }))
-      .slice(0, RECENT_MAX);
+    launches = (await api<{ launches: AuditEntry[] }>('/api/launches')).launches;
+    renderLaunches();
   } catch {
-    return [];
-  }
-}
-
-function saveRecent() {
-  try {
-    localStorage.setItem(RECENT_KEY, JSON.stringify(recent));
-  } catch {
-    // storage unavailable: the list just lasts until reload
+    // keep the list we have; the next load retries
   }
 }
 
@@ -214,49 +187,36 @@ function matchSession<T extends { sessionId: string }>(list: T[], id: string): T
   return prefixed.length === 1 ? prefixed[0] : undefined;
 }
 
-function renderRecent() {
-  $('recent').hidden = recent.length === 0;
-  $('recent-list').innerHTML = recent
-    .map(
-      (t, i) => `<li class="recent__item" data-ri="${i}">
+/** Patches the launch list in place (running / not live and relative time); rows keep their nodes. */
+function renderLaunches() {
+  $('recent').hidden = launches.length === 0;
+  const html = launches
+    .map(launchRow)
+    .map((row) => {
+      const state = launchState(row, Boolean(row.session && latest && matchSession(latest.sessions, row.session)));
+      return `<li class="recent__item${state === 'running' ? ' is-live' : ''}${state === 'failed' ? ' is-failed' : ''}" data-key="${esc(row.key)}">
         <span class="recent__dot" aria-hidden="true"></span>
-        <span class="recent__main"><span class="recent__project">${esc(t.project)}</span>
-          <span class="recent__prompt">${esc(t.prompt)}</span>
-          <span class="sub"><span class="recent__time">${esc(ago(t.startedAt))}</span> · <span class="recent__state"></span></span></span>
-        ${t.id ? `<button class="btn btn--sm" type="button" data-recent="${esc(t.id)}" data-name="${esc(t.project)}">View</button>` : ''}
-      </li>`,
-    )
+        <span class="recent__main"><span class="recent__project">${esc(row.project)}</span>
+          <span class="recent__prompt">${esc(row.goal)}</span>
+          <span class="sub"><span class="recent__time">${esc(ago(row.tsMs))}</span> · ${esc(row.device)} · <span class="recent__state">${esc(state)}</span></span></span>
+        ${row.session ? `<button class="btn btn--sm" type="button" data-recent="${esc(row.session)}" data-name="${esc(row.project)}">View</button>` : ''}
+      </li>`;
+    })
     .join('');
-  patchRecent();
-}
-
-/** Updates live dots and times in place; the list itself is not rebuilt on state pushes. */
-function patchRecent() {
-  document.querySelectorAll<HTMLElement>('#recent-list .recent__item').forEach((li) => {
-    const t = recent[Number(li.dataset.ri)];
-    if (!t) return;
-    const live = Boolean(t.id && latest && matchSession(latest.sessions, t.id));
-    li.classList.toggle('is-live', live);
-    li.querySelector('.recent__state')!.textContent = !t.id ? 'no id to link' : live ? 'live' : 'not live';
-    li.querySelector('.recent__time')!.textContent = ago(t.startedAt);
-  });
-}
-
-function addRecent(id: string | undefined, project: string, prompt: string) {
-  recent = [{ id: id ?? '', project, prompt: prompt.trim().slice(0, PROMPT_MAX), startedAt: Date.now() }, ...recent].slice(0, RECENT_MAX);
-  saveRecent();
-  renderRecent();
+  patchHtml($('recent-list'), html);
 }
 
 // ---- wiring ----
 
 export function initControls() {
-  recent = loadRecent();
-  renderRecent();
-  $('recent-clear').addEventListener('click', () => {
-    recent = [];
-    saveRecent();
-    renderRecent();
+  try {
+    localStorage.removeItem('recentTasks'); // old per-browser history, replaced by the server-side launch history
+  } catch {
+    // storage unavailable
+  }
+  void loadLaunches();
+  document.addEventListener('click', (e) => {
+    if ((e.target as Element).closest('[data-popup="run"]')) void loadLaunches();
   });
 
   document.addEventListener('click', async (e) => {
@@ -293,22 +253,24 @@ export function initControls() {
 
   $('run-form').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const project = $<HTMLSelectElement>('run-project').value;
-    const permissionMode = $<HTMLSelectElement>('run-mode').value;
-    const prompt = $<HTMLTextAreaElement>('run-prompt').value;
-    if (!confirm(`Start a background Claude session in ${project} (${permissionMode} mode)?`)) return;
     const status = $('run-status');
+    const project = $<HTMLSelectElement>('run-project').value;
+    const body = launchBody(project, $<HTMLTextAreaElement>('run-goal').value, $<HTMLTextAreaElement>('run-notes').value, $<HTMLSelectElement>('run-mode').value);
+    // Empty goal or no project: skip the confirm, the server answers with its own message, shown below; nothing starts.
+    if (body.goal && project && !confirm(`Launch a background Claude session in ${project} (${body.permissionMode} mode)?`)) return;
     status.textContent = 'Starting…';
+    let ok = false;
     try {
-      const r = await api<CommandResult>('/api/commands', { project, prompt, permissionMode });
+      const r = await api<CommandResult>('/api/commands', body);
+      ok = r.ok;
       status.textContent = describe(r);
-      if (r.ok) {
-        addRecent(r.id, project, prompt);
-        $<HTMLTextAreaElement>('run-prompt').value = '';
-      }
     } catch (err) {
       status.textContent = (err as Error).message;
     }
+    const clear = fieldsAfterLaunch(ok);
+    if (clear.clearGoal) $<HTMLTextAreaElement>('run-goal').value = '';
+    if (clear.clearNotes) $<HTMLTextAreaElement>('run-notes').value = '';
+    if (ok) void loadLaunches();
   });
 
   $('drawer-form').addEventListener('submit', async (e) => {
@@ -331,7 +293,7 @@ export function initControls() {
 /** Called on every state push. Never re-renders the forms, so typing isn't interrupted. */
 export function updateControls(s: DashboardState) {
   latest = s;
-  patchRecent();
+  renderLaunches();
   commandsOn = s.features.commands;
   updateSummaryNote(commandsOn);
   $('run').hidden = !commandsOn;

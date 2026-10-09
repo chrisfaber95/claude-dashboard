@@ -599,6 +599,10 @@ textarea {
     background: var(--good);
   }
 
+  &__item.is-failed &__dot {
+    background: var(--crit);
+  }
+
   &__main {
     flex: 1;
     min-width: 0;

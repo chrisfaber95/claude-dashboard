@@ -7,7 +7,7 @@ export const POPUPS = [
   { id: 'team', label: 'Team board' },
   { id: 'usage', label: 'Token usage (14 days)' },
   { id: 'chat', label: 'Chat' },
-  { id: 'run', label: 'Run a task' },
+  { id: 'run', label: 'Launch a task' },
   { id: 'devices', label: 'Devices' },
   { id: 'audit', label: 'Activity' },
 ] as const;
