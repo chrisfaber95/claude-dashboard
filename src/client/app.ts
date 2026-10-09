@@ -1,4 +1,5 @@
 import type { DashboardState, MessageInfo, SessionInfo, TokenCounts, UsageDay } from '../shared/types.ts';
+import { initAlerts, renderAlerts } from './alerts.ts';
 import { initBuilding, updateBuilding } from './building.ts';
 import { initControls, updateControls } from './controls.ts';
 import { initCore, updateCore } from './core.ts';
@@ -6,22 +7,12 @@ import { ensureRootScene } from './root-scene.ts';
 import { parseSkin } from './skin.ts';
 import type { Skin } from './skin.ts';
 import { renderTeam } from './team.ts';
-import { $, ago, api, esc } from './util.ts';
+import { $, ago, api, esc, until } from './util.ts';
 
 const fmt = (n: number) =>
   n >= 1e9 ? (n / 1e9).toFixed(2) + 'B' : n >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'k' : String(n);
 
 const total = (t: TokenCounts) => t.input + t.output + t.cacheRead + t.cacheWrite;
-
-function until(ms: number | null): string {
-  if (!ms) return 'no reset scheduled';
-  const s = (ms - Date.now()) / 1000;
-  if (s <= 0) return 'resetting now';
-  const d = Math.floor(s / 86400);
-  const h = Math.floor((s % 86400) / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  return `resets in ${d ? `${d}d ` : ''}${h || d ? `${h}h ` : ''}${m}m`;
-}
 
 function uptime(ms: number): string {
   const s = (Date.now() - ms) / 1000;
@@ -308,6 +299,7 @@ function render(s: DashboardState) {
   const steps: Array<[string, () => void]> = [
     ['colors', () => setColors(s.projects.map((p) => p.name))],
     ['limits', () => renderLimits(s)],
+    ['alerts', () => renderAlerts(s)],
     ['team', () => renderTeam(s)],
     ['projects', () => renderProjects(s)],
     ['sessions', () => renderSessions(s)],
@@ -331,6 +323,7 @@ function render(s: DashboardState) {
 }
 
 initControls();
+initAlerts();
 initBuilding();
 initCore();
 

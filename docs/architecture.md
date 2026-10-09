@@ -26,6 +26,8 @@ Reference sections moved out of `CLAUDE.md` (which links here) so they load only
   - `root-scene.ts`: builds the Root skin hero scene once, lazily, and fills the central seed; only loaded when Root is active
   - `skin.ts`: `Skin` type and the `parseSkin` allowlist
   - `team.ts`: Team section (column tiles, in-progress/review/blocked lists, "Needs you" list); hidden when `DashboardState.team` is `null`; rebuilds its HTML only when it changed
+  - `alerts-logic.ts`: pure alert logic (`badgeCount`, `createAlertTracker`: the first state after page load is only a baseline, later states return ids not in the previous state, so a reload never re-toasts), testable with `node --test`
+  - `alerts.ts`: header badge (`#alert-badge`), "Needs attention" panel (`#alerts`: list rebuilt only when changed, dismiss via one delegated click handler to `POST /api/alerts/dismiss`, threshold form to `POST /api/settings/alerts`, never overwritten while focused) and toasts (`.alert-toast`, built with `textContent`, max 4, 8 s); `until()` lives in `util.ts`
   - `util.ts`: `esc()` and `api()`
   - `_skin-copilot.scss`: KITT-inspired dark skin (near-black, red accent `#ff3b30`, Space Grotesk/JetBrains Mono fonts); loaded via `meta.load-css`, scoped to `:root[data-skin='copilot']`
   - `_skin-root.scss`: Eywa / Tree of Souls skin (deep blue, glowing willow tree, floating seeds; Cormorant Garamond italic headings, Nunito Sans body); loaded via `meta.load-css`, scoped to `:root[data-skin='root']`, reacts to `data-mood` on `<html>`
@@ -78,7 +80,7 @@ Reference sections moved out of `CLAUDE.md` (which links here) so they load only
 - Mock `globalThis.fetch` in tests; tests must never touch the network or real user files.
 - Command tests use `tests/fake-claude.mjs` via `CLAUDE_BIN=node` + `CLAUDE_BIN_ARGS`. It records argv and cwd to `FAKE_CLAUDE_LOG`. Assert exact argument arrays.
 - Use `raw()` from `helpers.ts` for HTTP tests that must set `Host`, `Origin` or cookies exactly (`fetch` normalises these).
-- Test files: `tests/mood.test.ts` (session/subagent mood logic), `tests/skin.test.ts` (skin parsing), `tests/static-fonts.test.ts` (font file validation), `tests/root-assets.test.ts` (Root skin SVG guard), `tests/copy-assets.test.ts` (asset copying), `tests/claude-bin.test.ts` (Claude CLI lookup order), `tests/team.test.ts` (team-hq board reader, `DashboardState.team`), `tests/alerts.test.ts` (alert derivation and dismissal store).
+- Test files: `tests/mood.test.ts` (session/subagent mood logic), `tests/skin.test.ts` (skin parsing), `tests/static-fonts.test.ts` (font file validation), `tests/root-assets.test.ts` (Root skin SVG guard), `tests/copy-assets.test.ts` (asset copying), `tests/claude-bin.test.ts` (Claude CLI lookup order), `tests/team.test.ts` (team-hq board reader, `DashboardState.team`), `tests/alerts.test.ts` (alert derivation and dismissal store), `tests/alerts-logic.test.ts` (client new-alert detection and badge count).
 
 ## UI conventions
 

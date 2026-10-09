@@ -12,6 +12,16 @@ export function ago(ms: number | null): string {
   return `${Math.floor(s / 86400)}d ago`;
 }
 
+export function until(ms: number | null): string {
+  if (!ms) return 'no reset scheduled';
+  const s = (ms - Date.now()) / 1000;
+  if (s <= 0) return 'resetting now';
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return `resets in ${d ? `${d}d ` : ''}${h || d ? `${h}h ` : ''}${m}m`;
+}
+
 export class ApiError extends Error {}
 
 /** Same-origin API call. POSTs carry the CSRF header; a 401 sends the browser to the login page. */
