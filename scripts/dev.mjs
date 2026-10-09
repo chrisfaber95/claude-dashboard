@@ -9,17 +9,17 @@ const serverArgs = process.argv.slice(2);
 
 mkdirSync('public', { recursive: true });
 const copyHtml = () => {
-  for (const f of ['index.html', 'login.html']) copyFileSync(`src/client/${f}`, `public/${f}`);
+  for (const f of ['index.html', 'login.html', 'pair.html']) copyFileSync(`src/client/${f}`, `public/${f}`);
 };
 copyHtml();
 // Fonts and skin artwork rarely change, so copy them once at startup.
 copyAssets();
 watch('src/client', (_event, name) => {
-  if (name === 'index.html' || name === 'login.html') copyHtml();
+  if (name === 'index.html' || name === 'login.html' || name === 'pair.html') copyHtml();
 });
 
 const js = await context({
-  entryPoints: ['src/client/app.ts', 'src/client/login.ts', 'src/client/boot.ts'],
+  entryPoints: ['src/client/app.ts', 'src/client/login.ts', 'src/client/pair.ts', 'src/client/boot.ts'],
   bundle: true,
   outdir: 'public',
   target: 'es2022',

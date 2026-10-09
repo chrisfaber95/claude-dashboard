@@ -19,6 +19,7 @@ const publicDir = join(fx.root, 'public');
 mkdirSync(publicDir);
 writeFileSync(join(publicDir, 'index.html'), '<!doctype html><title>dash</title>');
 writeFileSync(join(publicDir, 'login.html'), '<!doctype html><title>login</title>');
+writeFileSync(join(publicDir, 'pair.html'), '<!doctype html><main data-state="__STATE__">Sign in as <b>__DEVICE__</b>?</main>');
 writeFileSync(join(publicDir, 'style.css'), 'body{}');
 writeFileSync(join(fx.root, 'secret.txt'), 'nope');
 
@@ -433,6 +434,9 @@ const newDevice = async (name: string) => {
   assert.equal(r.status, 200, r.body);
   return JSON.parse(r.body) as { id: string; token: string };
 };
+const formHdr = { 'Content-Type': 'application/x-www-form-urlencoded' };
+/** What the confirm page's button does: POST the code from the link. */
+const confirm = (path: string) => post('/pair', 'c=' + encodeURIComponent(new URL(path, 'https://x').searchParams.get('c') ?? ''), formHdr);
 const pairOf = async (id: string) => JSON.parse((await pcCall('POST', '/api/devices/pair', { id })).body) as { path: string; urls: string[]; expiresMs: number };
 
 test('the PC issues a pairing link that contains a one-time code and never the device token', async () => {
@@ -449,28 +453,42 @@ test('the PC issues a pairing link that contains a one-time code and never the d
   assert.ok(!readFileSync(join(fx.dataDir, 'devices.json'), 'utf8').includes(info.path.slice(8)), 'nor stored on disk');
 });
 
-test('opening the link signs the browser in as that device and redirects to /; a second visit is refused', async () => {
+test('opening the link only shows a confirm page; the button signs the browser in once', async () => {
   const dev = await newDevice('qr phone 2');
   const { path } = await pairOf(dev.id);
-  const ok = await get(path); // a phone: non-loopback Host, no cookie
-  assert.equal(ok.status, 303);
-  assert.equal(ok.headers.location, '/');
-  assert.equal(ok.headers['cache-control'], 'no-store');
+  // a camera app or link preview fetching the URL (twice) changes nothing
+  for (let i = 0; i < 2; i++) {
+    const page = await get(path); // a phone: non-loopback Host, no cookie
+    assert.equal(page.status, 200);
+    assert.equal(page.headers['cache-control'], 'no-store');
+    assert.equal(page.headers['set-cookie'], undefined);
+    assert.match(page.body, /data-state="ok"/);
+    assert.match(page.body, /Sign in as <b>qr phone 2<\/b>\?/);
+  }
+  const ok = await confirm(path);
+  assert.equal(ok.status, 200);
   const set = String(ok.headers['set-cookie']);
   for (const flag of ['HttpOnly', 'Secure', 'SameSite=Strict']) assert.match(set, new RegExp(flag));
   const c = set.split(';')[0];
   assert.equal((await get('/api/state', { Cookie: c })).status, 200);
   assert.equal((await deviceCall(c, 'GET', '/api/devices')).status, 403, 'a paired phone is a normal device, not the PC');
 
-  const again = await get(path);
-  assert.equal(again.status, 303);
-  assert.equal(again.headers.location, '/login?e=pair');
+  const again = await confirm(path);
+  assert.equal(again.status, 401);
   assert.equal(again.headers['set-cookie'], undefined);
-  // the session from the first visit is unaffected
+  assert.match((await get(path)).body, /data-state="bad"/, 'the page now says the code is gone');
+  // the session from the first sign-in is unaffected
   assert.equal((await get('/api/state', { Cookie: c })).status, 200);
 });
 
-test('unknown, malformed and missing codes go to the login page with an error and raise a failed-sign-in alert', async () => {
+test('the confirm page escapes the device name', async () => {
+  const dev = await newDevice('<img src=x onerror=1>');
+  const page = await get((await pairOf(dev.id)).path);
+  assert.ok(!page.body.includes('<img'), page.body);
+  assert.match(page.body, /&#60;img/);
+});
+
+test('unknown, malformed and missing codes show the error page, and failed POSTs raise a failed-sign-in alert', async () => {
   const signinCount = async () =>
     (JSON.parse((await pcCall('GET', '/api/state')).body).alerts.items as Array<{ id: string; kind: string }>).filter((a) => a.kind === 'signin').length;
   for (const a of await (async () => (JSON.parse((await pcCall('GET', '/api/state')).body).alerts.items as Array<{ id: string; kind: string }>).filter((x) => x.kind === 'signin'))()) {
@@ -478,10 +496,17 @@ test('unknown, malformed and missing codes go to the login page with an error an
   }
   assert.equal(await signinCount(), 0);
   for (const p of ['/pair?c=' + 'A'.repeat(43), '/pair?c=', '/pair']) {
-    const r = await get(p);
-    assert.equal(r.status, 303, p);
-    assert.equal(r.headers.location, '/login?e=pair', p);
-    assert.equal(r.headers['set-cookie'], undefined, p);
+    const page = await get(p);
+    assert.equal(page.status, 200, p);
+    assert.match(page.body, /data-state="bad"/, p);
+    assert.equal(page.headers['set-cookie'], undefined, p);
+  }
+  assert.equal(await signinCount(), 0, 'looking at the page is not a sign-in attempt');
+  for (const body of ['c=' + 'A'.repeat(43), 'c=', '']) {
+    const r = await post('/pair', body, formHdr);
+    assert.equal(r.status, 401, body);
+    assert.equal(r.headers['set-cookie'], undefined, body);
+    assert.deepEqual(JSON.parse(r.body), { error: 'invalid or used code' });
   }
   assert.equal(await signinCount(), 1, 'one alert for the one source address');
   const detail = (JSON.parse((await pcCall('GET', '/api/state')).body).alerts.items as Array<{ kind: string; detail: string }>).find((a) => a.kind === 'signin')!.detail;
@@ -489,24 +514,28 @@ test('unknown, malformed and missing codes go to the login page with an error an
   assert.ok(!detail.includes('AAAA'), 'the tried code is not kept');
   // a good sign-in afterwards clears the rate-limit budget
   const dev = await newDevice('after failures');
-  assert.equal((await get((await pairOf(dev.id)).path)).headers.location, '/');
+  assert.equal((await confirm((await pairOf(dev.id)).path)).status, 200);
 });
 
-test('/pair does nothing but GET: other methods are not a way to sign in', async () => {
+test('POST /pair is held to the same-origin check', async () => {
   const dev = await newDevice('post probe');
   const { path } = await pairOf(dev.id);
-  const r = await post(path, '', { 'X-Dashboard': '1' });
-  assert.notEqual(r.status, 303);
+  const code = new URL(path, 'https://x').searchParams.get('c');
+  const r = await raw(port, { https: true, method: 'POST', path: '/pair', body: 'c=' + code, headers: { Host: host, Origin: 'https://evil.example', ...formHdr } });
+  assert.equal(r.status, 403);
   assert.equal(r.headers['set-cookie'], undefined);
-  assert.equal((await get(path)).headers.location, '/', 'the code was not spent by the POST');
+  const noOrigin = await raw(port, { https: true, method: 'POST', path: '/pair', body: 'c=' + code, headers: { Host: host, ...formHdr } });
+  assert.equal(noOrigin.status, 403);
+  assert.equal((await confirm(path)).status, 200, 'the code was not spent by the refused POSTs');
 });
 
 test('revoking a device invalidates its unused pairing code', async () => {
   const dev = await newDevice('revoked before scan');
   const { path } = await pairOf(dev.id);
   assert.equal((await pcCall('POST', '/api/devices/revoke', { id: dev.id })).status, 200);
-  const r = await get(path);
-  assert.equal(r.headers.location, '/login?e=pair');
+  assert.match((await get(path)).body, /data-state="bad"/);
+  const r = await confirm(path);
+  assert.equal(r.status, 401);
   assert.equal(r.headers['set-cookie'], undefined);
 });
 

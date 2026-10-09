@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="same-origin">
+  <title>Claude Dashboard Sign in</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="login">
+    <form class="panel login__form" id="pair" data-state="__STATE__">
+      <h1>Claude Dashboard</h1>
+      <p class="sub" id="ask">Sign in as <strong>__DEVICE__</strong>?</p>
+      <p id="err" class="login__err" role="alert"></p>
+      <button class="btn btn--primary" id="go" type="submit">Sign in</button>
+    </form>
+  </main>
+  <script src="/pair.js"></script>
+</body>
+</html>
