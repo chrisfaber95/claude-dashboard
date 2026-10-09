@@ -175,6 +175,14 @@ export interface AlertsInfo {
   threshold: number;
 }
 
+/** A LAN device as listed by `GET /api/devices`. Never carries the token or its hash. */
+export interface DeviceInfo {
+  id: string;
+  name: string;
+  createdMs: number;
+  lastSeenMs: number | null;
+}
+
 export interface DashboardState {
   generatedAtMs: number;
   projects: ProjectInfo[];

@@ -1,14 +1,9 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type { DeviceInfo } from '../shared/types.ts';
 
-/** What leaves the store: never the token or its hash. */
-export interface DeviceInfo {
-  id: string;
-  name: string;
-  createdMs: number;
-  lastSeenMs: number | null;
-}
+export type { DeviceInfo };
 
 interface StoredDevice extends DeviceInfo {
   /** Hex sha256 of the token. The token itself is never stored. */

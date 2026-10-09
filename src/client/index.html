@@ -57,6 +57,23 @@
       </form>
     </section>
     <section id="team" class="panel team" aria-labelledby="h-team" hidden></section>
+    <section id="devices" class="panel devices" aria-labelledby="h-devices" hidden>
+      <h2 id="h-devices">Devices</h2>
+      <ul id="devices-list" class="devices__list"></ul>
+      <form id="devices-form" class="devices__form">
+        <label>Device name <input id="devices-name" type="text" maxlength="40" autocomplete="off" required></label>
+        <button class="btn btn--sm" type="submit">Add</button>
+      </form>
+      <div id="devices-token" class="devices__token" hidden>
+        <div class="sub">New device token (shown once)</div>
+        <code id="devices-token-value" class="devices__token-value"></code>
+        <div class="devices__token-actions">
+          <button id="devices-token-copy" class="btn btn--sm" type="button">Copy</button>
+          <button id="devices-token-dismiss" class="btn btn--sm" type="button">Dismiss</button>
+        </div>
+      </div>
+      <p id="devices-status" class="sub" role="status"></p>
+    </section>
     <section id="projects" class="panel" aria-labelledby="h-projects"></section>
     <section id="sessions" class="panel" aria-labelledby="h-sessions"></section>
     <section id="comms" class="panel" aria-labelledby="h-comms"></section>

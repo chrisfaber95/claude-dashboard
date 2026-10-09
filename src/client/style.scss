@@ -1421,6 +1421,69 @@ $hair: (#2b2118, #6b4423, #c9a24b, #a33b2a, #555555);
   }
 }
 
+.devices {
+  &__list {
+    list-style: none;
+    margin: 0 0 12px;
+    padding: 0;
+    display: grid;
+    gap: 8px;
+  }
+
+  &__item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+  }
+
+  &__name {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  &__form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+
+    input {
+      width: 16em;
+      max-width: 100%;
+    }
+  }
+
+  &__token {
+    &[hidden] {
+      display: none;
+    }
+
+    display: grid;
+    gap: 6px;
+    margin-top: 12px;
+    background: var(--surface);
+    color: var(--ink);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius-panel);
+    padding: 10px 12px;
+  }
+
+  &__token-value {
+    overflow-wrap: anywhere;
+    user-select: all;
+  }
+
+  &__token-actions {
+    display: flex;
+    gap: 8px;
+  }
+}
+
 .toasts {
   position: fixed;
   right: 16px;
