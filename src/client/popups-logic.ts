@@ -24,6 +24,12 @@ export function drawsSection(id: string, current: PopupId | null): boolean {
   return !POPUPS.some((p) => p.id === id) || current === id;
 }
 
+/** Opening reveals the popup first (so its section counts as drawn), then renders it from the latest state. */
+export function openPopup(id: PopupId, reveal: (id: PopupId) => void, render: (id: PopupId) => void): void {
+  reveal(id);
+  render(id);
+}
+
 /** One popup at a time: opening another replaces the current one, its own button toggles it shut. */
 export function toggled(current: PopupId | null, requested: PopupId): PopupId | null {
   return current === requested ? null : requested;

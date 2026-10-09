@@ -1,9 +1,9 @@
-import { POPUPS, drawsSection, backdropCloses, escapeClosesPopup, stillOpen, toggled, visiblePopups } from './popups-logic.ts';
+import { POPUPS, drawsSection, openPopup, backdropCloses, escapeClosesPopup, stillOpen, toggled, visiblePopups } from './popups-logic.ts';
 import type { PopupId } from './popups-logic.ts';
 import { $ } from './util.ts';
 
-// The popup sections stay in the DOM and keep rendering on every state push; opening one only unhides its wrapper.
-// That is why an open popup keeps its typed input, focus and selection while it updates.
+// The popup sections stay in the DOM; only the open one is rendered on a state push, and opening one renders it from
+// the latest state at once. An open popup keeps its typed input, focus and selection while it updates.
 
 let current: PopupId | null = null;
 let opener: HTMLElement | null = null;
@@ -25,7 +25,7 @@ function show(id: PopupId | null) {
 
 function open(id: PopupId, from: HTMLElement) {
   opener = from;
-  show(id);
+  openPopup(id, show, onOpen);
   if (id === 'audit') $<HTMLDetailsElement>('audit').open = true; // its toggle handler loads the list
   wrap(id).querySelector<HTMLElement>('[data-popup-close]')?.focus();
 }

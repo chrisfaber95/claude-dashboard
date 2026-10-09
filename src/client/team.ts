@@ -17,6 +17,7 @@ export function renderTeam(s: DashboardState, draw = true): void {
     if (!el.hidden) {
       el.hidden = true;
       el.innerHTML = '';
+      forgetHtml(el); // the same markup arriving later must patch again, not be skipped
     }
     return;
   }
