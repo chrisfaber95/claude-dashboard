@@ -11,6 +11,8 @@ import type { Skin } from './skin.ts';
 import { initAudit, renderAudit } from './audit.ts';
 import { initDevices, renderDevices } from './devices.ts';
 import { renderTeam } from './team.ts';
+import { initPopups, updatePopups } from './popups.ts';
+import { tokensToday } from './popups-logic.ts';
 import { patchHtml } from './patch.ts';
 import { $, api, esc, tickTimes, timeSpan } from './util.ts';
 
@@ -79,6 +81,7 @@ function renderLimits(s: DashboardState) {
         ? `from Claude Code's local cache · updated ${timeSpan('ago', l.fetchedAtMs)}`
         : 'no limit data';
   const html = `<h2 id="h-limits">Subscription limits</h2>
+    <p class="limits__today">Tokens today <strong>${fmt(tokensToday(s.usage.days, new Date()))}</strong></p>
     ${gauges ? `<div class="gauges">${gauges}</div>` : '<div class="empty">No limit data available.</div>'}
     <p class="sub">${src}${l.error ? ` · ${esc(l.error)}` : ''}</p>${hits}`;
   patchHtml($('limits'), html);
@@ -302,6 +305,7 @@ function render(s: DashboardState) {
     ['controls', () => updateControls(s)],
     ['building', () => updateBuilding(s, tintOf)],
     ['core', () => updateCore(s)],
+    ['popups', () => updatePopups()],
   ];
   let failed = false;
   for (const [name, run] of steps) {
@@ -316,6 +320,7 @@ function render(s: DashboardState) {
   warn.hidden = !failed;
 }
 
+initPopups(); // before initBuilding: its Escape handler must see the building still open
 initControls();
 initAlerts();
 initSummarySetting();
