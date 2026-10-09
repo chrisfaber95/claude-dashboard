@@ -1,15 +1,15 @@
 import type { Alert, DashboardState } from '../shared/types.ts';
 import { badgeCount, createAlertTracker } from './alerts-logic.ts';
-import { $, api, esc, until } from './util.ts';
+import { patchHtml } from './patch.ts';
+import { $, api, esc, timeSpan } from './util.ts';
 
 const tracker = createAlertTracker();
-let listHtml = '';
 const TOAST_MS = 8000;
 const MAX_TOASTS = 4;
 
 function row(a: Alert): string {
-  const reset = a.kind === 'usage' ? `<div class="sub">${esc(until(a.resetsAtMs))}</div>` : '';
-  return `<li class="alerts__item alerts__item--${esc(a.kind)}">
+  const reset = a.kind === 'usage' ? `<div class="sub">${timeSpan('until', a.resetsAtMs)}</div>` : '';
+  return `<li class="alerts__item alerts__item--${esc(a.kind)}" data-key="${esc(a.id)}">
     <div class="alerts__text"><div class="alerts__title">${esc(a.title)}</div><div class="sub">${esc(a.detail)}</div>${reset}</div>
     <button class="btn btn--sm" type="button" data-dismiss="${esc(a.id)}" aria-label="${esc(`Dismiss: ${a.title}`)}">Dismiss</button></li>`;
 }
@@ -41,10 +41,7 @@ export function renderAlerts(s: DashboardState): void {
   badge.textContent = n ? String(n) : '';
 
   const html = items.length ? items.map(row).join('') : '<li class="empty">Nothing needs attention.</li>';
-  if (html !== listHtml) {
-    listHtml = html;
-    $('alerts-list').innerHTML = html;
-  }
+  patchHtml($('alerts-list'), html);
 
   // Form: never overwrite what the user is typing.
   const input = $<HTMLInputElement>('alerts-threshold');
