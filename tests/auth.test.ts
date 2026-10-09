@@ -69,13 +69,13 @@ test('a throwing failed-login hook does not break sign-in', () => {
   assert.equal(auth.login('5.5.5.5', 'nope'), null);
 });
 
-test('a device session slides: each authed request extends it to 7 days, so only revocation or 7 idle days ends it', () => {
+test('a device session slides: each authed request extends it to 7 days, so only revocation, 7 idle days or the 90-day limit ends it', () => {
   let now = 0;
   const { auth, token } = setup(() => now);
   const sid = auth.login('4.4.4.4', token) as string;
   const req = reqWith(`dash_sid=${sid}`);
-  for (let i = 1; i <= 20; i++) {
-    now = i * 6 * DAY; // active every 6 days for 120 days
+  for (let i = 1; i <= 14; i++) {
+    now = i * 6 * DAY; // active every 6 days for 84 days
     assert.ok(auth.identify(req), `day ${i * 6}`);
   }
   now += 7 * DAY + 1; // idle for more than 7 days
@@ -152,7 +152,7 @@ test('loopback socket with a loopback Host is the PC and needs no token', () => 
   ]) {
     const r = reqWith(undefined, { addr, host });
     assert.ok(isLoopbackRequest(r), `${addr} ${host}`);
-    assert.deepEqual(auth.identify(r), { deviceId: PC_DEVICE, refreshSid: null });
+    assert.deepEqual(auth.identify(r), { deviceId: PC_DEVICE, sid: null, refreshSid: null });
   }
 });
 
@@ -300,4 +300,141 @@ test('unused codes are capped so memory cannot grow without bound', () => {
   // only the newest code of each device ever works, so at most one per device is live
   const live = codes.filter((c, i) => typeof auth.pair(`10.0.${Math.floor(i / 250)}.${i % 250}`, c.code) === 'string');
   assert.equal(live.length, 5);
+});
+
+// ---- session hardening (T-015) ----
+
+const ended = (auth: ReturnType<typeof setup>['auth']) => {
+  const list: string[] = [];
+  auth.onSessionEnd((sid) => list.push(sid));
+  return list;
+};
+
+test('a session ends 90 days after sign-in even while in use; the 7-day slide never goes past it', () => {
+  let now = 0;
+  const { auth, token } = setup(() => now);
+  const sid = auth.login('4.4.4.4', token) as string;
+  const list = ended(auth);
+  const req = reqWith(`dash_sid=${sid}`);
+  for (let day = 5; day <= 85; day += 5) {
+    now = day * DAY; // used every 5 days
+    assert.ok(auth.identify(req), `day ${day}`);
+  }
+  now = 89 * DAY;
+  assert.ok(auth.identify(req), 'still valid just before the limit');
+  now = 90 * DAY + 1;
+  assert.equal(auth.identify(req), null, 'ended by the absolute limit although it was used the day before');
+  assert.deepEqual(list, [sid]);
+  now = 91 * DAY;
+  assert.equal(auth.identify(req), null, 'and it does not come back');
+});
+
+test('the absolute limit counts from sign-in, not from the last use, and each sign-in has its own clock', () => {
+  let now = 0;
+  const { auth, token } = setup(() => now);
+  const first = auth.login('4.4.4.4', token) as string;
+  let second = '';
+  for (let day = 5; day <= 85; day += 5) {
+    now = day * DAY; // both are used every 5 days
+    if (day === 60) second = auth.login('4.4.4.5', token) as string;
+    assert.ok(auth.identify(reqWith(`dash_sid=${first}`)), `first, day ${day}`);
+    if (second) assert.ok(auth.identify(reqWith(`dash_sid=${second}`)), `second, day ${day}`);
+  }
+  now = 92 * DAY;
+  assert.ok(auth.identify(reqWith(`dash_sid=${second}`)), "signed in on day 60, so it lives until day 150");
+  assert.equal(auth.identify(reqWith(`dash_sid=${first}`)), null, "signed in on day 0: over, although it was used on day 85");
+});
+
+test('a device has at most 10 sessions: the 11th sign-in ends the oldest, other devices are unaffected', () => {
+  const { auth, devices, token } = setup();
+  const other = devices.create('laptop');
+  const otherSid = auth.login('2.2.2.2', other.token) as string;
+  const list = ended(auth);
+  const sids: string[] = [];
+  for (let i = 0; i < 10; i++) sids.push(auth.login(`3.3.3.${i}`, token) as string);
+  assert.deepEqual(list, [], 'ten are fine');
+  for (const s of sids) assert.ok(auth.identify(reqWith(`dash_sid=${s}`)));
+  const eleventh = auth.login('3.3.3.99', token) as string;
+  assert.deepEqual(list, [sids[0]], 'the oldest ended, nothing else');
+  assert.equal(auth.identify(reqWith(`dash_sid=${sids[0]}`)), null);
+  for (const s of [...sids.slice(1), eleventh]) assert.ok(auth.identify(reqWith(`dash_sid=${s}`)));
+  const twelfth = auth.login('3.3.3.98', token) as string;
+  assert.deepEqual(list, [sids[0], sids[1]]);
+  assert.ok(auth.identify(reqWith(`dash_sid=${twelfth}`)));
+  assert.ok(auth.identify(reqWith(`dash_sid=${otherSid}`)), 'the other device keeps its session');
+});
+
+test('pairing counts toward the per-device session cap too', () => {
+  const { auth, id, token } = setup();
+  const first = auth.login('1.0.0.1', token) as string;
+  for (let i = 0; i < 10; i++) assert.equal(typeof auth.pair(`1.0.1.${i}`, auth.createPairing(id)!.code), 'string');
+  assert.equal(auth.identify(reqWith(`dash_sid=${first}`)), null, 'the token session was the oldest of eleven');
+});
+
+test('onSessionEnd fires for logout, revoke, expiry on sweep, expiry on use, and not twice', () => {
+  let now = 0;
+  const { auth, devices, token } = setup(() => now);
+  const list = ended(auth);
+
+  const a = auth.login('5.0.0.1', token) as string;
+  auth.logout(reqWith(`dash_sid=${a}`));
+  auth.logout(reqWith(`dash_sid=${a}`));
+  assert.deepEqual(list, [a], 'logout ends it once');
+
+  const other = devices.create('tablet');
+  const b = auth.login('5.0.0.2', other.token) as string;
+  auth.revokeDevice(other.id);
+  assert.deepEqual(list, [a, b], 'revoke ends the sessions of that device');
+
+  const c = auth.login('5.0.0.3', token) as string;
+  now = 6 * DAY;
+  auth.sweepExpired();
+  assert.deepEqual(list, [a, b], 'not expired yet');
+  now = 7 * DAY + 1;
+  auth.sweepExpired();
+  assert.deepEqual(list, [a, b, c], 'a sweep ends the sessions that ran out');
+  auth.sweepExpired();
+  assert.equal(list.length, 3);
+
+  const d = auth.login('5.0.0.4', token) as string;
+  now += 8 * DAY;
+  assert.equal(auth.identify(reqWith(`dash_sid=${d}`)), null);
+  assert.deepEqual(list.slice(3), [d], 'noticing the expiry on use ends it once');
+});
+
+test('a throwing end listener does not stop the others or break logout', () => {
+  const { auth, token } = setup();
+  const seen: string[] = [];
+  auth.onSessionEnd(() => {
+    throw new Error('boom');
+  });
+  auth.onSessionEnd((sid) => seen.push(sid));
+  const sid = auth.login('6.0.0.1', token) as string;
+  auth.logout(reqWith(`dash_sid=${sid}`));
+  assert.deepEqual(seen, [sid]);
+  assert.equal(auth.identify(reqWith(`dash_sid=${sid}`)), null);
+});
+
+test('identify tells the caller which session a request came in with', () => {
+  const { auth, token } = setup();
+  const sid = auth.login('7.0.0.1', token) as string;
+  assert.equal(auth.identify(reqWith(`dash_sid=${sid}`))?.sid, sid);
+});
+
+test('a sweep also ends the sessions of a device that vanished from the store, and a throwing revoke listener is contained', () => {
+  const { auth, devices, id, token } = setup();
+  const list = ended(auth);
+  const sid = auth.login('8.0.0.1', token) as string;
+  devices.revoke(id); // removed behind the back of revokeDevice
+  auth.sweepExpired();
+  assert.deepEqual(list, [sid]);
+
+  const second = devices.create('tablet');
+  const sid2 = auth.login('8.0.0.2', second.token) as string;
+  const calls: string[] = [];
+  auth.onRevoke(() => { throw new Error('boom'); });
+  auth.onRevoke((d) => calls.push(d));
+  assert.deepEqual(auth.revokeDevice(second.id), { found: true, persisted: true });
+  assert.deepEqual(calls, [second.id], "later listeners still run");
+  assert.equal(auth.identify(reqWith(`dash_sid=${sid2}`)), null);
 });

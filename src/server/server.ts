@@ -118,15 +118,20 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
   const commands = opts.commands ?? COMMANDS_ENABLED;
   const projectsRoot = opts.projectsRoot ?? PROJECTS_ROOT;
   const proto = tls ? 'https' : 'http';
-  /** Open live-event streams, with the device each belongs to (closed at once when that device is revoked). */
-  const clients = new Map<ServerResponse, string>();
-  auth?.onRevoke((deviceId) => {
-    for (const [c, d] of clients) {
-      if (d !== deviceId) continue;
-      clients.delete(c);
-      c.end();
+  /**
+   * Open live-event streams with the device and the session each was opened with. A stream is closed at once when its
+   * session ends (logout, expiry, the per-device cap) or its device is revoked. The PC (loopback) has no session.
+   */
+  const clients = new Map<ServerResponse, { deviceId: string; sid: string | null }>();
+  const closeStreams = (match: (c: { deviceId: string; sid: string | null }) => boolean) => {
+    for (const [res, c] of [...clients]) {
+      if (!match(c)) continue;
+      clients.delete(res);
+      res.end();
     }
-  });
+  };
+  auth?.onRevoke((deviceId) => closeStreams((c) => c.deviceId === deviceId));
+  auth?.onSessionEnd((sid) => closeStreams((c) => c.sid === sid));
   const state = () => buildState({ lan: Boolean(auth), commands });
   /** The device-management flag depends on the caller: only this PC (loopback `pc`) may manage devices. */
   const withManage = (s: ReturnType<typeof state>, manage: boolean) => (manage ? { ...s, features: { ...s.features, manageDevices: true } } : s);
@@ -248,7 +253,7 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
     if (url.pathname === '/api/events') {
       res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive', ...SECURITY_HEADERS });
       res.write(`data: ${JSON.stringify(withManage(state(), who?.deviceId === PC_DEVICE))}\n\n`);
-      clients.set(res, who?.deviceId ?? '');
+      clients.set(res, { deviceId: who?.deviceId ?? '', sid: who?.sid ?? null });
       req.on('close', () => clients.delete(res));
       return;
     }
@@ -435,11 +440,13 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
   const server: Server = tls ? createHttpsServer({ key: tls.key, cert: tls.cert }, listener) : createHttpServer(listener);
 
   const timer = setInterval(() => {
+    // An open stream makes no requests, so an expired session is noticed here.
+    auth?.sweepExpired();
     if (!clients.size) return;
     const base = state();
     const plain = `data: ${JSON.stringify(base)}\n\n`;
     const pc = `data: ${JSON.stringify(withManage(base, true))}\n\n`;
-    for (const [c, d] of clients) c.write(d === PC_DEVICE ? pc : plain);
+    for (const [res, c] of clients) res.write(c.deviceId === PC_DEVICE ? pc : plain);
   }, 2000);
   server.on('close', () => {
     clearInterval(timer);

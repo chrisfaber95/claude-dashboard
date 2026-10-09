@@ -30,7 +30,9 @@ const { ensureCert } = await import('../src/server/tls.ts');
 
 const devices = createDeviceStore(fx.dataDir);
 const { token, id: deviceId } = devices.create('test phone');
-const auth = createAuth(devices, { onFailedLogin: recordFailedSignin }); // the same wiring as the real server
+// The same wiring as the real server, with a clock the expiry test can move forward.
+const clock = { skew: 0 };
+const auth = createAuth(devices, { onFailedLogin: recordFailedSignin, now: () => Date.now() + clock.skew });
 const server = createDashboardServer({ publicDir, auth, tls: ensureCert(fx.dataDir), commands: true });
 let port = 0;
 let host = '';
@@ -608,5 +610,60 @@ test('GET /api/audit keeps every request check and answers with fixed strings', 
   } finally {
     rmSync(log, { recursive: true, force: true });
     writeFileSync(log, saved);
+  }
+});
+
+// ---- session hardening (T-015): streams end with their session ----
+
+const settledWithin = (p: Promise<void>, ms: number) => Promise.race([p.then(() => true), new Promise<boolean>((r) => setTimeout(() => r(false), ms))]);
+
+test('logging out closes the live streams opened with that session, and only those', async () => {
+  const dev = await newDevice('logout streams');
+  const other = await newDevice('bystander');
+  const c1 = await signInDevice(dev.token);
+  const c2 = await signInDevice(dev.token); // a second browser of the same device
+  const c3 = await signInDevice(other.token);
+  const s1 = await openStream({ Host: host, Cookie: c1 });
+  const s2 = await openStream({ Host: host, Cookie: c2 });
+  const s3 = await openStream({ Host: host, Cookie: c3 });
+  const pc = await openStream({ Host: pcHost() });
+  assert.deepEqual([s1.status, s2.status, s3.status, pc.status], [200, 200, 200, 200]);
+
+  const out = await post('/logout', '', { Cookie: c1 });
+  assert.equal(out.status, 303);
+  assert.equal(await settledWithin(s1.ended, 1000), true, 'the stream of the session that logged out is closed');
+  assert.equal(await settledWithin(s2.ended, 500), false, 'another session of the same device stays');
+  assert.equal(await settledWithin(s3.ended, 100), false, 'another device stays');
+  assert.equal(await settledWithin(pc.ended, 100), false, 'the PC stays');
+  assert.equal((await get('/api/state', { Cookie: c2 })).status, 200);
+});
+
+test('the 11th sign-in of a device ends its oldest session and that session\'s stream', async () => {
+  const dev = await newDevice('session cap');
+  const first = await signInDevice(dev.token);
+  const oldest = await openStream({ Host: host, Cookie: first });
+  assert.equal(oldest.status, 200);
+  const rest: string[] = [];
+  for (let i = 0; i < 9; i++) rest.push(await signInDevice(dev.token));
+  assert.equal(await settledWithin(oldest.ended, 300), false, 'ten sessions are allowed');
+  rest.push(await signInDevice(dev.token));
+  assert.equal(await settledWithin(oldest.ended, 1000), true, 'the eleventh ended the oldest');
+  assert.equal((await get('/api/state', { Cookie: first })).status, 401);
+  for (const c of rest) assert.equal((await get('/api/state', { Cookie: c })).status, 200);
+});
+
+test('a session that runs out closes its stream within a tick, while the PC stream stays', async () => {
+  const dev = await newDevice('expiry streams');
+  const c = await signInDevice(dev.token);
+  const s = await openStream({ Host: host, Cookie: c });
+  const pc = await openStream({ Host: pcHost() });
+  assert.equal(s.status, 200);
+  clock.skew = 8 * 86_400_000; // 8 days pass without a request
+  try {
+    assert.equal(await settledWithin(s.ended, 5000), true, 'closed by the next 2 s tick, no request needed');
+    assert.equal(await settledWithin(pc.ended, 100), false);
+    assert.equal((await get('/api/state', { Cookie: c })).status, 401);
+  } finally {
+    clock.skew = 0;
   }
 });
