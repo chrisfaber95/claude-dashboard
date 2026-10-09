@@ -40,6 +40,11 @@ export function renderAlerts(s: DashboardState): void {
   badge.hidden = n === 0;
   badge.textContent = n ? String(n) : '';
 
+  $('alerts').classList.toggle('has-alerts', items.length > 0);
+  const count = $('alerts-count');
+  count.hidden = items.length === 0;
+  count.textContent = items.length ? String(items.length) : '';
+
   const html = items.length ? items.map(row).join('') : '<li class="empty">Nothing needs attention.</li>';
   patchHtml($('alerts-list'), html);
 

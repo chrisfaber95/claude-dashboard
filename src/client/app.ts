@@ -80,7 +80,9 @@ function renderLimits(s: DashboardState) {
       : l.source === 'cache'
         ? `from Claude Code's local cache · updated ${timeSpan('ago', l.fetchedAtMs)}`
         : 'no limit data';
-  const html = `<h2 id="h-limits">Subscription limits</h2>
+  const top = l.windows.reduce((m, w) => Math.max(m, Math.max(0, Math.min(100, w.utilization))), 0);
+  const topCls = top >= 90 ? 'is-crit' : top >= 75 ? 'is-warn' : '';
+  const html = `<h2 id="h-limits">Subscription limits${l.windows.length ? ` <span class="limits__top ${topCls}">${Math.round(top)}%</span>` : ''}</h2>
     <p class="limits__today">Tokens today <strong>${fmt(tokensToday(s.usage.days, new Date()))}</strong></p>
     ${gauges ? `<div class="gauges">${gauges}</div>` : '<div class="empty">No limit data available.</div>'}
     <p class="sub">${src}${l.error ? ` · ${esc(l.error)}` : ''}</p>${hits}`;
