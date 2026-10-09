@@ -54,7 +54,7 @@ export interface Auth {
   identify(req: IncomingMessage): Identity | null;
   logout(req: IncomingMessage): void;
   /** Delete the device, end its sessions and tell the listeners (open live-event streams). */
-  revokeDevice(id: string): boolean;
+  revokeDevice(id: string): { found: boolean; persisted: boolean };
   onRevoke(listener: (deviceId: string) => void): void;
   cookie(sid: string, secure: boolean): string;
   clearCookie(secure: boolean): string;
@@ -151,10 +151,11 @@ export function createAuth(devices: DeviceStore, opts: AuthOptions = {}): Auth {
       if (sid) sessions.delete(sid);
     },
     revokeDevice(id) {
-      const existed = devices.revoke(id);
+      const r = devices.revoke(id);
+      // Sessions end and streams close even when the file could not be written; the caller reports `persisted`.
       for (const [sid, s] of sessions) if (s.deviceId === id) sessions.delete(sid);
-      if (existed) for (const l of revokeListeners) l(id);
-      return existed;
+      if (r.found) for (const l of revokeListeners) l(id);
+      return r;
     },
     onRevoke(listener) {
       revokeListeners.push(listener);

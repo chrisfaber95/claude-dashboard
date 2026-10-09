@@ -178,7 +178,7 @@ test('revoking a device ends its session and closes its live-event streams at on
   const pc = await openStream({ Host: `127.0.0.1:${port}` });
   assert.deepEqual([s1.status, s2.status, pc.status], [200, 200, 200]);
 
-  assert.equal(auth.revokeDevice(mine.id), true);
+  assert.equal(auth.revokeDevice(mine.id).found, true);
   assert.equal(await settled(s1.ended), true, 'the revoked device stream is closed');
   assert.equal(await settled(s2.ended), false, 'the other device stream stays open');
   assert.equal(await settled(pc.ended), false, 'the PC stream stays open');

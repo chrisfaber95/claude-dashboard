@@ -19,8 +19,12 @@ export interface DeviceStore {
   /** Returns the token once; only its hash is kept. Throws on an invalid name or when the store is full. */
   create(name: string): { id: string; token: string };
   list(): DeviceInfo[];
-  /** True when the device existed. */
-  revoke(id: string): boolean;
+  /**
+   * Remove the device. `found` is false for an unknown id. `persisted` is false when the file could not be written:
+   * the device is gone in memory (and stays gone until restart) but devices.json may still hold it, so the caller must
+   * tell the user instead of reporting success.
+   */
+  revoke(id: string): { found: boolean; persisted: boolean };
   has(id: string): boolean;
   /** The device a token belongs to (timing-safe hash compare), or null. */
   verify(token: string): DeviceInfo | null;
@@ -62,14 +66,17 @@ export function createDeviceStore(dataDir: string, now: () => number = Date.now)
   }
   const lastWrite = new Map<string, number>();
 
-  function save(): void {
+  /** False when the file could not be written. */
+  function save(): boolean {
     try {
       mkdirSync(dataDir, { recursive: true });
       const tmp = `${file}.tmp`;
       writeFileSync(tmp, JSON.stringify({ devices }), { mode: 0o600 });
       renameSync(tmp, file);
+      return true;
     } catch {
       // keep the in-memory state; the next change retries
+      return false;
     }
   }
 
@@ -87,11 +94,10 @@ export function createDeviceStore(dataDir: string, now: () => number = Date.now)
     list: () => devices.map(publicOf),
     revoke(id) {
       const i = devices.findIndex((d) => d.id === id);
-      if (i < 0) return false;
+      if (i < 0) return { found: false, persisted: true };
       devices.splice(i, 1);
       lastWrite.delete(id);
-      save();
-      return true;
+      return { found: true, persisted: save() };
     },
     has: (id) => devices.some((d) => d.id === id),
     verify(token) {

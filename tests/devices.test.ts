@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { makeFixture } from './helpers.ts';
 
@@ -40,8 +40,8 @@ test('revoke removes only that device', () => {
   const s = createDeviceStore(fx.dataDir);
   const a = s.create('keep');
   const b = s.create('drop');
-  assert.equal(s.revoke(b.id), true);
-  assert.equal(s.revoke(b.id), false);
+  assert.deepEqual(s.revoke(b.id), { found: true, persisted: true });
+  assert.equal(s.revoke(b.id).found, false);
   assert.equal(s.verify(b.token), null);
   assert.equal(s.verify(a.token)?.id, a.id);
   assert.equal(s.has(b.id), false);
@@ -84,4 +84,22 @@ test('touch updates lastSeenMs in memory but writes at most once a minute per de
   s.touch(id);
   assert.equal(seenOnDisk(), 1_061_000);
   s.touch('nope'); // unknown ids are ignored
+});
+
+test('a revoke whose write fails is reported as not persisted, but the device is gone in memory', () => {
+  const dir = join(fx.root, 'unwritable');
+  const s = createDeviceStore(dir);
+  const a = s.create('A');
+  const b = s.create('B');
+  // Make the final rename fail: devices.json becomes a directory.
+  rmSync(join(dir, 'devices.json'));
+  mkdirSync(join(dir, 'devices.json'));
+  assert.deepEqual(s.revoke(a.id), { found: true, persisted: false });
+  assert.equal(s.verify(a.token), null, 'gone in memory');
+  assert.equal(s.verify(b.token)?.id, b.id);
+  assert.deepEqual(s.revoke('unknown'), { found: false, persisted: true }, 'an unknown id is not a persistence failure');
+  // Once the file is writable again the next change persists the revoke too.
+  rmSync(join(dir, 'devices.json'), { recursive: true });
+  assert.deepEqual(s.revoke(b.id), { found: true, persisted: true });
+  assert.equal(createDeviceStore(dir).list().length, 0);
 });

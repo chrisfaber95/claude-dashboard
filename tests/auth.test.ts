@@ -1,5 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdirSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
 import type { IncomingMessage } from 'node:http';
 import { PC_DEVICE, createAuth, isLoopbackRequest, readCookie } from '../src/server/auth.ts';
 import { createDeviceStore } from '../src/server/devices.ts';
@@ -123,13 +125,13 @@ test("revokeDevice ends that device's sessions at once, keeps the others, and no
   const b = auth.login('1.1.1.2', other.token) as string;
   const revoked: string[] = [];
   auth.onRevoke((d) => revoked.push(d));
-  assert.equal(auth.revokeDevice(id), true);
+  assert.deepEqual(auth.revokeDevice(id), { found: true, persisted: true });
   assert.deepEqual(revoked, [id]);
   assert.equal(auth.identify(reqWith(`dash_sid=${a1}`)), null);
   assert.equal(auth.identify(reqWith(`dash_sid=${a2}`)), null);
   assert.equal(auth.identify(reqWith(`dash_sid=${b}`))?.deviceId, other.id);
   assert.equal(auth.login('1.1.1.1', token), null, 'the token no longer signs in');
-  assert.equal(auth.revokeDevice(id), false);
+  assert.equal(auth.revokeDevice(id).found, false);
   assert.deepEqual(revoked, [id], 'no notification for an unknown device');
 });
 
@@ -192,4 +194,18 @@ test('readCookie parses multiple cookies and ignores undecodable values', () => 
   assert.equal(readCookie(reqWith('a=1; dash_sid=xyz; b=2'), 'dash_sid'), 'xyz');
   assert.equal(readCookie(reqWith('a=1'), 'dash_sid'), null);
   assert.equal(readCookie(reqWith('dash_sid=%E0%A4%A'), 'dash_sid'), null);
+});
+
+test('revokeDevice still ends sessions and notifies listeners when the file write fails, and says so', () => {
+  const { auth, devices, id, token } = setup();
+  const sid = auth.login('1.1.1.1', token) as string;
+  const revoked: string[] = [];
+  auth.onRevoke((d) => revoked.push(d));
+  const dir = `${fx.dataDir}-${n - 1}`;
+  rmSync(join(dir, 'devices.json'));
+  mkdirSync(join(dir, 'devices.json')); // the rename onto a directory fails
+  assert.deepEqual(auth.revokeDevice(id), { found: true, persisted: false });
+  assert.deepEqual(revoked, [id]);
+  assert.equal(auth.identify(reqWith(`dash_sid=${sid}`)), null);
+  assert.equal(devices.has(id), false);
 });
