@@ -72,6 +72,15 @@
         <input id="chat-input" type="text" maxlength="2000" autocomplete="off" aria-label="Ask the dashboard" placeholder="What is going on?">
         <button class="btn btn--sm" type="submit">Send</button>
       </form>
+      <div class="chat__setting">
+        <label>Session summaries
+          <select id="summary-mode">
+            <option value="recap">Recap (no model)</option>
+            <option value="model">Model (haiku, one CLI call)</option>
+          </select>
+        </label>
+        <span id="summary-status" class="sub" role="status"></span>
+      </div>
     </section>
     <section id="team" class="panel team" aria-labelledby="h-team" hidden></section>
     <section id="devices" class="panel devices" aria-labelledby="h-devices" hidden>

@@ -8,7 +8,19 @@ if (process.cwd().includes('Untrusted')) {
   console.log(`Workspace not trusted. Run \`claude\` in ${process.cwd()} once and accept the trust prompt, then retry.`);
   process.exit(1);
 }
-if (args[0] === 'logs') console.log('line one\nline two');
+if (args[0] === '-p') {
+  // One-shot summary call: the transcript arrives on stdin. FAKE_CLAUDE_SUMMARY_FAILS / _DELAY_MS simulate errors and slowness.
+  let stdin = '';
+  for await (const chunk of process.stdin) stdin += chunk;
+  appendFileSync(process.env.FAKE_CLAUDE_LOG, JSON.stringify({ stdin }) + '\n');
+  const wait = Number(process.env.FAKE_CLAUDE_SUMMARY_DELAY_MS) || 0;
+  if (wait) await new Promise((res) => setTimeout(res, wait));
+  if (process.env.FAKE_CLAUDE_SUMMARY_FAILS) {
+    console.log('boom');
+    process.exit(1);
+  }
+  console.log('Model summary: <b>fixed</b>');
+} else if (args[0] === 'logs') console.log('line one\nline two');
 else if (args[0] === 'stop') {
   // Simulates the stopped session's process exiting: its sessions/<pid>.json disappears.
   if (process.env.FAKE_CLAUDE_STOP_REMOVES) rmSync(process.env.FAKE_CLAUDE_STOP_REMOVES, { force: true });

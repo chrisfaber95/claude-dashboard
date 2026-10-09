@@ -1,5 +1,6 @@
 import type { DashboardState, MessageInfo, SessionInfo, TokenCounts, UsageDay } from '../shared/types.ts';
 import { initAlerts, renderAlerts } from './alerts.ts';
+import { initSummarySetting } from './settings.ts';
 import { initChat, updateChat } from './chat.ts';
 import { initBuilding, updateBuilding } from './building.ts';
 import { initControls, updateControls } from './controls.ts';
@@ -330,6 +331,7 @@ function render(s: DashboardState) {
 
 initControls();
 initAlerts();
+initSummarySetting();
 initChat();
 initDevices();
 initAudit();

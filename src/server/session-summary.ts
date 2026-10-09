@@ -1,12 +1,14 @@
 import { open, stat } from 'node:fs/promises';
-import type { SessionSummary, TokenCounts } from '../shared/types.ts';
+import type { SessionSummary, SummaryMode, TokenCounts } from '../shared/types.ts';
+import { summarizeWithModel } from './claude-cli.ts';
 import { parseEntries, VIEW_BYTES_MAX } from './transcript-view.ts';
 
 const TOOLS_MAX = 5;
 const TARGET_MAX = 60;
 const REPLY_MAX = 300;
 
-export type SummaryMode = 'recap';
+export const EXCERPT_MAX = 20_000;
+export const MODEL_FALLBACK_NOTE = 'The model summary was not available, so this is the recap.';
 
 export interface LiveInfo {
   status: string;
@@ -26,6 +28,15 @@ function redact(s: string): string {
     .replace(/(--?[\w-]*(?:token|secret|key|password|auth)[\w-]*[ =])\S+/gi, '$1***')
     .replace(/(\w+:\/\/)[^/\s@]*@/g, '$1')
     .replace(/\?\S*/g, (m) => (/^\?[\w%.~-]+=/.test(m) ? '?***' : m));
+}
+
+/** Stricter than redact(): also masks well-known token shapes, because this text leaves the machine. */
+export function redactForModel(s: string): string {
+  return redact(s)
+    .replace(/-----BEGIN [A-Z ]*-----[\s\S]*?(?:-----END [A-Z ]*-----|$)/g, '***')
+    .replace(/\b(?:sk|pk|ghp|gho|xox[abp])[-_][\w-]{16,}/g, '***')
+    .replace(/\bAKIA[0-9A-Z]{16}\b/g, '***')
+    .replace(/\beyJ[\w-]{8,}\.[\w-]{8,}\.[\w-]*/g, '***');
 }
 
 /** Tool name plus a short target only: tool inputs can hold secrets or long text. */
@@ -109,10 +120,38 @@ export async function recapSession(path: string, live?: LiveInfo, maxBytes = VIE
   return { mode: 'recap', text };
 }
 
-/** Seam for a later model mode: pick the summarizer by mode. */
-export function summarize(path: string, mode: SummaryMode, live?: LiveInfo): Promise<SessionSummary> {
-  switch (mode) {
-    case 'recap':
-      return recapSession(path, live);
+/** The newest transcript text (user and assistant turns only), secrets masked, at most `max` characters. */
+export async function excerptSession(path: string, max = EXCERPT_MAX, maxBytes = VIEW_BYTES_MAX): Promise<string> {
+  const entries = parseEntries(await tailLines(path, maxBytes)).filter((e) => e.role === 'user' || e.role === 'assistant');
+  const parts: string[] = [];
+  let size = 0;
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const part = `${entries[i].role}: ${redactForModel(entries[i].text.slice(0, max * 4))}`.slice(0, max);
+    if (size + part.length + 2 > max) break;
+    parts.unshift(part);
+    size += part.length + 2;
   }
+  return parts.join('\n\n');
+}
+
+/** What a model summary needs besides the transcript: the folder to run in and an audit hook. */
+export interface ModelContext {
+  cwd: string;
+  onAudit: (ok: boolean) => void;
+}
+
+/** Recap, or in `model` mode one cheap-model call over the transcript excerpt; any failure returns the recap plus a fixed note. */
+export async function summarize(path: string, mode: SummaryMode, live?: LiveInfo, model?: ModelContext): Promise<SessionSummary> {
+  if (mode === 'model' && model) {
+    let text = '';
+    try {
+      text = await summarizeWithModel(await excerptSession(path), model.cwd);
+    } catch {
+      // fall through to the recap
+    }
+    model.onAudit(Boolean(text));
+    if (text) return { mode: 'model', text: redactForModel(text) };
+    return { ...(await recapSession(path, live)), note: MODEL_FALLBACK_NOTE };
+  }
+  return recapSession(path, live);
 }
