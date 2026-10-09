@@ -19,6 +19,11 @@ export function visiblePopups(sectionHidden: (id: PopupId) => boolean): PopupId[
   return POPUPS.map((p) => p.id).filter((id) => !sectionHidden(id));
 }
 
+/** A section that lives in a popup is drawn only while that popup is open; everything else always. */
+export function drawsSection(id: string, current: PopupId | null): boolean {
+  return !POPUPS.some((p) => p.id === id) || current === id;
+}
+
 /** One popup at a time: opening another replaces the current one, its own button toggles it shut. */
 export function toggled(current: PopupId | null, requested: PopupId): PopupId | null {
   return current === requested ? null : requested;

@@ -46,3 +46,11 @@ test("tokensToday sums today's four counters and is 0 without a day", () => {
   assert.equal(tokensToday([day('2026-10-08'), day('2026-10-09')], now), 10);
   assert.equal(tokensToday([day('2026-10-08')], now), 0);
 });
+
+test('drawsSection: closed popup sections are skipped, the open one and non-popup sections draw', async () => {
+  const { drawsSection } = await import('../src/client/popups-logic.ts');
+  assert.equal(drawsSection('usage', null), false);
+  assert.equal(drawsSection('usage', 'projects'), false);
+  assert.equal(drawsSection('usage', 'usage'), true);
+  assert.equal(drawsSection('sessions', null), true);
+});

@@ -11,7 +11,8 @@ import type { Skin } from './skin.ts';
 import { initAudit, renderAudit } from './audit.ts';
 import { initDevices, renderDevices } from './devices.ts';
 import { renderTeam } from './team.ts';
-import { initPopups, updatePopups } from './popups.ts';
+import { draws, initPopups, updatePopups } from './popups.ts';
+import type { PopupId } from './popups-logic.ts';
 import { tokensToday } from './popups-logic.ts';
 import { patchHtml } from './patch.ts';
 import { $, api, esc, tickTimes, timeSpan } from './util.ts';
@@ -297,13 +298,13 @@ function render(s: DashboardState) {
     ['limits', () => renderLimits(s)],
     ['alerts', () => renderAlerts(s)],
     ['chat', () => updateChat(s)],
-    ['team', () => renderTeam(s)],
+    ['team', () => renderTeam(s, draws('team'))],
     ['devices', () => renderDevices(s)],
     ['audit', () => renderAudit(s)],
-    ['projects', () => renderProjects(s)],
+    ['projects', () => draws('projects') && renderProjects(s)],
     ['sessions', () => renderSessions(s)],
-    ['messages', () => renderComms(s)],
-    ['usage', () => renderUsage(s)],
+    ['messages', () => draws('comms') && renderComms(s)],
+    ['usage', () => draws('usage') && renderUsage(s)],
     ['controls', () => updateControls(s)],
     ['building', () => updateBuilding(s, tintOf)],
     ['core', () => updateCore(s)],
@@ -322,7 +323,15 @@ function render(s: DashboardState) {
   warn.hidden = !failed;
 }
 
-initPopups(); // before initBuilding: its Escape handler must see the building still open
+// Opening a popup draws its section from the latest state first; closed popups are skipped on pushes.
+function drawPopup(id: PopupId) {
+  if (!last) return;
+  if (id === 'projects') renderProjects(last);
+  else if (id === 'comms') renderComms(last);
+  else if (id === 'team') renderTeam(last);
+  else if (id === 'usage') renderUsage(last);
+}
+initPopups(drawPopup); // before initBuilding: its Escape handler must see the building still open
 initControls();
 initAlerts();
 initSummarySetting();

@@ -1,4 +1,4 @@
-import { POPUPS, backdropCloses, escapeClosesPopup, stillOpen, toggled, visiblePopups } from './popups-logic.ts';
+import { POPUPS, drawsSection, backdropCloses, escapeClosesPopup, stillOpen, toggled, visiblePopups } from './popups-logic.ts';
 import type { PopupId } from './popups-logic.ts';
 import { $ } from './util.ts';
 
@@ -7,6 +7,10 @@ import { $ } from './util.ts';
 
 let current: PopupId | null = null;
 let opener: HTMLElement | null = null;
+let onOpen: (id: PopupId) => void = () => {};
+
+/** Whether the section `id` should be rendered on this push. */
+export const draws = (id: string): boolean => drawsSection(id, current);
 
 const wrap = (id: PopupId) => $(`popup-${id}`);
 const button = (id: PopupId) => document.querySelector<HTMLButtonElement>(`[data-popup="${id}"]`)!;
@@ -41,7 +45,8 @@ export function updatePopups(): void {
   if (stillOpen(current, visible) === null && current) close();
 }
 
-export function initPopups(): void {
+export function initPopups(render: (id: PopupId) => void): void {
+  onOpen = render;
   const bar = $('popup-bar');
   for (const p of POPUPS) {
     const b = document.createElement('button');
