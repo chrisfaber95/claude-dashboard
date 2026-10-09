@@ -186,6 +186,44 @@ test('model summaries are cached per unchanged transcript and wait a cooldown fo
   resetSummaryCache();
 });
 
+test('two concurrent model summaries for one session start one process', async () => {
+  const { summarize, resetSummaryCache } = await import('../src/server/session-summary.ts');
+  resetSummaryCache();
+  const p = join(transcriptDir(fx, cwd), 'inflight.jsonl');
+  writeFileSync(p, jsonl([{ type: 'user', sessionId: ID, cwd, timestamp: '2026-10-01T10:00:00Z', uuid: 'f1', message: { content: 'hello' } }]));
+  process.env.FAKE_CLAUDE_SUMMARY_DELAY_MS = '400';
+  const ctx = { cwd, onAudit: () => {} };
+  const [a, b] = await Promise.all([summarize(p, 'model', undefined, ctx), summarize(p, 'model', undefined, ctx)]);
+  assert.equal(a.mode, 'model');
+  assert.deepEqual(b, a);
+  assert.equal(calls().length, 2); // one process: its argv line and its stdin line
+  resetSummaryCache();
+});
+
+test('a failed call on a changed transcript does not store the old answer as current', async () => {
+  const { summarize, resetSummaryCache, SUMMARY_COOLDOWN_MS } = await import('../src/server/session-summary.ts');
+  let t = 2_000_000;
+  resetSummaryCache(() => t);
+  const p = join(transcriptDir(fx, cwd), 'stale.jsonl');
+  const line = (id: string, text: string) => jsonl([{ type: 'user', sessionId: ID, cwd, timestamp: '2026-10-01T10:00:00Z', uuid: id, message: { content: text } }]);
+  const ctx = { cwd, onAudit: () => {} };
+  writeFileSync(p, line('s1', 'hello'));
+  assert.equal((await summarize(p, 'model', undefined, ctx)).mode, 'model');
+  writeFileSync(p, line('s2', 'hello, now a longer transcript'));
+  t += SUMMARY_COOLDOWN_MS + 1;
+  process.env.FAKE_CLAUDE_SUMMARY_FAILS = '1';
+  assert.equal((await summarize(p, 'model', undefined, ctx)).note, MODEL_FALLBACK_NOTE);
+  // After the cooldown, with the CLI working again, the next request makes a fresh call.
+  delete process.env.FAKE_CLAUDE_SUMMARY_FAILS;
+  t += SUMMARY_COOLDOWN_MS + 1;
+  rmSync(cliLog, { force: true });
+  const next = await summarize(p, 'model', undefined, ctx);
+  assert.equal(next.mode, 'model');
+  assert.equal(next.note, undefined);
+  assert.equal(calls().length, 2);
+  resetSummaryCache();
+});
+
 test('with commands disabled the endpoint answers with the recap and starts no process', async () => {
   await post('/api/settings/summary', { summary: 'model' });
   const off = createDashboardServer({ publicDir, commands: false });

@@ -157,6 +157,7 @@ let clock: () => number = Date.now;
 /** Empties the in-memory cache; tests pass a fake clock. */
 export function resetSummaryCache(now: () => number = Date.now): void {
   cache.clear();
+  inflight.clear();
   clock = now;
 }
 
@@ -164,6 +165,29 @@ function remember(key: string, entry: CacheEntry): void {
   cache.delete(key);
   cache.set(key, entry);
   while (cache.size > SUMMARY_CACHE_MAX) cache.delete(cache.keys().next().value as string);
+}
+
+/** One model call per session at a time: later requests wait for the running one. */
+const inflight = new Map<string, Promise<SessionSummary>>();
+
+async function modelSummary(path: string, st: { size: number; mtimeMs: number }, prev: CacheEntry | undefined, live: LiveInfo | undefined, model: ModelContext): Promise<SessionSummary> {
+  const at = clock();
+  let text = '';
+  try {
+    text = await summarizeWithModel(await excerptSession(path), model.cwd);
+  } catch {
+    // fall through to the recap
+  }
+  model.onAudit(Boolean(text));
+  if (text) {
+    text = redactForModel(text);
+    remember(path, { size: st.size, mtimeMs: st.mtimeMs, at, text });
+    return { mode: 'model', text };
+  }
+  // The old answer keeps the transcript state it was made from; only the cooldown clock restarts.
+  const old = prev?.text ? prev : { size: st.size, mtimeMs: st.mtimeMs, text: '' };
+  remember(path, { size: old.size, mtimeMs: old.mtimeMs, at, text: old.text });
+  return { ...(await recapSession(path, live)), note: MODEL_FALLBACK_NOTE };
 }
 
 /** Recap, or in `model` mode one cheap-model call over the transcript excerpt, cached per session; any failure returns the recap plus a fixed note. */
@@ -176,21 +200,15 @@ export async function summarize(path: string, mode: SummaryMode, live?: LiveInfo
       if (prev.text) return { mode: 'model', text: prev.text };
       return { ...(await recapSession(path, live)), note: COOLDOWN_NOTE };
     }
-    const at = clock();
-    let text = '';
+    const running = inflight.get(path);
+    if (running) return running;
+    const call = modelSummary(path, st, prev, live, model);
+    inflight.set(path, call);
     try {
-      text = await summarizeWithModel(await excerptSession(path), model.cwd);
-    } catch {
-      // fall through to the recap
+      return await call;
+    } finally {
+      inflight.delete(path);
     }
-    model.onAudit(Boolean(text));
-    if (text) {
-      text = redactForModel(text);
-      remember(path, { size: st.size, mtimeMs: st.mtimeMs, at, text });
-      return { mode: 'model', text };
-    }
-    remember(path, { size: st.size, mtimeMs: st.mtimeMs, at, text: prev?.text ?? '' });
-    return { ...(await recapSession(path, live)), note: MODEL_FALLBACK_NOTE };
   }
   return recapSession(path, live);
 }
