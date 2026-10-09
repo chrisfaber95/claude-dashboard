@@ -6,6 +6,7 @@ import { initCore, updateCore } from './core.ts';
 import { ensureRootScene } from './root-scene.ts';
 import { parseSkin } from './skin.ts';
 import type { Skin } from './skin.ts';
+import { initAudit, renderAudit } from './audit.ts';
 import { initDevices, renderDevices } from './devices.ts';
 import { renderTeam } from './team.ts';
 import { $, ago, api, esc, until } from './util.ts';
@@ -303,6 +304,7 @@ function render(s: DashboardState) {
     ['alerts', () => renderAlerts(s)],
     ['team', () => renderTeam(s)],
     ['devices', () => renderDevices(s)],
+    ['audit', () => renderAudit(s)],
     ['projects', () => renderProjects(s)],
     ['sessions', () => renderSessions(s)],
     ['messages', () => renderComms(s)],
@@ -327,6 +329,7 @@ function render(s: DashboardState) {
 initControls();
 initAlerts();
 initDevices();
+initAudit();
 initBuilding();
 initCore();
 

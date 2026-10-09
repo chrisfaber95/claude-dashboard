@@ -84,6 +84,15 @@
       </div>
       <p id="devices-status" class="sub" role="status"></p>
     </section>
+    <details id="audit" class="panel audit">
+      <summary id="h-audit" class="audit__summary">Activity</summary>
+      <div class="audit__bar">
+        <label>Device <select id="audit-device"><option value="">All devices</option></select></label>
+        <button id="audit-refresh" class="btn btn--sm" type="button">Refresh</button>
+        <span id="audit-status" class="sub" role="status"></span>
+      </div>
+      <ul id="audit-list" class="audit__list"></ul>
+    </details>
     <section id="projects" class="panel" aria-labelledby="h-projects"></section>
     <section id="sessions" class="panel" aria-labelledby="h-sessions"></section>
     <section id="comms" class="panel" aria-labelledby="h-comms"></section>
