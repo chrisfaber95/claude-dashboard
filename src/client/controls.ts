@@ -85,6 +85,15 @@ async function loadEarlier() {
   body.scrollTop = body.scrollHeight - fromBottom;
 }
 
+/** Shows the follow-up form, or a note when the session is live in a terminal/editor (server refuses those with 409). Only toggles `hidden`. */
+function syncDrawerForm() {
+  const transcript = drawer?.kind === 'transcript' && commandsOn;
+  const id = drawer?.kind === 'transcript' ? drawer.id : '';
+  const liveElsewhere = transcript && Boolean(latest?.sessions.some((s) => s.sessionId === id && s.kind !== 'bg'));
+  $('drawer-form').hidden = !transcript || liveElsewhere;
+  $('drawer-live-note').hidden = !liveElsewhere;
+}
+
 function openDrawer(title: string, sub: string, mode: DrawerMode) {
   drawer = mode;
   entries = [];
@@ -94,7 +103,7 @@ function openDrawer(title: string, sub: string, mode: DrawerMode) {
   $('drawer-title').textContent = title;
   $('drawer-sub').textContent = sub;
   $('drawer-body').innerHTML = '<div class="empty">Loading…</div>';
-  $('drawer-form').hidden = !(commandsOn && mode.kind === 'transcript');
+  syncDrawerForm();
   $('drawer-status').textContent = '';
   $('drawer').hidden = false;
 }
@@ -327,7 +336,7 @@ export function updateControls(s: DashboardState) {
   updateSummaryNote(commandsOn);
   $('run').hidden = !commandsOn;
   $('logout').hidden = !s.features.lan;
-  if (drawer?.kind === 'transcript') $('drawer-form').hidden = !commandsOn;
+  syncDrawerForm();
 
   if (!modesFilled) {
     const opts = s.features.permissionModes.map((m) => `<option value="${esc(m)}"${m === 'auto' ? ' selected' : ''}>${esc(m)}</option>`).join('');
