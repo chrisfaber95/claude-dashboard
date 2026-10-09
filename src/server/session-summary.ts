@@ -140,9 +140,43 @@ export interface ModelContext {
   onAudit: (ok: boolean) => void;
 }
 
-/** Recap, or in `model` mode one cheap-model call over the transcript excerpt; any failure returns the recap plus a fixed note. */
+export const COOLDOWN_NOTE = 'A model summary was made a moment ago, so this is the recap.';
+export const SUMMARY_COOLDOWN_MS = 60_000;
+export const SUMMARY_CACHE_MAX = 50;
+
+/** Per session: the transcript state the answer was made for, when the last model call started, and the answer only (no transcript text). */
+interface CacheEntry {
+  size: number;
+  mtimeMs: number;
+  at: number;
+  text: string;
+}
+const cache = new Map<string, CacheEntry>();
+let clock: () => number = Date.now;
+
+/** Empties the in-memory cache; tests pass a fake clock. */
+export function resetSummaryCache(now: () => number = Date.now): void {
+  cache.clear();
+  clock = now;
+}
+
+function remember(key: string, entry: CacheEntry): void {
+  cache.delete(key);
+  cache.set(key, entry);
+  while (cache.size > SUMMARY_CACHE_MAX) cache.delete(cache.keys().next().value as string);
+}
+
+/** Recap, or in `model` mode one cheap-model call over the transcript excerpt, cached per session; any failure returns the recap plus a fixed note. */
 export async function summarize(path: string, mode: SummaryMode, live?: LiveInfo, model?: ModelContext): Promise<SessionSummary> {
   if (mode === 'model' && model) {
+    const st = await stat(path);
+    const prev = cache.get(path);
+    if (prev?.text && prev.size === st.size && prev.mtimeMs === st.mtimeMs) return { mode: 'model', text: prev.text };
+    if (prev && clock() - prev.at < SUMMARY_COOLDOWN_MS) {
+      if (prev.text) return { mode: 'model', text: prev.text };
+      return { ...(await recapSession(path, live)), note: COOLDOWN_NOTE };
+    }
+    const at = clock();
     let text = '';
     try {
       text = await summarizeWithModel(await excerptSession(path), model.cwd);
@@ -150,7 +184,12 @@ export async function summarize(path: string, mode: SummaryMode, live?: LiveInfo
       // fall through to the recap
     }
     model.onAudit(Boolean(text));
-    if (text) return { mode: 'model', text: redactForModel(text) };
+    if (text) {
+      text = redactForModel(text);
+      remember(path, { size: st.size, mtimeMs: st.mtimeMs, at, text });
+      return { mode: 'model', text };
+    }
+    remember(path, { size: st.size, mtimeMs: st.mtimeMs, at, text: prev?.text ?? '' });
     return { ...(await recapSession(path, live)), note: MODEL_FALLBACK_NOTE };
   }
   return recapSession(path, live);
