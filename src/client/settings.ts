@@ -13,6 +13,7 @@ export function initSummarySetting(): void {
       if (SUMMARY_MODES.includes(s.summary)) {
         current = s.summary;
         select.value = s.summary;
+        updateSummaryNote(commandsOn);
       }
     },
     () => (status.textContent = 'Could not load the summary setting.'),
@@ -25,6 +26,7 @@ export function initSummarySetting(): void {
       () => {
         current = next;
         status.textContent = 'Saved.';
+        updateSummaryNote(commandsOn);
       },
       () => {
         select.value = current;
@@ -32,4 +34,13 @@ export function initSummarySetting(): void {
       },
     );
   });
+}
+
+let commandsOn = true;
+
+/** Called on every state push: with commands off, `model` still saves but summaries fall back to the recap. */
+export function updateSummaryNote(commands: boolean): void {
+  commandsOn = commands;
+  const select = $<HTMLSelectElement>('summary-mode');
+  $('summary-note').hidden = commandsOn || select.value !== 'model';
 }

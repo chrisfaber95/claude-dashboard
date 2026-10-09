@@ -18,7 +18,7 @@ const publicDir = join(fx.root, 'public');
 mkdirSync(publicDir);
 const { createDashboardServer } = await import('../src/server/server.ts');
 const { summarizeWithModel } = await import('../src/server/claude-cli.ts');
-const { excerptSession, EXCERPT_MAX, MODEL_FALLBACK_NOTE } = await import('../src/server/session-summary.ts');
+const { excerptSession, EXCERPT_MAX, MODEL_FALLBACK_NOTE, resetSummaryCache: resetCache } = await import('../src/server/session-summary.ts');
 const { getSummaryMode, setSummaryMode } = await import('../src/server/settings.ts');
 const server = createDashboardServer({ publicDir, commands: true });
 let port = 0;
@@ -48,6 +48,7 @@ beforeEach(() => {
   rmSync(cliLog, { force: true });
   delete process.env.FAKE_CLAUDE_SUMMARY_FAILS;
   delete process.env.FAKE_CLAUDE_SUMMARY_DELAY_MS;
+  resetCache();
 });
 
 const host = () => `127.0.0.1:${port}`;
@@ -136,4 +137,67 @@ test('the excerpt is the newest text, masked, and at most 20 KB', async () => {
   assert.ok(ex.length <= EXCERPT_MAX);
   assert.ok(ex.includes('turn 59'));
   assert.ok(!ex.includes('turn 0 '));
+});
+
+test('model summaries are cached per unchanged transcript and wait a cooldown for a new call', async () => {
+  const { summarize, resetSummaryCache, SUMMARY_COOLDOWN_MS, SUMMARY_CACHE_MAX, COOLDOWN_NOTE } = await import('../src/server/session-summary.ts');
+  let t = 1_000_000;
+  resetSummaryCache(() => t);
+  const p = join(transcriptDir(fx, cwd), 'cache.jsonl');
+  writeFileSync(p, jsonl([{ type: 'user', sessionId: ID, cwd, timestamp: '2026-10-01T10:00:00Z', uuid: 'c1', message: { content: 'hello' } }]));
+  const ctx = { cwd, onAudit: () => {} };
+  const first = await summarize(p, 'model', undefined, ctx);
+  assert.equal(first.mode, 'model');
+  assert.equal(calls().length, 2);
+  // Unchanged transcript: reused, even after the cooldown, no process.
+  t += SUMMARY_COOLDOWN_MS * 5;
+  assert.deepEqual(await summarize(p, 'model', undefined, ctx), first);
+  assert.equal(calls().length, 2);
+  // Changed transcript after the cooldown gets a new call.
+  writeFileSync(p, jsonl([{ type: 'user', sessionId: ID, cwd, timestamp: '2026-10-01T10:00:00Z', uuid: 'c2', message: { content: 'hello again, longer' } }]));
+  assert.equal((await summarize(p, 'model', undefined, ctx)).mode, 'model');
+  assert.equal(calls().length, 4);
+  // Changed again inside the cooldown: cached answer, no process.
+  writeFileSync(p, jsonl([{ type: 'user', sessionId: ID, cwd, timestamp: '2026-10-01T10:00:00Z', uuid: 'c3', message: { content: 'hello a third time, longer still' } }]));
+  t += 1;
+  assert.equal((await summarize(p, 'model', undefined, ctx)).mode, 'model');
+  assert.equal(calls().length, 4);
+  // A failed first call: inside the cooldown the recap comes back with the fixed note, no process.
+  resetSummaryCache(() => t);
+  process.env.FAKE_CLAUDE_SUMMARY_FAILS = '1';
+  rmSync(cliLog, { force: true });
+  assert.equal((await summarize(p, 'model', undefined, ctx)).note, MODEL_FALLBACK_NOTE);
+  const n = calls().length;
+  const again = await summarize(p, 'model', undefined, ctx);
+  assert.equal(again.mode, 'recap');
+  assert.equal(again.note, COOLDOWN_NOTE);
+  assert.equal(calls().length, n);
+  // The cache is bounded.
+  resetSummaryCache(() => t);
+  delete process.env.FAKE_CLAUDE_SUMMARY_FAILS;
+  for (let i = 0; i < SUMMARY_CACHE_MAX + 3; i++) {
+    const q = join(transcriptDir(fx, cwd), `many-${i}.jsonl`);
+    writeFileSync(q, jsonl([{ type: 'user', sessionId: ID, cwd, timestamp: '2026-10-01T10:00:00Z', uuid: `m${i}`, message: { content: 'x' } }]));
+    await summarize(q, 'model', undefined, ctx);
+  }
+  rmSync(cliLog, { force: true });
+  await summarize(join(transcriptDir(fx, cwd), 'many-0.jsonl'), 'model', undefined, ctx);
+  assert.equal(calls().length, 2); // evicted, so called again
+  resetSummaryCache();
+});
+
+test('with commands disabled the endpoint answers with the recap and starts no process', async () => {
+  await post('/api/settings/summary', { summary: 'model' });
+  const off = createDashboardServer({ publicDir, commands: false });
+  await new Promise<void>((r) => off.listen(0, '127.0.0.1', r));
+  try {
+    const p2 = (off.address() as AddressInfo).port;
+    const r = await raw(p2, { path: `/api/sessions/${ID}/summary`, headers: { Host: `127.0.0.1:${p2}` } });
+    assert.equal(r.status, 200);
+    assert.equal((JSON.parse(r.body) as SessionSummary).mode, 'recap');
+    assert.equal(calls().length, 0);
+  } finally {
+    off.closeAllConnections();
+    off.close();
+  }
 });

@@ -1,3 +1,4 @@
+import { updateSummaryNote } from './settings.ts';
 import type { CommandResult, DashboardState, TranscriptEntry, TranscriptPage } from '../shared/types.ts';
 import { $, ago, api, esc } from './util.ts';
 
@@ -323,6 +324,7 @@ export function updateControls(s: DashboardState) {
   latest = s;
   patchRecent();
   commandsOn = s.features.commands;
+  updateSummaryNote(commandsOn);
   $('run').hidden = !commandsOn;
   $('logout').hidden = !s.features.lan;
   if (drawer?.kind === 'transcript') $('drawer-form').hidden = !commandsOn;
