@@ -85,6 +85,7 @@ async function showSummary(sessionId: string): Promise<void> {
   try {
     const r = await api<SessionSummary>(`/api/sessions/${encodeURIComponent(sessionId)}/summary`);
     bot(r.text);
+    if (r.note) bot(r.note);
   } catch (e) {
     bot((e as Error).message);
   } finally {

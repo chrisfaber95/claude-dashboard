@@ -24,6 +24,7 @@ Reference sections moved out of `CLAUDE.md` (which links here) so they load only
   - `tls.ts`: self-signed cert for LAN mode via Git's `openssl`
   - `claude-cli.ts`: the **only** place that runs `claude.exe` (`--bg`, `--bg --resume`, `stop`, `logs`), plus the audit log
   - `transcript-view.ts`: turns a transcript into readable entries for the viewer (last 32 MB of a file at most; `sidechain` flag for subagent transcripts)
+  - `settings.ts`: the summary mode (`recap` default | `model`) in `DATA_DIR/settings.json`, via `GET/POST /api/settings/summary`; a bad or unreadable file means `recap`.
   - `session-summary.ts`: no-model recap for `GET /api/sessions/:id/summary` (times, status, token totals, last 5 tool actions, last reply cut to 300 chars; same 32 MB tail as the viewer); `summarize(path, mode, live)` is the seam for a later model mode
 - `src/client/`: vanilla TypeScript and SCSS, no framework, charts drawn as inline SVG
   - `app.ts`: renders the sections (projects, sessions, usage, limits, messages); shows subagent counts on project cards; skin picker in header (localStorage `skin`, applies `data-skin` attribute to `<html>`, hides Theme button in dark-only skins)
@@ -50,7 +51,7 @@ Reference sections moved out of `CLAUDE.md` (which links here) so they load only
 - `scripts/dev.mjs`: dev mode orchestrator (watches for HTML changes, esbuild and sass in watch mode, server with hot restart on source changes); calls `copyAssets()` at startup
 - `scripts/svg-guard.mjs`: strict allowlist checker (`checkSvg`): whole-file tokenizer, allowlisted elements and attributes, printable ASCII only, no `&`/`\`, no text/comments/PIs/namespace prefixes, only local `url(#id)` references; used by `copy-assets.mjs` and `tests/root-assets.test.ts`
 - `scripts/copy-assets.mjs`: clears `public/fonts` and `public/root`, then copies self-hosted skin assets (`src/client/fonts` → `public/fonts`, `src/client/root` → `public/root`), skipping symlinks and copying only whitelisted file types (`.woff2`, `.txt` for fonts; `.svg` for Root skin; SVGs must pass `checkSvg`); used by `copy-html.mjs` and `dev.mjs`; **fails the build if an SVG fails the check**
-- `.dashboard/`: `devices.json` (device names and sha256 of their tokens, never the tokens), `alerts.json`, TLS `key.pem`/`cert.pem`, `commands.log`. **Holds secrets**: never print, serve or commit it
+- `.dashboard/`: `devices.json` (device names and sha256 of their tokens, never the tokens), `alerts.json`, `settings.json`, TLS `key.pem`/`cert.pem`, `commands.log`. **Holds secrets**: never print, serve or commit it
 
 ## Data sources (format of Claude Code's internal files, not a public API)
 
@@ -79,6 +80,7 @@ Reference sections moved out of `CLAUDE.md` (which links here) so they load only
 
 - Binary lookup order: `CLAUDE_BIN` (+ `CLAUDE_BIN_ARGS`); `claude.exe` (`claude` off Windows) in an absolute `PATH` folder (on Windows only drive-letter paths, no drive-less or UNC entries), native binaries only since `execFile` can't run `.cmd` shims; newest `claude.exe` in the VS Code extension. None found: "Claude CLI not found (set CLAUDE_BIN)". On this PC: `C:\Users\Chris\.local\bin\claude.exe` (2.1.295, found via `PATH`).
 - The CLI refuses folders it doesn't trust ("Workspace not trusted"). Trust is only granted by running `claude` interactively in that folder once. The dashboard shows trust status and passes the refusal through as `needsTrust`. Never edit `.claude.json` to grant trust.
+- **Model summaries** (`summarizeWithModel()` in `claude-cli.ts`, only when the setting is `model`): `claude -p <fixed instruction> --model haiku --tools "" --disable-slash-commands --strict-mcp-config --setting-sources user --no-session-persistence --output-format text`, run in the projects root. `--tools ""` disables all tools (verified in `claude --help` of 2.1.295: "Use "" to disable all tools"). The transcript excerpt (newest user/assistant text, secrets masked, max 20 KB) goes in on **stdin** as data, never in the argument list. Same 60 s timeout and 4-process cap as other commands; audited as `action: 'summary'` (session, device, ok; no text). Any failure returns the recap with `mode: 'recap'` and a fixed `note`.
 - `claude agents --json` lists the same live sessions as `~/.claude/sessions/*.json`.
 - **Unverified until a folder is trusted:**
   - the exact `--bg` output and id format (`toResult()` parses a UUID or a lone id line);

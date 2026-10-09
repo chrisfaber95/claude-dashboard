@@ -22,6 +22,7 @@ import {
 import { buildState, readSessions } from './state.ts';
 import { ensureCert, lanAddresses } from './tls.ts';
 import { summarize } from './session-summary.ts';
+import { getSummaryMode, setSummaryMode } from './settings.ts';
 import { readTranscriptPage } from './transcript-view.ts';
 import { scanTranscripts, subagentPaths, transcriptIndex } from './transcripts.ts';
 
@@ -288,7 +289,9 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
         const t = transcriptIndex.get(id);
         if (!t) throw new CommandError(404, 'unknown session');
         const live = readSessions().find((s) => s.sessionId === id);
-        send(res, 200, await summarize(t.path, 'recap', live && { status: live.status, startedAtMs: live.startedAtMs }));
+        const mode = commands ? getSummaryMode() : 'recap';
+        const info = live && { status: live.status, startedAtMs: live.startedAtMs };
+        send(res, 200, await summarize(t.path, mode, info, { cwd: projectsRoot, onAudit: (ok) => audit({ ip, ...actor, action: 'summary', session: id, ok }) }));
         return;
       }
       if (!commands) throw new CommandError(404, 'commands are disabled');
@@ -407,6 +410,19 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
       if (typeof body.threshold !== 'number' || !setAlertThreshold(body.threshold)) throw new CommandError(400, 'threshold must be a whole number from 1 to 100');
       send(res, 200, { ok: true });
       return;
+    }
+
+    if (url.pathname === '/api/settings/summary') {
+      if (method === 'GET') {
+        send(res, 200, { summary: getSummaryMode() });
+        return;
+      }
+      if (method === 'POST') {
+        const body = await readJson(req);
+        if (!setSummaryMode(body.summary)) throw new CommandError(400, "summary must be 'recap' or 'model'");
+        send(res, 200, { summary: getSummaryMode() });
+        return;
+      }
     }
 
     if (url.pathname === '/api/commands' && method === 'POST') {
