@@ -1,5 +1,6 @@
 import type { DashboardState, MessageInfo, SessionInfo, TokenCounts, UsageDay } from '../shared/types.ts';
 import { initAlerts, renderAlerts } from './alerts.ts';
+import { initChat, updateChat } from './chat.ts';
 import { initBuilding, updateBuilding } from './building.ts';
 import { initControls, updateControls } from './controls.ts';
 import { initCore, updateCore } from './core.ts';
@@ -302,6 +303,7 @@ function render(s: DashboardState) {
     ['colors', () => setColors(s.projects.map((p) => p.name))],
     ['limits', () => renderLimits(s)],
     ['alerts', () => renderAlerts(s)],
+    ['chat', () => updateChat(s)],
     ['team', () => renderTeam(s)],
     ['devices', () => renderDevices(s)],
     ['audit', () => renderAudit(s)],
@@ -328,6 +330,7 @@ function render(s: DashboardState) {
 
 initControls();
 initAlerts();
+initChat();
 initDevices();
 initAudit();
 initBuilding();

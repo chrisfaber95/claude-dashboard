@@ -1421,6 +1421,70 @@ $hair: (#2b2118, #6b4423, #c9a24b, #a33b2a, #555555);
   }
 }
 
+.chat {
+  &__log {
+    display: grid;
+    gap: 6px;
+    max-height: 320px;
+    overflow-y: auto;
+    margin-bottom: 12px;
+    padding-right: 2px;
+  }
+
+  &__msg {
+    max-width: 92%;
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-btn);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+
+    &--user {
+      justify-self: end;
+      background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+    }
+
+    &--bot {
+      justify-self: start;
+      color: var(--ink);
+    }
+  }
+
+  &__confirm {
+    display: grid;
+    gap: 8px;
+    padding: 8px 12px;
+    border: 1px solid var(--accent);
+    border-radius: var(--radius-btn);
+    min-width: 0;
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  &__quote {
+    margin: 0;
+    padding: 6px 8px;
+    border-left: 3px solid var(--accent);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: var(--ink-2);
+  }
+
+  &__actions,
+  &__form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  &__form input {
+    flex: 1 1 12em;
+    min-width: 0;
+  }
+}
+
 .audit {
   &__summary {
     font-size: 15px;
