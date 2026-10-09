@@ -127,12 +127,87 @@ test('writes an audit log line per command', async () => {
   assert.equal(last.action, 'start');
   assert.equal(last.project, 'Alpha');
   assert.equal(last.mode, 'plan');
-  assert.equal(last.prompt, 'audit me');
+  assert.equal(last.goal, 'audit me');
+  assert.equal(last.notesLength, 0);
   assert.equal(last.ok, true);
   assert.ok(last.ip);
   // without a login every caller is this PC
   assert.equal(last.deviceId, 'pc');
   assert.equal(last.device, 'This PC');
+});
+
+test('a start with goal and notes sends one prompt with marked sections, goal first', async () => {
+  const r = await post('/api/commands', { project: 'Alpha', goal: ' Fix the login bug ', notes: '\nIt only fails on Safari.\n', permissionMode: 'plan' });
+  assert.equal(r.status, 200);
+  const j = JSON.parse(r.body);
+  assert.equal(j.ok, true);
+  assert.equal(j.started, true);
+  assert.deepEqual(calls()[0].args, ['--bg', '--permission-mode', 'plan', '## Goal\nFix the login bug\n\n## Background notes\nIt only fails on Safari.']);
+});
+
+test('empty notes add no notes section; a goal starting with - is still neutralised', async () => {
+  await post('/api/commands', { project: 'Alpha', goal: 'Do it', notes: '  \n ' });
+  await post('/api/commands', { project: 'Alpha', goal: '--help' });
+  await post('/api/commands', { project: 'Alpha', prompt: 'old field' });
+  assert.deepEqual(calls().map((c) => c.args[3]), ['Do it', 'Task:\n--help', 'old field']);
+});
+
+test('launch refusals are fixed 400 messages and never call the CLI', async () => {
+  const cases: Array<[object, string]> = [
+    [{ goal: 'x' }, 'project is required'],
+    [{ project: 7, goal: 'x' }, 'project is required'],
+    [{ project: 'Nope', goal: 'x' }, 'unknown project'],
+    [{ project: 'Alpha' }, 'goal is required'],
+    [{ project: 'Alpha', goal: '  \n\t ' }, 'goal is required'],
+    [{ project: 'Alpha', goal: 'x', notes: 5 }, 'notes must be text'],
+    [{ project: 'Alpha', goal: 'x'.repeat(15_000), notes: 'y'.repeat(6_000) }, 'goal and notes together are longer than 20000 characters'],
+    [{ project: 'Alpha', goal: 'x', permissionMode: 'bypassPermissions' }, 'permission mode must be one of plan, default, acceptEdits, auto'],
+  ];
+  for (const [body, error] of cases) {
+    const r = await post('/api/commands', body);
+    assert.equal(r.status, 400, JSON.stringify(body).slice(0, 60));
+    assert.equal(JSON.parse(r.body).error, error);
+  }
+  assert.equal(calls().length, 0);
+});
+
+test('a failed start returns the reason, says no session started and is audited as failed', async () => {
+  const j = JSON.parse((await post('/api/commands', { project: 'Untrusted', goal: 'hi' })).body);
+  assert.equal(j.ok, false);
+  assert.equal(j.started, false);
+  assert.equal(j.id, undefined);
+  assert.match(j.needsTrust, /trust prompt/);
+  const last = JSON.parse((await get('/api/launches')).body).launches[0];
+  assert.equal(last.project, 'Untrusted');
+  assert.equal(last.ok, false);
+  assert.equal(last.session, undefined);
+});
+
+test('launch audit keeps the goal (500 chars) and the notes length, never the notes text', async () => {
+  await post('/api/commands', { project: 'Alpha', goal: 'g'.repeat(700), notes: 'secret-ish notes', permissionMode: 'plan' });
+  const text = readFileSync(join(fx.dataDir, 'commands.log'), 'utf8');
+  assert.ok(!text.includes('secret-ish'));
+  const last = JSON.parse(text.trim().split('\n').at(-1)!);
+  assert.equal(last.goal, 'g'.repeat(500));
+  assert.equal(last.notesLength, 16);
+  assert.equal(last.session, 'bg-1a2b3c');
+  assert.equal(last.prompt, undefined);
+});
+
+test('GET /api/launches lists only starts, newest first, at most 50, with allowlisted fields', async () => {
+  rmSync(join(fx.dataDir, 'commands.log'), { force: true });
+  for (let i = 0; i < 52; i++) await post('/api/commands', { project: 'Alpha', goal: `goal ${i}`, notes: 'abc', permissionMode: 'plan' });
+  await post(`/api/sessions/${SID}/stop`, {});
+  const r = await get('/api/launches');
+  assert.equal(r.status, 200);
+  const { launches } = JSON.parse(r.body) as { launches: Array<Record<string, unknown>> };
+  assert.equal(launches.length, 50);
+  assert.deepEqual(launches.slice(0, 2).map((l) => l.goal), ['goal 51', 'goal 50']);
+  assert.ok(launches.every((l) => l.action === 'start'));
+  assert.deepEqual(launches[0], {
+    ts: launches[0].ts, action: 'start', device: 'This PC', deviceId: 'pc', project: 'Alpha', session: 'bg-1a2b3c', mode: 'plan', ok: true, goal: 'goal 51', notesLength: 3,
+  });
+  assert.equal((await post('/api/launches', {})).status, 404);
 });
 
 test('serves the transcript of a known session and rejects bad ids', async () => {

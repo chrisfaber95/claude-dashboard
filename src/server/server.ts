@@ -6,7 +6,8 @@ import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { APP_ROOT, COMMANDS_ENABLED, DATA_DIR, HOST, LAN_MODE, PORT, PROJECTS_ROOT, UUID_RE, normPath } from './config.ts';
 import { dismissAlert, recordFailedSignin, setAlertThreshold } from './alerts.ts';
-import { readAudit } from './audit-log.ts';
+import { LAUNCHES_MAX, readAudit } from './audit-log.ts';
+import { composeLaunch, GOAL_AUDIT_MAX } from './launch.ts';
 import { PC_DEVICE, createAuth, type Auth } from './auth.ts';
 import { MAX_DEVICES, createDeviceStore } from './devices.ts';
 import {
@@ -269,6 +270,16 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
       return;
     }
 
+    // The latest launches, newest first, from the same log and with the same access as /api/audit.
+    if (url.pathname === '/api/launches' && method === 'GET') {
+      try {
+        send(res, 200, { launches: await readAudit(undefined, { action: 'start', limit: LAUNCHES_MAX }) });
+      } catch {
+        throw new CommandError(500, 'could not read the launch history');
+      }
+      return;
+    }
+
     if (url.pathname === '/api/events') {
       res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive', ...SECURITY_HEADERS });
       res.write(`data: ${JSON.stringify(withManage(state(), who?.deviceId === PC_DEVICE))}\n\n`);
@@ -445,13 +456,15 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
     if (url.pathname === '/api/commands' && method === 'POST') {
       if (!commands) throw new CommandError(404, 'commands are disabled');
       const body = await readJson(req);
-      const project = String(body.project ?? '');
+      if (typeof body.project !== 'string' || !body.project) throw new CommandError(400, 'project is required');
+      const project = body.project;
       if (!projectNames(projectsRoot).includes(project)) throw new CommandError(400, 'unknown project');
-      const prompt = validatePrompt(body.prompt);
+      const launch = composeLaunch(body);
       const mode = validateMode(body.permissionMode);
-      const r = await startTask(join(projectsRoot, project), prompt, mode);
-      audit({ ip, ...actor, action: 'start', project, mode, prompt: prompt.slice(0, 200), ok: r.ok, id: r.id });
-      send(res, 200, r);
+      const r = await startTask(join(projectsRoot, project), launch.prompt, mode);
+      audit({ ip, ...actor, action: 'start', project, mode, goal: launch.goal.slice(0, GOAL_AUDIT_MAX), notesLength: launch.notesLength, ok: r.ok, id: r.id, session: r.id });
+      // A failed start leaves no session behind; say so next to the reason.
+      send(res, 200, r.ok ? { ...r, started: true } : { ...r, started: false });
       return;
     }
 

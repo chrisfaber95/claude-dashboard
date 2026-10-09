@@ -151,6 +151,8 @@ export interface CommandResult {
   id?: string;
   /** Set when the CLI refused because the folder isn't trusted yet. */
   needsTrust?: string;
+  /** Start requests only: false means the launch failed and no session was left behind. */
+  started?: boolean;
 }
 
 export const TEAM_COLUMNS = ['backlog', 'ready', 'in-progress', 'review', 'done', 'blocked'] as const;
@@ -205,6 +207,10 @@ export interface AuditEntry {
   ok?: boolean;
   /** Cut to 200 characters. */
   prompt?: string;
+  /** Launch goal, cut to 500 characters (start entries). */
+  goal?: string;
+  /** Length of the launch notes; the notes text is never logged. */
+  notesLength?: number;
 }
 
 /** A LAN device as listed by `GET /api/devices`. Never carries the token or its hash. */
