@@ -1,10 +1,10 @@
-import type { CommandResult, DashboardState } from '../shared/types.ts';
+import type { CommandResult, DashboardState, SessionSummary } from '../shared/types.ts';
 import { answer, parseIntent } from './chat-logic.ts';
 import { createChatState } from './chat-state.ts';
 import { openTranscript } from './controls.ts';
 import { $, api } from './util.ts';
 
-// The chat may only send a message to a session and dismiss an alert (plus open a transcript).
+// The chat may only send a message to a session, dismiss an alert and read a session summary (plus open a transcript).
 // It never starts or stops sessions. tests/chat.test.ts scans this file for that.
 
 const chat = createChatState();
@@ -80,6 +80,18 @@ async function sendMessage(): Promise<void> {
   }
 }
 
+async function showSummary(sessionId: string): Promise<void> {
+  busy = true;
+  try {
+    const r = await api<SessionSummary>(`/api/sessions/${encodeURIComponent(sessionId)}/summary`);
+    bot(r.text);
+  } catch (e) {
+    bot((e as Error).message);
+  } finally {
+    busy = false;
+  }
+}
+
 async function dismissAlert(id: string, title: string): Promise<void> {
   busy = true;
   try {
@@ -119,7 +131,8 @@ async function handle(text: string): Promise<void> {
       if (intent.match.kind === 'one') openTranscript(intent.match.item.sessionId, intent.match.item.name);
       return;
     case 'summary':
-      bot(intent.match.kind === 'one' ? 'Summary is coming soon.' : reply);
+      bot(reply);
+      if (intent.match.kind === 'one') await showSummary(intent.match.item.sessionId);
       return;
     default:
       bot(reply);

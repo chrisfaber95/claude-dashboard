@@ -111,6 +111,12 @@ export interface TranscriptEntry {
   isError?: boolean;
 }
 
+/** Answer of GET /api/sessions/:id/summary. `recap` is built from the transcript without a model. */
+export interface SessionSummary {
+  mode: 'recap';
+  text: string;
+}
+
 export interface TranscriptPage {
   entries: TranscriptEntry[];
   hasMore: boolean;

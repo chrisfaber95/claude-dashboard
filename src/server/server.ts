@@ -21,6 +21,7 @@ import {
 } from './claude-cli.ts';
 import { buildState, readSessions } from './state.ts';
 import { ensureCert, lanAddresses } from './tls.ts';
+import { summarize } from './session-summary.ts';
 import { readTranscriptPage } from './transcript-view.ts';
 import { scanTranscripts, subagentPaths, transcriptIndex } from './transcripts.ts';
 
@@ -269,7 +270,7 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
       return;
     }
 
-    const m = url.pathname.match(/^\/api\/sessions\/([^/]+)\/(transcript|logs|message|stop)$/);
+    const m = url.pathname.match(/^\/api\/sessions\/([^/]+)\/(transcript|summary|logs|message|stop)$/);
     if (m) {
       const [, id, action] = m;
       if (action === 'transcript' && method === 'GET') {
@@ -279,6 +280,15 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
         if (!t) throw new CommandError(404, 'unknown session');
         const limit = Math.min(500, Math.max(1, Number(url.searchParams.get('limit')) || 100));
         send(res, 200, await readTranscriptPage(t.path, limit, url.searchParams.get('before') ?? undefined));
+        return;
+      }
+      if (action === 'summary' && method === 'GET') {
+        if (!UUID_RE.test(id)) throw new CommandError(400, 'invalid session id');
+        scanTranscripts();
+        const t = transcriptIndex.get(id);
+        if (!t) throw new CommandError(404, 'unknown session');
+        const live = readSessions().find((s) => s.sessionId === id);
+        send(res, 200, await summarize(t.path, 'recap', live && { status: live.status, startedAtMs: live.startedAtMs }));
         return;
       }
       if (!commands) throw new CommandError(404, 'commands are disabled');
