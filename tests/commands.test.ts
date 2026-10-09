@@ -339,6 +339,18 @@ test('follow-up to a session that is not live only resumes it', async () => {
   assert.deepEqual(calls().map((x) => x.args), [['--bg', '--resume', id, '--permission-mode', 'auto', 'again']]);
 });
 
+test('follow-up to an ended terminal session resumes it in the background under the same id', async () => {
+  const id = '12121212-2222-4333-8444-555555555555';
+  const file = makeLive(id, 'interactive', 'idle');
+  const live = await post(`/api/sessions/${id}/message`, { prompt: 'still open', permissionMode: 'auto' });
+  assert.equal(live.status, 409, 'refused while the terminal still has it open');
+  assert.deepEqual(calls(), []);
+  rmSync(file, { force: true });
+  const ended = await post(`/api/sessions/${id}/message`, { prompt: 'continue here', permissionMode: 'plan' });
+  assert.equal(ended.status, 200);
+  assert.deepEqual(calls().map((x) => x.args), [['--bg', '--resume', id, '--permission-mode', 'plan', 'continue here']]);
+});
+
 const auditLines = () =>
   readFileSync(join(fx.dataDir, 'commands.log'), 'utf8').trim().split('\n').map((l) => JSON.parse(l) as Record<string, unknown>);
 
