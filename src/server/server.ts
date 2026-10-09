@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { APP_ROOT, COMMANDS_ENABLED, DATA_DIR, HOST, LAN_MODE, PORT, PROJECTS_ROOT, UUID_RE, normPath } from './config.ts';
-import { dismissAlert, setAlertThreshold } from './alerts.ts';
+import { dismissAlert, recordFailedSignin, setAlertThreshold } from './alerts.ts';
 import { PC_DEVICE, createAuth, type Auth } from './auth.ts';
 import { MAX_DEVICES, createDeviceStore } from './devices.ts';
 import {
@@ -411,7 +411,8 @@ if (isMain) {
   // The old shared login token is no longer read; remove the leftover secret.
   rmSync(join(DATA_DIR, 'token'), { force: true });
   if (LAN_MODE) {
-    opts = { auth: createAuth(createDeviceStore(DATA_DIR)), tls: ensureCert(DATA_DIR) };
+    // Failed sign-ins become one needs-attention alert per source address.
+    opts = { auth: createAuth(createDeviceStore(DATA_DIR), { onFailedLogin: recordFailedSignin }), tls: ensureCert(DATA_DIR) };
     console.log('Sign-in uses per-device tokens; this PC (loopback address) needs none.');
   }
   createDashboardServer(opts).listen(PORT, HOST, () => {
