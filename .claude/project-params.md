@@ -49,8 +49,8 @@ keeps your edits. Values marked unknown should be filled in.
 
 <!-- params:dependencies -->
 ## dependencies (dependency-manager)
-- packages: `.` with npm (package.json, package-lock.json); no runtime dependencies, dev only: esbuild, sass, typescript, @types/node
-- policy: the server has no runtime dependencies and must keep none; only dev tools (esbuild, sass, typescript, @types/node) may be added or upgraded, one at a time with typecheck, tests and build after each (CLAUDE.md "Layout")
+- packages: `.` with npm (package.json, package-lock.json); no runtime dependencies, dev only: esbuild, sass, typescript, @types/node, qrcode-generator (2.0.4, MIT, no dependencies, no install scripts; bundled by esbuild into the client `app.js` for the QR pairing code, so nothing new at server runtime; added with the user's approval, team-hq decision 0003)
+- policy: the server has no runtime dependencies and must keep none; only dev tools (esbuild, sass, typescript, @types/node) and the one user-approved bundled client devDependency `qrcode-generator` may be added or upgraded; any other new package needs the user's approval first. Upgrades go one at a time with typecheck, tests and build after each (CLAUDE.md "Layout")
 - install_scripts: read before approving (esbuild runs a postinstall); never approve one that was not read
 - pinned_packages: none; `@types/node` stays on the major of the Node runtime (24)
 - verification_commands: `npm run typecheck`, `npm test`, `npm run build` (package.json)
