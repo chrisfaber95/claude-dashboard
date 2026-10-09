@@ -1,12 +1,13 @@
 import { createServer as createHttpServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { createServer as createHttpsServer } from 'node:https';
-import { readdirSync } from 'node:fs';
+import { readdirSync, rmSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { APP_ROOT, COMMANDS_ENABLED, DATA_DIR, HOST, LAN_MODE, PORT, PROJECTS_ROOT, UUID_RE, normPath } from './config.ts';
 import { dismissAlert, setAlertThreshold } from './alerts.ts';
-import { createAuth, loadOrCreateToken, type Auth } from './auth.ts';
+import { createAuth, type Auth } from './auth.ts';
+import { createDeviceStore } from './devices.ts';
 import {
   CommandError,
   audit,
@@ -116,7 +117,15 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
   const commands = opts.commands ?? COMMANDS_ENABLED;
   const projectsRoot = opts.projectsRoot ?? PROJECTS_ROOT;
   const proto = tls ? 'https' : 'http';
-  const clients = new Set<ServerResponse>();
+  /** Open live-event streams, with the device each belongs to (closed at once when that device is revoked). */
+  const clients = new Map<ServerResponse, string>();
+  auth?.onRevoke((deviceId) => {
+    for (const [c, d] of clients) {
+      if (d !== deviceId) continue;
+      clients.delete(c);
+      c.end();
+    }
+  });
   const state = () => buildState({ lan: Boolean(auth), commands });
 
   async function serveStatic(res: ServerResponse, rel: string) {
@@ -182,11 +191,15 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
       return;
     }
 
-    if (auth && !PUBLIC_PATHS.has(url.pathname) && !auth.isAuthed(req)) {
+    // LAN mode: a device session, or this PC (loopback socket and loopback Host).
+    const who = auth ? auth.identify(req) : null;
+    if (auth && !PUBLIC_PATHS.has(url.pathname) && !who) {
       if (url.pathname.startsWith('/api/')) send(res, 401, { error: 'login required' });
       else res.writeHead(302, { Location: '/login', ...SECURITY_HEADERS }).end();
       return;
     }
+    // Sliding session: the cookie is re-issued at most once a day.
+    if (auth && who?.refreshSid) res.setHeader('Set-Cookie', auth.cookie(who.refreshSid, Boolean(tls)));
 
     if (auth && url.pathname === '/logout' && method === 'POST') {
       auth.logout(req);
@@ -202,7 +215,7 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
     if (url.pathname === '/api/events') {
       res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive', ...SECURITY_HEADERS });
       res.write(`data: ${JSON.stringify(state())}\n\n`);
-      clients.add(res);
+      clients.set(res, who?.deviceId ?? '');
       req.on('close', () => clients.delete(res));
       return;
     }
@@ -239,7 +252,7 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
       }
       if (action === 'stop' && method === 'POST') {
         const r = await stopSession(id, cwd);
-        audit({ ip, action: 'stop', session: id, ok: r.ok });
+        audit({ ip, device: who?.deviceId ?? null, action: 'stop', session: id, ok: r.ok });
         send(res, 200, r);
         return;
       }
@@ -264,13 +277,13 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
             if (live.kind !== 'bg') throw new CommandError(409, 'This session is open in a terminal or editor. Send the message there.');
             if (live.status !== 'idle') throw new CommandError(409, 'This session is busy or waiting. Wait until it is idle, then send the message.');
             const stopped = await stopSession(id, projectsRoot);
-            audit({ ip, action: 'stop', via: 'message', session: id, ok: stopped.ok });
+            audit({ ip, device: who?.deviceId ?? null, action: 'stop', via: 'message', session: id, ok: stopped.ok });
             for (let i = 0; i < 25 && isLive(); i++) await new Promise((r) => setTimeout(r, 200));
             // Still running: resuming now would start a copy, so give up. (A failed stop of a session that exited on its own is fine.)
             if (isLive()) throw new CommandError(stopped.ok ? 504 : 502, 'The session did not stop. Try again.');
           }
           const r = await continueSession(id, t.cwd, prompt, mode);
-          audit({ ip, action: 'message', session: id, project: t.project, mode, prompt: prompt.slice(0, 200), ok: r.ok });
+          audit({ ip, device: who?.deviceId ?? null, action: 'message', session: id, project: t.project, mode, prompt: prompt.slice(0, 200), ok: r.ok });
           send(res, 200, r);
         } finally {
           continuing.delete(id);
@@ -304,7 +317,7 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
       const prompt = validatePrompt(body.prompt);
       const mode = validateMode(body.permissionMode);
       const r = await startTask(join(projectsRoot, project), prompt, mode);
-      audit({ ip, action: 'start', project, mode, prompt: prompt.slice(0, 200), ok: r.ok, id: r.id });
+      audit({ ip, device: who?.deviceId ?? null, action: 'start', project, mode, prompt: prompt.slice(0, 200), ok: r.ok, id: r.id });
       send(res, 200, r);
       return;
     }
@@ -339,11 +352,11 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
   const timer = setInterval(() => {
     if (!clients.size) return;
     const payload = `data: ${JSON.stringify(state())}\n\n`;
-    for (const c of clients) c.write(payload);
+    for (const c of clients.keys()) c.write(payload);
   }, 2000);
   server.on('close', () => {
     clearInterval(timer);
-    for (const c of clients) c.end();
+    for (const c of clients.keys()) c.end();
   });
 
   return server;
@@ -352,11 +365,11 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
 const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
   let opts: ServerOptions = {};
+  // The old shared login token is no longer read; remove the leftover secret.
+  rmSync(join(DATA_DIR, 'token'), { force: true });
   if (LAN_MODE) {
-    const { created } = loadOrCreateToken(DATA_DIR);
-    opts = { auth: createAuth(loadOrCreateToken(DATA_DIR).token), tls: ensureCert(DATA_DIR) };
-    console.log(created ? 'Created a new login token.' : 'Using the existing login token.');
-    console.log(`Login token: ${join(DATA_DIR, 'token')}`);
+    opts = { auth: createAuth(createDeviceStore(DATA_DIR)), tls: ensureCert(DATA_DIR) };
+    console.log('Sign-in uses per-device tokens; this PC (loopback address) needs none.');
   }
   createDashboardServer(opts).listen(PORT, HOST, () => {
     const proto = LAN_MODE ? 'https' : 'http';
