@@ -5,9 +5,9 @@ import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createPermissionStore, requestText, TEXT_MAX } from '../src/server/permissions.ts';
+import { createPermissionStore, requestText, TEXT_MAX } from '../../../../src/server/features/permissions/permissions.ts';
 // @ts-expect-error plain .mjs script without types
-import { decisionOutput, runHook } from '../scripts/permission-hook.mjs';
+import { decisionOutput, runHook } from '../../../../scripts/permission-hook.mjs';
 
 const dir = () => mkdtempSync(join(tmpdir(), 'perm-'));
 const SID = '11111111-2222-4333-8444-555555555555';

@@ -8,7 +8,7 @@ import { APP_ROOT, COMMANDS_ENABLED, DATA_DIR, HOST, LAN_MODE, PORT, PROJECTS_RO
 import { dismissAlert, recordFailedSignin, setAlertThreshold } from './alerts.ts';
 import { LAUNCHES_MAX, readAudit } from './audit-log.ts';
 import { composeLaunch, GOAL_AUDIT_MAX } from './launch.ts';
-import { createPermissionStore, requestText, type PermissionStore } from './permissions.ts';
+import { createPermissionStore, requestText, type PermissionStore } from './features/permissions/permissions.ts';
 import { PC_DEVICE, createAuth, type Auth } from './auth.ts';
 import { MAX_DEVICES, createDeviceStore } from './devices.ts';
 import {
