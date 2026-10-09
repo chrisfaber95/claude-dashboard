@@ -33,7 +33,7 @@ const TYPES: Record<string, string> = {
   '.woff2': 'font/woff2',
 };
 /** Reachable without a login session. */
-const PUBLIC_PATHS = new Set(['/login', '/login.js', '/style.css']);
+const PUBLIC_PATHS = new Set(['/login', '/login.js', '/style.css', '/pair']);
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
 const BODY_MAX = 64 * 1024;
 /** Session ids with a follow-up in flight. */
@@ -193,6 +193,17 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
       return;
     }
 
+    // QR pairing: GET only, no other side effect. A good code signs the browser in as its device; anything else is a
+    // failed sign-in (rate limit + alert). The code is in the URL, so nothing is cached and it is spent on first use.
+    if (auth && url.pathname === '/pair' && method === 'GET') {
+      const r = auth.pair(ip, url.searchParams.get('c') ?? '');
+      const base = { 'Cache-Control': 'no-store', ...SECURITY_HEADERS };
+      if (r === 'rate-limited') res.writeHead(303, { Location: '/login?e=rate', ...base }).end();
+      else if (r === null) res.writeHead(303, { Location: '/login?e=pair', ...base }).end();
+      else res.writeHead(303, { Location: '/', 'Set-Cookie': auth.cookie(r, Boolean(tls)), ...base }).end();
+      return;
+    }
+
     // LAN mode: a device session, or this PC (loopback socket and loopback Host).
     const who = auth ? auth.identify(req) : null;
     if (auth && !PUBLIC_PATHS.has(url.pathname) && !who) {
@@ -295,7 +306,7 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
     }
 
     // Device management: only the loopback-exempt PC, never a signed-in LAN device (decision 0003).
-    if (url.pathname === '/api/devices' || url.pathname === '/api/devices/revoke') {
+    if (url.pathname === '/api/devices' || url.pathname === '/api/devices/revoke' || url.pathname === '/api/devices/pair') {
       if (!auth) throw new CommandError(404, 'devices are not available');
       if (who?.deviceId !== PC_DEVICE) throw new CommandError(403, 'only this PC can manage devices');
       if (url.pathname === '/api/devices' && method === 'GET') {
@@ -328,6 +339,19 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
         // Sessions and streams are already ended; the file just could not be written, so it may come back after a restart.
         if (!r.persisted) throw new CommandError(500, 'device revoked, but the change could not be saved');
         send(res, 200, { ok: true });
+        return;
+      }
+      if (url.pathname === '/api/devices/pair' && method === 'POST') {
+        const body = await readJson(req);
+        const id = typeof body.id === 'string' ? body.id : '';
+        const pairing = auth.createPairing(id);
+        audit({ ip, device: who.deviceId, action: 'device-pair', id: pairing ? id : undefined, ok: pairing !== null });
+        if (!pairing) throw new CommandError(404, 'unknown device');
+        // The phone needs this PC's LAN address, not the loopback Host the PC used. The code is the only secret in the link.
+        const path = `/pair?c=${pairing.code}`;
+        const port = req.socket.localPort;
+        const urls = port ? lanAddresses().map((a) => `${proto}://${a}:${port}${path}`) : [];
+        send(res, 200, { path, urls, expiresMs: pairing.expiresMs });
         return;
       }
       throw new CommandError(405, 'method not allowed');

@@ -1,5 +1,6 @@
-import type { DashboardState, DeviceInfo } from '../shared/types.ts';
+import type { DashboardState, DeviceInfo, PairingInfo } from '../shared/types.ts';
 import { cleanName, createdLabel, lastSeenLabel, sortDevices } from './devices-logic.ts';
+import { qrShape } from './qr.ts';
 import { $, api, ApiError, esc } from './util.ts';
 
 const REFRESH_MS = 30_000;
@@ -35,10 +36,90 @@ function clearToken(): void {
   $('devices-token').hidden = true;
 }
 
+/** The pairing links live only in memory while the QR is shown; never in the DOM as text, storage or the console. */
+let qrLinks: string[] = [];
+let qrId = '';
+let qrName = '';
+let qrTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** Remove the QR drawing and forget the pairing links. */
+function clearQr(): void {
+  if (qrTimer !== undefined) clearTimeout(qrTimer);
+  qrTimer = undefined;
+  qrLinks = [];
+  qrId = '';
+  qrName = '';
+  $('devices-qr-draw').replaceChildren();
+  $('devices-qr-addr').replaceChildren();
+  $('devices-qr-addr').hidden = true;
+  $('devices-qr-name').textContent = '';
+  $('devices-qr-expiry').textContent = '';
+  $('devices-qr-note').textContent = '';
+  $('devices-qr').hidden = true;
+}
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+function drawQr(link: string): void {
+  const draw = $('devices-qr-draw');
+  let shape;
+  try {
+    shape = qrShape(link);
+  } catch {
+    draw.replaceChildren();
+    setStatus('Could not draw the QR code.');
+    return;
+  }
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${shape.size} ${shape.size}`);
+  svg.setAttribute('shape-rendering', 'crispEdges');
+  svg.setAttribute('role', 'img');
+  svg.setAttribute('aria-label', `QR code to sign in ${qrName}`);
+  svg.classList.add('devices__qr-svg');
+  const path = document.createElementNS(SVG_NS, 'path');
+  path.setAttribute('d', shape.d);
+  svg.append(path);
+  draw.replaceChildren(svg);
+}
+
+function showQr(id: string, name: string, info: PairingInfo): void {
+  clearQr();
+  clearToken();
+  qrId = id;
+  qrName = name;
+  const lan = info.urls.length > 0;
+  qrLinks = lan ? [...info.urls] : [location.origin + info.path];
+  $('devices-qr-name').textContent = name;
+  $('devices-qr-note').textContent = lan ? '' : 'No LAN address was found. The phone cannot reach this link unless it is opened from a LAN address.';
+  const sel = $<HTMLSelectElement>('devices-qr-addr');
+  if (qrLinks.length > 1) {
+    qrLinks.forEach((u, i) => {
+      let label = `Address ${i + 1}`;
+      try {
+        label = new URL(u).host; // host:port only, never the code
+      } catch {
+        /* keep the generic label */
+      }
+      const o = document.createElement('option');
+      o.value = String(i);
+      o.textContent = label;
+      sel.append(o);
+    });
+    sel.hidden = false;
+  }
+  $('devices-qr-expiry').textContent = `Expires at ${new Date(info.expiresMs).toLocaleTimeString()}`;
+  $('devices-qr').hidden = false;
+  drawQr(qrLinks[0] ?? '');
+  qrTimer = setTimeout(() => {
+    clearQr();
+    setStatus('The QR code expired.');
+  }, Math.max(0, info.expiresMs - Date.now()));
+}
+
 function setBusy(on: boolean): void {
   busy = on;
   for (const b of $('devices').querySelectorAll<HTMLButtonElement>('button')) {
-    if (b.id === 'devices-token-dismiss') continue;
+    if (b.id === 'devices-token-dismiss' || b.id === 'devices-qr-close') continue;
     b.disabled = on;
   }
 }
@@ -46,7 +127,8 @@ function setBusy(on: boolean): void {
 function row(d: DeviceInfo, now: number): string {
   return `<li class="devices__item">
     <div class="devices__text"><div class="devices__name">${esc(d.name)}</div><div class="sub">Added ${esc(createdLabel(d.createdMs))} · Last seen ${esc(lastSeenLabel(d.lastSeenMs, now))}</div></div>
-    <button class="btn btn--sm" type="button" data-revoke="${esc(d.id)}" aria-label="${esc(`Revoke ${d.name}`)}">Revoke</button></li>`;
+    <div class="devices__actions"><button class="btn btn--sm" type="button" data-qr="${esc(d.id)}" aria-label="${esc(`Show QR for ${d.name}`)}">Show QR</button>
+    <button class="btn btn--sm" type="button" data-revoke="${esc(d.id)}" aria-label="${esc(`Revoke ${d.name}`)}">Revoke</button></div></li>`;
 }
 
 async function refresh(): Promise<void> {
@@ -86,6 +168,7 @@ export function renderDevices(s: DashboardState): void {
     visible = false;
     panel.hidden = true;
     clearToken();
+    clearQr();
     listHtml = '';
     $('devices-list').innerHTML = '';
     setStatus('');
@@ -118,6 +201,7 @@ export function initDevices(): void {
       return;
     }
     clearToken();
+    clearQr();
     setStatus('');
     setBusy(true);
     api<{ id: string; token: string }>('/api/devices', { name }).then(
@@ -127,6 +211,7 @@ export function initDevices(): void {
           setBusy(false);
           return;
         }
+        clearQr();
         $('devices-token-value').textContent = res.token;
         $('devices-token').hidden = false;
         input.value = '';
@@ -147,12 +232,46 @@ export function initDevices(): void {
     setStatus('');
   });
 
+  $('devices-qr-close').addEventListener('click', () => {
+    clearQr();
+    setStatus('');
+  });
+  $<HTMLSelectElement>('devices-qr-addr').addEventListener('change', (e) => {
+    const i = Number((e.target as HTMLSelectElement).value);
+    const link = qrLinks[i];
+    if (link !== undefined) drawQr(link);
+  });
+
   $('devices-list').addEventListener('click', (e) => {
-    const b = (e.target as Element).closest<HTMLButtonElement>('[data-revoke]');
+    const target = e.target as Element;
+    const q = target.closest<HTMLButtonElement>('[data-qr]');
+    if (q) {
+      const id = q.dataset['qr'] ?? '';
+      if (busy || !id) return;
+      const name = q.closest('li')?.querySelector('.devices__name')?.textContent ?? 'this device';
+      clearQr();
+      clearToken();
+      setStatus('');
+      setBusy(true);
+      api<PairingInfo>('/api/devices/pair', { id }).then(
+        (info) => {
+          // Dropped, not drawn, when the panel was hidden while the request was in flight.
+          if (visible) showQr(id, name, info);
+          setBusy(false);
+        },
+        (err) => {
+          if (visible) setStatus(errText(err));
+          setBusy(false);
+        },
+      );
+      return;
+    }
+    const b = target.closest<HTMLButtonElement>('[data-revoke]');
     if (!b || busy) return;
     const name = b.closest('li')?.querySelector('.devices__name')?.textContent ?? 'this device';
     if (!window.confirm(`Revoke "${name}"? It will be signed out and can no longer connect.`)) return;
     setStatus('');
+    if (qrId === b.dataset['revoke']) clearQr();
     setBusy(true);
     api('/api/devices/revoke', { id: b.dataset['revoke'] }).then(
       () => {

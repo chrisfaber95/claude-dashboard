@@ -209,3 +209,95 @@ test('revokeDevice still ends sessions and notifies listeners when the file writ
   assert.equal(auth.identify(reqWith(`dash_sid=${sid}`)), null);
   assert.equal(devices.has(id), false);
 });
+
+// ---- QR pairing (T-011) ----
+
+const MIN = 60_000;
+
+test('a pairing code signs in as its device, once', () => {
+  const { auth, id } = setup();
+  const p = auth.createPairing(id)!;
+  assert.ok(p.code.length >= 40);
+  const sid = auth.pair('5.5.5.5', p.code);
+  assert.equal(typeof sid, 'string');
+  assert.equal(auth.identify(reqWith(`dash_sid=${sid}`))?.deviceId, id);
+  assert.equal(auth.pair('5.5.5.5', p.code), null, 'a second use fails');
+});
+
+test('a pairing code is not the device token and an unknown device gets none', () => {
+  const { auth, id, token } = setup();
+  const p = auth.createPairing(id)!;
+  assert.notEqual(p.code, token);
+  assert.equal(auth.pair('5.5.5.5', token), null, 'the token is not a pairing code');
+  assert.equal(auth.createPairing('nope'), null);
+  assert.equal(auth.createPairing('pc'), null, 'pc is not a device');
+});
+
+test('a pairing code expires after 10 minutes, and a late try still spends it', () => {
+  let now = 1000;
+  const { auth, id } = setup(() => now);
+  const ok = auth.createPairing(id)!;
+  assert.equal(ok.expiresMs, 1000 + 10 * MIN);
+  now = 1000 + 10 * MIN - 1;
+  assert.equal(typeof auth.pair('6.6.6.6', ok.code), 'string', 'still valid just before the deadline');
+
+  now = 50 * MIN;
+  const late = auth.createPairing(id)!;
+  now += 10 * MIN + 1;
+  assert.equal(auth.pair('6.6.6.6', late.code), null, 'expired');
+  now = late.expiresMs - 1;
+  assert.equal(auth.pair('6.6.6.6', late.code), null, 'and gone for good');
+});
+
+test('only the newest pairing code of a device works', () => {
+  const { auth, id } = setup();
+  const first = auth.createPairing(id)!;
+  const second = auth.createPairing(id)!;
+  assert.equal(auth.pair('7.7.7.7', first.code), null);
+  assert.equal(typeof auth.pair('7.7.7.7', second.code), 'string');
+});
+
+test('revoking a device invalidates its unused pairing codes but not other devices', () => {
+  const { auth, devices, id } = setup();
+  const other = devices.create('laptop');
+  const mine = auth.createPairing(id)!;
+  const theirs = auth.createPairing(other.id)!;
+  auth.revokeDevice(id);
+  assert.equal(auth.pair('8.8.8.8', mine.code), null);
+  assert.equal(typeof auth.pair('8.8.8.8', theirs.code), 'string');
+});
+
+test('a code whose device vanished from the store is refused', () => {
+  const { auth, devices, id } = setup();
+  const p = auth.createPairing(id)!;
+  devices.revoke(id);
+  assert.equal(auth.pair('8.8.4.4', p.code), null);
+});
+
+test('bad pairing codes use the login rate limit and the failed-sign-in hook, and a good one clears it', () => {
+  let now = 0;
+  const failures: Array<[string, number]> = [];
+  const { auth, id, token } = setup(() => now, (ip, t) => failures.push([ip, t]));
+  for (const bad of ['', 'nope', 'x'.repeat(500), 'A'.repeat(43)]) assert.equal(auth.pair('9.9.9.9', bad), null);
+  assert.equal(failures.length, 4);
+  assert.deepEqual(failures[0], ['9.9.9.9', 0]);
+  // a wrong token and a wrong code share the same 5-per-minute budget
+  assert.equal(auth.login('9.9.9.9', 'wrong'), null);
+  const p = auth.createPairing(id)!;
+  assert.equal(auth.pair('9.9.9.9', p.code), 'rate-limited', 'even a good code is refused while limited');
+  assert.equal(auth.login('9.9.9.9', token), 'rate-limited');
+  assert.equal(failures.length, 7, 'rate-limited tries are reported too');
+  now = 61_000;
+  assert.equal(typeof auth.pair('9.9.9.9', p.code), 'string', 'the code was not spent by the refused try');
+  assert.equal(failures.length, 7, 'success is not reported');
+});
+
+test('unused codes are capped so memory cannot grow without bound', () => {
+  const { auth, devices } = setup();
+  const ids = Array.from({ length: 5 }, (_, i) => devices.create(`d${i}`).id);
+  const codes = [];
+  for (let i = 0; i < 260; i++) codes.push(auth.createPairing(ids[i % ids.length])!);
+  // only the newest code of each device ever works, so at most one per device is live
+  const live = codes.filter((c, i) => typeof auth.pair(`10.0.${Math.floor(i / 250)}.${i % 250}`, c.code) === 'string');
+  assert.equal(live.length, 5);
+});

@@ -16,9 +16,10 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@types/node": "^24.0.0",
     "esbuild": "^0.25.0",
+    "qrcode-generator": "^2.0.4",
     "sass": "^1.89.0",
-    "typescript": "^5.9.0",
-    "@types/node": "^24.0.0"
+    "typescript": "^5.9.0"
   }
 }

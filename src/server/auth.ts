@@ -7,6 +7,9 @@ const SESSION_MS = 7 * 86_400_000;
 const COOKIE_REISSUE_MS = 86_400_000;
 const LOGIN_WINDOW_MS = 60_000;
 const LOGIN_MAX = 5;
+const PAIR_MS = 10 * 60_000;
+const PAIR_MAX = 200;
+const PAIR_CODE_MAX = 128;
 
 /** The device id of a request from this PC (loopback socket and loopback Host). */
 export const PC_DEVICE = 'pc';
@@ -52,6 +55,16 @@ export interface Auth {
   login(ip: string, provided: string): string | 'rate-limited' | null;
   /** Who is calling, or null. Slides the session to 7 days from now and records the device as seen. */
   identify(req: IncomingMessage): Identity | null;
+  /**
+   * A single-use pairing code for a device, valid 10 minutes, kept in memory only. Replaces the device's earlier unused
+   * code. Null for an unknown device.
+   */
+  createPairing(deviceId: string): { code: string; expiresMs: number } | null;
+  /**
+   * Sign in with a pairing code: a session id, 'rate-limited', or null for an unknown, used or expired code. Shares the
+   * login rate limit and reports failures like a bad token. The code is spent by the first try.
+   */
+  pair(ip: string, code: string): string | 'rate-limited' | null;
   logout(req: IncomingMessage): void;
   /** Delete the device, end its sessions and tell the listeners (open live-event streams). */
   revokeDevice(id: string): { found: boolean; persisted: boolean };
@@ -87,10 +100,12 @@ export function createAuth(devices: DeviceStore, opts: AuthOptions = {}): Auth {
   const sessions = new Map<string, Session>();
   const attempts = new Map<string, number[]>();
   const revokeListeners: Array<(deviceId: string) => void> = [];
+  const pairings = new Map<string, { deviceId: string; exp: number }>();
 
   /** Drop expired sessions and stale attempt records so the maps can't grow without bound. */
   const sweep = (t: number) => {
     for (const [sid, s] of sessions) if (s.exp < t) sessions.delete(sid);
+    for (const [code, p] of pairings) if (p.exp < t) pairings.delete(code);
     for (const [ip, list] of attempts) if (!list.some((x) => t - x < LOGIN_WINDOW_MS)) attempts.delete(ip);
   };
 
@@ -102,29 +117,69 @@ export function createAuth(devices: DeviceStore, opts: AuthOptions = {}): Auth {
     }
   };
 
+  /** The shared per-IP sign-in limit (tokens and pairing codes count together). Returns the time, or null when limited. */
+  const attempt = (ip: string): number | null => {
+    const t = now();
+    sweep(t);
+    const recent = (attempts.get(ip) ?? []).filter((x) => t - x < LOGIN_WINDOW_MS);
+    if (recent.length >= LOGIN_MAX) {
+      attempts.set(ip, recent);
+      failed(ip, t);
+      return null;
+    }
+    recent.push(t);
+    attempts.set(ip, recent);
+    return t;
+  };
+
+  const startSession = (ip: string, deviceId: string, t: number): string => {
+    attempts.delete(ip);
+    const sid = randomBytes(32).toString('base64url');
+    sessions.set(sid, { deviceId, exp: t + SESSION_MS, cookieAt: t });
+    devices.touch(deviceId);
+    return sid;
+  };
+
+  const dropPairings = (deviceId: string) => {
+    for (const [code, p] of pairings) if (p.deviceId === deviceId) pairings.delete(code);
+  };
+
   return {
     devices,
     login(ip, provided) {
-      const t = now();
-      sweep(t);
-      const recent = (attempts.get(ip) ?? []).filter((x) => t - x < LOGIN_WINDOW_MS);
-      if (recent.length >= LOGIN_MAX) {
-        attempts.set(ip, recent);
-        failed(ip, t);
-        return 'rate-limited';
-      }
-      recent.push(t);
-      attempts.set(ip, recent);
+      const t = attempt(ip);
+      if (t === null) return 'rate-limited';
       const device = devices.verify(provided.trim());
       if (!device) {
         failed(ip, t);
         return null;
       }
-      attempts.delete(ip);
-      const sid = randomBytes(32).toString('base64url');
-      sessions.set(sid, { deviceId: device.id, exp: t + SESSION_MS, cookieAt: t });
-      devices.touch(device.id);
-      return sid;
+      return startSession(ip, device.id, t);
+    },
+    createPairing(deviceId) {
+      if (!devices.has(deviceId)) return null;
+      const t = now();
+      sweep(t);
+      dropPairings(deviceId); // only the newest code of a device works
+      if (pairings.size >= PAIR_MAX) {
+        const oldest = pairings.keys().next().value;
+        if (oldest !== undefined) pairings.delete(oldest);
+      }
+      const code = randomBytes(32).toString('base64url');
+      const expiresMs = t + PAIR_MS;
+      pairings.set(code, { deviceId, exp: expiresMs });
+      return { code, expiresMs };
+    },
+    pair(ip, code) {
+      const t = attempt(ip);
+      if (t === null) return 'rate-limited';
+      const p = typeof code === 'string' && code.length <= PAIR_CODE_MAX ? pairings.get(code) : undefined;
+      if (p) pairings.delete(code); // single use: spent even when it turns out to be expired
+      if (!p || p.exp < t || !devices.has(p.deviceId)) {
+        failed(ip, t);
+        return null;
+      }
+      return startSession(ip, p.deviceId, t);
     },
     identify(req) {
       if (isLoopbackRequest(req)) return { deviceId: PC_DEVICE, refreshSid: null };
@@ -154,6 +209,7 @@ export function createAuth(devices: DeviceStore, opts: AuthOptions = {}): Auth {
       const r = devices.revoke(id);
       // Sessions end and streams close even when the file could not be written; the caller reports `persisted`.
       for (const [sid, s] of sessions) if (s.deviceId === id) sessions.delete(sid);
+      dropPairings(id);
       if (r.found) for (const l of revokeListeners) l(id);
       return r;
     },
