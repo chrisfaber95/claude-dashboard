@@ -7,6 +7,8 @@ import type { AuditEntry } from '../shared/types.ts';
 export type { AuditEntry };
 
 export const AUDIT_MAX_ENTRIES = 200;
+/** `GET /api/launches` returns this many launches at most. */
+export const LAUNCHES_MAX = 50;
 /** At most this much of the end of the file is read. */
 export const AUDIT_MAX_BYTES = 1024 * 1024;
 const FIELD_MAX = 200;
@@ -41,11 +43,20 @@ export function toAuditEntry(raw: unknown): AuditEntry | null {
   if (typeof r.ok === 'boolean') entry.ok = r.ok;
   const prompt = str(r.prompt);
   if (prompt !== undefined) entry.prompt = prompt;
+  const goal = str(r.goal, 500);
+  if (goal !== undefined) entry.goal = goal;
+  if (typeof r.notesLength === 'number' && Number.isSafeInteger(r.notesLength) && r.notesLength >= 0) entry.notesLength = r.notesLength;
   return entry;
 }
 
-/** Parse log text: newest first, malformed lines skipped, optionally only one device, at most `limit` entries. */
-export function parseAudit(text: string, deviceId?: string, limit = AUDIT_MAX_ENTRIES): AuditEntry[] {
+export interface AuditFilter {
+  /** Only entries with this action. */
+  action?: string;
+  limit?: number;
+}
+
+/** Parse log text: newest first, malformed lines skipped, optionally only one device or action, at most `limit` entries. */
+export function parseAudit(text: string, deviceId?: string, { action, limit = AUDIT_MAX_ENTRIES }: AuditFilter = {}): AuditEntry[] {
   const out: AuditEntry[] = [];
   const lines = text.split('\n');
   for (let i = lines.length - 1; i >= 0 && out.length < limit; i--) {
@@ -60,13 +71,14 @@ export function parseAudit(text: string, deviceId?: string, limit = AUDIT_MAX_EN
     const e = toAuditEntry(parsed);
     if (!e) continue;
     if (deviceId !== undefined && e.deviceId !== deviceId) continue;
+    if (action !== undefined && e.action !== action) continue;
     out.push(e);
   }
   return out;
 }
 
 /** The newest audit entries from `<DATA_DIR>/commands.log`, reading at most its last megabyte. A missing file is empty. */
-export async function readAudit(deviceId?: string): Promise<AuditEntry[]> {
+export async function readAudit(deviceId?: string, filter?: AuditFilter): Promise<AuditEntry[]> {
   let fh;
   try {
     fh = await open(join(DATA_DIR, 'commands.log'), 'r');
@@ -89,7 +101,7 @@ export async function readAudit(deviceId?: string): Promise<AuditEntry[]> {
     let text = buf.subarray(0, read).toString('utf8');
     // Started mid-file: the first line is probably cut, drop it.
     if (start > 0) text = text.slice(text.indexOf('\n') + 1);
-    return parseAudit(text, deviceId);
+    return parseAudit(text, deviceId, filter);
   } finally {
     await fh.close();
   }

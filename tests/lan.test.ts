@@ -570,7 +570,7 @@ test('pairing links are audited without the code', async () => {
 
 // ---- audit log by device (T-012) ----
 
-type AuditRow = { ts: string; action: string; device?: string; deviceId?: string; project?: string; mode?: string; ok?: boolean; prompt?: string };
+type AuditRow = { ts: string; action: string; device?: string; deviceId?: string; project?: string; mode?: string; ok?: boolean; prompt?: string; goal?: string };
 const auditOf = async (query = '') => JSON.parse((await pcCall('GET', '/api/audit' + query)).body).entries as AuditRow[];
 
 test('every logged action names the device (name and id); the PC is "This PC" / pc', async () => {
@@ -584,7 +584,7 @@ test('every logged action names the device (name and id); the PC is "This PC" / 
 
   const entries = await auditOf();
   const start = entries.find((e) => e.action === 'start' && e.deviceId === phone.id)!;
-  assert.deepEqual([start.device, start.deviceId, start.project, start.mode, start.ok, start.prompt], ['Kitchen phone', phone.id, 'Alpha', 'plan', true, 'hello from the phone']);
+  assert.deepEqual([start.device, start.deviceId, start.project, start.mode, start.ok, start.goal], ['Kitchen phone', phone.id, 'Alpha', 'plan', true, 'hello from the phone']);
   for (const action of ['device-create', 'device-revoke', 'device-pair']) {
     const e = entries.find((x) => x.action === action)!;
     assert.deepEqual([e.device, e.deviceId], ['This PC', 'pc'], action);
@@ -613,7 +613,7 @@ test('GET /api/audit: any signed-in device may read it, newest first, filtered b
   assert.deepEqual(await auditOf('?device=ffffffffffff'), []);
 
   // nothing but the allowlisted fields: no ip, no target ids/names, no codes
-  const allowed = new Set(['ts', 'action', 'device', 'deviceId', 'project', 'session', 'mode', 'ok', 'prompt']);
+  const allowed = new Set(['ts', 'action', 'device', 'deviceId', 'project', 'session', 'mode', 'ok', 'prompt', 'goal', 'notesLength']);
   for (const e of all) for (const k of Object.keys(e)) assert.ok(allowed.has(k), k);
   assert.ok(!asDevice.body.includes('127.0.0.1') && !asDevice.body.includes('pair?c='));
 });
