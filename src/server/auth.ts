@@ -4,6 +4,10 @@ import type { DeviceStore } from './devices.ts';
 
 const COOKIE = 'dash_sid';
 const SESSION_MS = 7 * 86_400_000;
+/** A session ends this long after sign-in even while in use (the 7-day slide never goes past it). */
+export const SESSION_MAX_MS = 90 * 86_400_000;
+/** At most this many live sessions per device; signing in again ends the oldest. */
+export const MAX_SESSIONS_PER_DEVICE = 10;
 const COOKIE_REISSUE_MS = 86_400_000;
 const LOGIN_WINDOW_MS = 60_000;
 const LOGIN_MAX = 5;
@@ -39,6 +43,8 @@ export function isLoopbackRequest(req: IncomingMessage): boolean {
 export interface Identity {
   /** Device id, or `pc` for the loopback exemption. */
   deviceId: string;
+  /** The session this request came in with; null for the loopback exemption (it has no session). */
+  sid: string | null;
   /** Set when the session cookie should be re-issued with this session id (at most once a day). */
   refreshSid: string | null;
 }
@@ -66,6 +72,13 @@ export interface Auth {
    */
   pair(ip: string, code: string): string | 'rate-limited' | null;
   logout(req: IncomingMessage): void;
+  /**
+   * End the sessions that ran out (7 days unused, or 90 days since sign-in) and tell the listeners. Called on a timer by
+   * the server, because an open event stream makes no requests that would notice the expiry.
+   */
+  sweepExpired(): void;
+  /** Called with the session id whenever a session ends for any reason: logout, expiry, cap, revoke. */
+  onSessionEnd(listener: (sid: string) => void): void;
   /** Delete the device, end its sessions and tell the listeners (open live-event streams). */
   revokeDevice(id: string): { found: boolean; persisted: boolean };
   onRevoke(listener: (deviceId: string) => void): void;
@@ -93,6 +106,8 @@ interface Session {
   deviceId: string;
   exp: number;
   cookieAt: number;
+  /** When it was signed in: the 90-day limit counts from here. */
+  startedAt: number;
 }
 
 export function createAuth(devices: DeviceStore, opts: AuthOptions = {}): Auth {
@@ -100,11 +115,24 @@ export function createAuth(devices: DeviceStore, opts: AuthOptions = {}): Auth {
   const sessions = new Map<string, Session>();
   const attempts = new Map<string, number[]>();
   const revokeListeners: Array<(deviceId: string) => void> = [];
+  const endListeners: Array<(sid: string) => void> = [];
   const pairings = new Map<string, { deviceId: string; exp: number }>();
+
+  /** End one session and tell the listeners (they close the event streams opened with it). */
+  const endSession = (sid: string) => {
+    if (!sessions.delete(sid)) return;
+    for (const l of endListeners) {
+      try {
+        l(sid);
+      } catch {
+        // a broken listener must not stop the others
+      }
+    }
+  };
 
   /** Drop expired sessions and stale attempt records so the maps can't grow without bound. */
   const sweep = (t: number) => {
-    for (const [sid, s] of sessions) if (s.exp < t) sessions.delete(sid);
+    for (const [sid, s] of [...sessions]) if (s.exp < t || !devices.has(s.deviceId)) endSession(sid);
     for (const [code, p] of pairings) if (p.exp < t) pairings.delete(code);
     for (const [ip, list] of attempts) if (!list.some((x) => t - x < LOGIN_WINDOW_MS)) attempts.delete(ip);
   };
@@ -135,7 +163,10 @@ export function createAuth(devices: DeviceStore, opts: AuthOptions = {}): Auth {
   const startSession = (ip: string, deviceId: string, t: number): string => {
     attempts.delete(ip);
     const sid = randomBytes(32).toString('base64url');
-    sessions.set(sid, { deviceId, exp: t + SESSION_MS, cookieAt: t });
+    // A device keeps at most MAX_SESSIONS_PER_DEVICE sessions: the oldest (first inserted) ends to make room.
+    const mine = [...sessions].filter(([, s]) => s.deviceId === deviceId).map(([id]) => id);
+    for (const old of mine.slice(0, Math.max(0, mine.length - MAX_SESSIONS_PER_DEVICE + 1))) endSession(old);
+    sessions.set(sid, { deviceId, exp: t + SESSION_MS, cookieAt: t, startedAt: t });
     devices.touch(deviceId);
     return sid;
   };
@@ -182,35 +213,49 @@ export function createAuth(devices: DeviceStore, opts: AuthOptions = {}): Auth {
       return startSession(ip, p.deviceId, t);
     },
     identify(req) {
-      if (isLoopbackRequest(req)) return { deviceId: PC_DEVICE, refreshSid: null };
+      if (isLoopbackRequest(req)) return { deviceId: PC_DEVICE, sid: null, refreshSid: null };
       const sid = readCookie(req, COOKIE);
       if (!sid) return null;
       const s = sessions.get(sid);
       if (!s) return null;
       const t = now();
       if (s.exp < t || !devices.has(s.deviceId)) {
-        sessions.delete(sid);
+        endSession(sid);
         return null;
       }
-      s.exp = t + SESSION_MS;
+      s.exp = Math.min(t + SESSION_MS, s.startedAt + SESSION_MAX_MS);
       devices.touch(s.deviceId);
       let refreshSid: string | null = null;
       if (t - s.cookieAt >= COOKIE_REISSUE_MS) {
         s.cookieAt = t;
         refreshSid = sid;
       }
-      return { deviceId: s.deviceId, refreshSid };
+      return { deviceId: s.deviceId, sid, refreshSid };
     },
     logout(req) {
       const sid = readCookie(req, COOKIE);
-      if (sid) sessions.delete(sid);
+      if (sid) endSession(sid);
+    },
+    sweepExpired() {
+      sweep(now());
+    },
+    onSessionEnd(listener) {
+      endListeners.push(listener);
     },
     revokeDevice(id) {
       const r = devices.revoke(id);
       // Sessions end and streams close even when the file could not be written; the caller reports `persisted`.
-      for (const [sid, s] of sessions) if (s.deviceId === id) sessions.delete(sid);
+      for (const [sid, s] of [...sessions]) if (s.deviceId === id) endSession(sid);
       dropPairings(id);
-      if (r.found) for (const l of revokeListeners) l(id);
+      if (r.found) {
+        for (const l of revokeListeners) {
+          try {
+            l(id);
+          } catch {
+            // the device is already gone; one broken listener must not hide that or stop the others
+          }
+        }
+      }
       return r;
     },
     onRevoke(listener) {
