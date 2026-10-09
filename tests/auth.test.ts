@@ -224,6 +224,20 @@ test('a pairing code signs in as its device, once', () => {
   assert.equal(auth.pair('5.5.5.5', p.code), null, 'a second use fails');
 });
 
+test('peeking at a pairing code changes nothing: not spent, not counted', () => {
+  let t = 1_000_000;
+  const { auth, id } = setup(() => t);
+  const p = auth.createPairing(id)!;
+  for (let i = 0; i < 20; i++) assert.equal(auth.peekPairing(p.code), 'phone');
+  assert.equal(auth.peekPairing('nope'), null);
+  assert.equal(auth.peekPairing('x'.repeat(500)), null);
+  assert.equal(typeof auth.pair('5.5.5.5', p.code), 'string', 'still valid, and the peeks used no attempts');
+  assert.equal(auth.peekPairing(p.code), null, 'gone once spent');
+  const late = auth.createPairing(id)!;
+  t += 10 * MIN + 1;
+  assert.equal(auth.peekPairing(late.code), null, 'expired');
+});
+
 test('a pairing code is not the device token and an unknown device gets none', () => {
   const { auth, id, token } = setup();
   const p = auth.createPairing(id)!;

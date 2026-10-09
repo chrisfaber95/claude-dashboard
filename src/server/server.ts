@@ -36,7 +36,7 @@ const TYPES: Record<string, string> = {
   '.woff2': 'font/woff2',
 };
 /** Reachable without a login session. */
-const PUBLIC_PATHS = new Set(['/login', '/login.js', '/style.css', '/pair']);
+const PUBLIC_PATHS = new Set(['/login', '/login.js', '/pair.js', '/style.css', '/pair']);
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
 const BODY_MAX = 64 * 1024;
 /** Session ids with a follow-up in flight. */
@@ -58,6 +58,10 @@ const SECURITY_HEADERS = {
   'Referrer-Policy': 'same-origin',
   'Content-Security-Policy': "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'; form-action 'self'; base-uri 'none'",
 };
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+}
 
 /** Hostname from the Host header itself (an absolute-form request target must not override it). */
 function hostnameOf(host: string): string {
@@ -201,14 +205,27 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
       return;
     }
 
-    // QR pairing: GET only, no other side effect. A good code signs the browser in as its device; anything else is a
-    // failed sign-in (rate limit + alert). The code is in the URL, so nothing is cached and it is spent on first use.
+    // QR pairing, in two steps so a camera app or link preview that fetches the URL first cannot spend the code. GET only
+    // shows "Sign in as <device>?" and changes nothing. The button POSTs the code: a good one is spent and sets the
+    // session cookie (the page then navigates to / itself, so the Strict cookie is sent); anything else is a failed
+    // sign-in (rate limit + alert). The code is in the URL, so nothing is cached.
     if (auth && url.pathname === '/pair' && method === 'GET') {
-      const r = auth.pair(ip, url.searchParams.get('c') ?? '');
-      const base = { 'Cache-Control': 'no-store', ...SECURITY_HEADERS };
-      if (r === 'rate-limited') res.writeHead(303, { Location: '/login?e=rate', ...base }).end();
-      else if (r === null) res.writeHead(303, { Location: '/login?e=pair', ...base }).end();
-      else res.writeHead(303, { Location: '/', 'Set-Cookie': auth.cookie(r, Boolean(tls)), ...base }).end();
+      const name = auth.peekPairing(url.searchParams.get('c') ?? '');
+      try {
+        const page = (await readFile(join(publicDir, 'pair.html'), 'utf8'))
+          .replace('__STATE__', name === null ? 'bad' : 'ok')
+          .replace('__DEVICE__', () => escapeHtml(name ?? ''));
+        res.writeHead(200, { 'Content-Type': TYPES['.html'], 'Cache-Control': 'no-store', ...SECURITY_HEADERS }).end(page);
+      } catch {
+        res.writeHead(404, SECURITY_HEADERS).end('Not found');
+      }
+      return;
+    }
+    if (auth && url.pathname === '/pair' && method === 'POST') {
+      const r = auth.pair(ip, new URLSearchParams(await readBody(req)).get('c') ?? '');
+      if (r === 'rate-limited') send(res, 429, { error: 'too many attempts' });
+      else if (r === null) send(res, 401, { error: 'invalid or used code' });
+      else send(res, 200, { ok: true }, { 'Set-Cookie': auth.cookie(r, Boolean(tls)) });
       return;
     }
 

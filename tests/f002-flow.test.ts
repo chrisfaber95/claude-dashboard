@@ -21,6 +21,7 @@ const publicDir = join(fx.root, 'public');
 mkdirSync(publicDir);
 writeFileSync(join(publicDir, 'index.html'), '<!doctype html><title>dash</title>');
 writeFileSync(join(publicDir, 'login.html'), '<!doctype html><title>login</title>');
+writeFileSync(join(publicDir, 'pair.html'), '<!doctype html><main data-state="__STATE__">Sign in as <b>__DEVICE__</b>?</main>');
 // The retired shared login token, left behind on disk by an older version.
 const OLD_TOKEN = 'old-shared-token-' + 'z'.repeat(30);
 mkdirSync(fx.dataDir, { recursive: true });
@@ -113,13 +114,21 @@ test('F-002: device login, QR pairing, acting as a device, audit trail, revoke a
   assert.equal((await lanGet('/api/state', cookie)).status, 200);
 
   const pair = JSON.parse((await pc('POST', '/api/devices/pair', { id: dev.id })).body) as { path: string };
-  const byQr = await lanGet(pair.path);
-  assert.equal(byQr.status, 303);
-  assert.equal(byQr.headers.location, '/');
+  const code = new URL(pair.path, 'https://x').searchParams.get('c') ?? '';
+  const confirm = () => lanPost('/pair', 'c=' + encodeURIComponent(code), form);
+  for (let i = 0; i < 2; i++) {
+    const preview = await lanGet(pair.path); // a camera app or link preview fetching the URL first
+    assert.equal(preview.status, 200);
+    assert.match(preview.body, /data-state="ok"/);
+    assert.match(preview.body, /Sign in as <b>Hallway phone<\/b>/);
+    assert.equal(preview.headers['set-cookie'], undefined);
+  }
+  const byQr = await confirm(); // the button
+  assert.equal(byQr.status, 200);
   const qrCookie = cookieOf(byQr);
   assert.equal((await lanGet('/api/state', qrCookie)).status, 200);
-  const reused = await lanGet(pair.path);
-  assert.equal(reused.headers.location, '/login?e=pair', 'the same QR code fails a second time');
+  const reused = await confirm();
+  assert.equal(reused.status, 401, 'the same QR code fails a second time');
   assert.equal(reused.headers['set-cookie'], undefined);
 
   // 4. As the device: view state, start a command, message and stop a session.

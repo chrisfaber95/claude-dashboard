@@ -71,6 +71,11 @@ export interface Auth {
    * login rate limit and reports failures like a bad token. The code is spent by the first try.
    */
   pair(ip: string, code: string): string | 'rate-limited' | null;
+  /**
+   * The name of the device a pairing code is for, or null for an unknown, used or expired code. Changes nothing: the
+   * code is not spent and no attempt is counted (the confirm page for a scanned QR code uses it).
+   */
+  peekPairing(code: string): string | null;
   logout(req: IncomingMessage): void;
   /**
    * End the sessions that ran out (7 days unused, or 90 days since sign-in) and tell the listeners. Called on a timer by
@@ -211,6 +216,11 @@ export function createAuth(devices: DeviceStore, opts: AuthOptions = {}): Auth {
         return null;
       }
       return startSession(ip, p.deviceId, t);
+    },
+    peekPairing(code) {
+      const p = typeof code === 'string' && code.length <= PAIR_CODE_MAX ? pairings.get(code) : undefined;
+      if (!p || p.exp < now()) return null;
+      return devices.list().find((d) => d.id === p.deviceId)?.name ?? null;
     },
     identify(req) {
       if (isLoopbackRequest(req)) return { deviceId: PC_DEVICE, sid: null, refreshSid: null };
