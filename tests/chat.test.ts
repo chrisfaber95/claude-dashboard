@@ -4,18 +4,36 @@ import { readFileSync } from 'node:fs';
 
 const source = readFileSync(new URL('../src/client/chat.ts', import.meta.url), 'utf8');
 
+/** First argument of an api() call: a whole string/template literal, else anything up to the next comma. */
+const API_CALL = /\bapi\s*(?:<[^>(]*>)?\s*\(\s*(`[^`]*`|'[^']*'|"[^"]*"|[^,)]*)/g;
+
 test('the chat never uses the command, start or stop endpoints', () => {
   for (const banned of ['/api/commands', '/stop', '/start']) {
     assert.ok(!source.includes(banned), `chat.ts must not contain ${banned}`);
   }
 });
 
-test('the only API paths in the chat are the session message and alert dismiss endpoints', () => {
-  const paths: string[] = source.match(/\/api\/[^`'"]*/g) ?? [];
-  const allowed = new Set<string>(['/api/sessions/${encodeURIComponent(p.sessionId)}/message', '/api/alerts/dismiss']);
-  for (const p of paths) assert.ok(allowed.has(p), `unexpected API path in chat.ts: ${p}`);
-  assert.ok(paths.includes('/api/alerts/dismiss'));
-  assert.ok(paths.some((p) => p.startsWith('/api/sessions/') && p.endsWith('/message')));
+test('the only API paths in the chat are the session message, session summary and alert dismiss endpoints', () => {
+  const allowed = new Set<string>([
+    '`/api/sessions/${encodeURIComponent(p.sessionId)}/message`',
+    '`/api/sessions/${encodeURIComponent(sessionId)}/summary`',
+    "'/api/alerts/dismiss'",
+  ]);
+  // Every request goes through api(). Its first argument must be exactly one of the allowed literals,
+  // so a path built from pieces (without an /api/ literal) is caught too.
+  const args = [...source.matchAll(API_CALL)].map((m) => m[1].trim());
+  for (const a of args) assert.ok(allowed.has(a), `unexpected api() path in chat.ts: ${a}`);
+  assert.equal(args.length, allowed.size, 'each allowed endpoint is called exactly once');
+  assert.ok(!/\bfetch\s*\(|XMLHttpRequest|EventSource|sendBeacon/.test(source), 'chat.ts must call the server only through api()');
+  const literals: string[] = source.match(/\/api\/[^`'"]*/g) ?? [];
+  for (const p of literals) assert.ok(args.some((a) => a.includes(p)), `stray API path in chat.ts: ${p}`);
+});
+
+test('the endpoint check catches a path built without an /api/ literal', () => {
+  const re = API_CALL;
+  const sneaky = "await api<X>(['', 'ap' + 'i', 'commands'].join('/'), {})";
+  assert.equal([...sneaky.matchAll(re)].length, 1);
+  assert.ok([...sneaky.matchAll(re)][0][1].startsWith('['), 'a non-literal argument is captured and so rejected');
 });
 
 test('the chat never asks for a permission mode that skips the checks', () => {

@@ -24,6 +24,7 @@ Reference sections moved out of `CLAUDE.md` (which links here) so they load only
   - `tls.ts`: self-signed cert for LAN mode via Git's `openssl`
   - `claude-cli.ts`: the **only** place that runs `claude.exe` (`--bg`, `--bg --resume`, `stop`, `logs`), plus the audit log
   - `transcript-view.ts`: turns a transcript into readable entries for the viewer (last 32 MB of a file at most; `sidechain` flag for subagent transcripts)
+  - `session-summary.ts`: no-model recap for `GET /api/sessions/:id/summary` (times, status, token totals, last 5 tool actions, last reply cut to 300 chars; same 32 MB tail as the viewer); `summarize(path, mode, live)` is the seam for a later model mode
 - `src/client/`: vanilla TypeScript and SCSS, no framework, charts drawn as inline SVG
   - `app.ts`: renders the sections (projects, sessions, usage, limits, messages); shows subagent counts on project cards; skin picker in header (localStorage `skin`, applies `data-skin` attribute to `<html>`, hides Theme button in dark-only skins)
   - `boot.ts`: head script that applies the saved skin and theme before first paint (runs before any other JS to avoid flashing Classic when Root is chosen)
