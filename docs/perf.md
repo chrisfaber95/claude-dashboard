@@ -37,3 +37,19 @@ Commit `20fcd90` (main before the F-004 redesign), Chrome on Windows 11, real `~
 |---|---|---|---|---|
 | 1920x1080 | 0.63 % | 0.63 % | 0.59 % | **0.63 %** |
 | 390x844 | 0.63 % | 0.61 % | 0.62 % | **0.62 %** |
+
+## After F-004
+
+Commit `230235b` (main after T-028 and T-037), same PC, browser, method, runs and viewports as the baseline: Chrome on
+Windows 11, real `~/.claude` data, localhost server on port 4790 with commands off, 3 runs of 120 s each (15 s
+warm-up).
+
+| Viewport | Run 1 | Run 2 | Run 3 | Median | Baseline median |
+|---|---|---|---|---|---|
+| 1920x1080 | 0.15 % | 0.16 % | 0.16 % | **0.16 %** | 0.63 % |
+| 390x844 | 0.10 % | 0.10 % | 0.10 % | **0.10 %** | 0.62 % |
+
+Both medians are lower than the baseline. An earlier measurement on `a5190ca` (T-028, before T-037) gave 0.67 % at
+1920x1080, not lower: the patcher re-walked every section, including hidden popups, on each push. T-037 skips unchanged
+sections and closed popups, which is where the drop comes from. The `~/.claude` data differs from the baseline day, so
+treat the ratio as indicative, not exact.
