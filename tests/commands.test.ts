@@ -130,6 +130,9 @@ test('writes an audit log line per command', async () => {
   assert.equal(last.prompt, 'audit me');
   assert.equal(last.ok, true);
   assert.ok(last.ip);
+  // without a login every caller is this PC
+  assert.equal(last.deviceId, 'pc');
+  assert.equal(last.device, 'This PC');
 });
 
 test('serves the transcript of a known session and rejects bad ids', async () => {

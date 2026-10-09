@@ -6,6 +6,7 @@ import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { APP_ROOT, COMMANDS_ENABLED, DATA_DIR, HOST, LAN_MODE, PORT, PROJECTS_ROOT, UUID_RE, normPath } from './config.ts';
 import { dismissAlert, recordFailedSignin, setAlertThreshold } from './alerts.ts';
+import { readAudit } from './audit-log.ts';
 import { PC_DEVICE, createAuth, type Auth } from './auth.ts';
 import { MAX_DEVICES, createDeviceStore } from './devices.ts';
 import {
@@ -211,6 +212,13 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
       else res.writeHead(302, { Location: '/login', ...SECURITY_HEADERS }).end();
       return;
     }
+    // Who is acting, for the audit log. Without a login (localhost mode) the caller is this PC.
+    const actor = {
+      deviceId: who?.deviceId ?? PC_DEVICE,
+      device:
+        !who || who.deviceId === PC_DEVICE ? 'This PC' : (auth?.devices.list().find((d) => d.id === who.deviceId)?.name ?? who.deviceId),
+    };
+
     // Sliding session: the cookie is re-issued at most once a day.
     if (auth && who?.refreshSid) res.setHeader('Set-Cookie', auth.cookie(who.refreshSid, Boolean(tls)));
 
@@ -222,6 +230,18 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
 
     if (url.pathname === '/api/state') {
       send(res, 200, withManage(state(), who?.deviceId === PC_DEVICE));
+      return;
+    }
+
+    // The command log, newest first, allowlisted fields only. Any signed-in device (or this PC) may read it.
+    if (url.pathname === '/api/audit' && method === 'GET') {
+      const device = url.searchParams.get('device');
+      if (device !== null && !/^[A-Za-z0-9_-]{1,64}$/.test(device)) throw new CommandError(400, 'invalid device filter');
+      try {
+        send(res, 200, { entries: await readAudit(device ?? undefined) });
+      } catch {
+        throw new CommandError(500, 'could not read the audit log');
+      }
       return;
     }
 
@@ -265,7 +285,7 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
       }
       if (action === 'stop' && method === 'POST') {
         const r = await stopSession(id, cwd);
-        audit({ ip, device: who?.deviceId ?? null, action: 'stop', session: id, ok: r.ok });
+        audit({ ip, ...actor, action: 'stop', session: id, ok: r.ok });
         send(res, 200, r);
         return;
       }
@@ -290,13 +310,13 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
             if (live.kind !== 'bg') throw new CommandError(409, 'This session is open in a terminal or editor. Send the message there.');
             if (live.status !== 'idle') throw new CommandError(409, 'This session is busy or waiting. Wait until it is idle, then send the message.');
             const stopped = await stopSession(id, projectsRoot);
-            audit({ ip, device: who?.deviceId ?? null, action: 'stop', via: 'message', session: id, ok: stopped.ok });
+            audit({ ip, ...actor, action: 'stop', via: 'message', session: id, ok: stopped.ok });
             for (let i = 0; i < 25 && isLive(); i++) await new Promise((r) => setTimeout(r, 200));
             // Still running: resuming now would start a copy, so give up. (A failed stop of a session that exited on its own is fine.)
             if (isLive()) throw new CommandError(stopped.ok ? 504 : 502, 'The session did not stop. Try again.');
           }
           const r = await continueSession(id, t.cwd, prompt, mode);
-          audit({ ip, device: who?.deviceId ?? null, action: 'message', session: id, project: t.project, mode, prompt: prompt.slice(0, 200), ok: r.ok });
+          audit({ ip, ...actor, action: 'message', session: id, project: t.project, mode, prompt: prompt.slice(0, 200), ok: r.ok });
           send(res, 200, r);
         } finally {
           continuing.delete(id);
@@ -320,12 +340,12 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
           created = auth.devices.create(typeof body.name === 'string' ? body.name : '');
         } catch (e) {
           const msg = e instanceof Error ? e.message : '';
-          audit({ ip, device: who.deviceId, action: 'device-create', ok: false });
+          audit({ ip, ...actor, action: 'device-create', ok: false });
           if (msg === 'invalid device name') throw new CommandError(400, 'invalid device name');
           if (msg === 'too many devices') throw new CommandError(409, `at most ${MAX_DEVICES} devices`);
           throw new CommandError(500, 'could not save the device');
         }
-        audit({ ip, device: who.deviceId, action: 'device-create', id: created.id, name: auth.devices.list().find((d) => d.id === created.id)?.name, ok: true });
+        audit({ ip, ...actor, action: 'device-create', id: created.id, name: auth.devices.list().find((d) => d.id === created.id)?.name, ok: true });
         send(res, 200, created);
         return;
       }
@@ -334,7 +354,7 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
         const id = typeof body.id === 'string' ? body.id : '';
         const name = auth.devices.list().find((d) => d.id === id)?.name;
         const r = auth.revokeDevice(id);
-        audit({ ip, device: who.deviceId, action: 'device-revoke', id: r.found ? id : undefined, name, found: r.found, persisted: r.persisted });
+        audit({ ip, ...actor, action: 'device-revoke', id: r.found ? id : undefined, name, found: r.found, persisted: r.persisted });
         if (!r.found) throw new CommandError(404, 'unknown device');
         // Sessions and streams are already ended; the file just could not be written, so it may come back after a restart.
         if (!r.persisted) throw new CommandError(500, 'device revoked, but the change could not be saved');
@@ -345,7 +365,7 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
         const body = await readJson(req);
         const id = typeof body.id === 'string' ? body.id : '';
         const pairing = auth.createPairing(id);
-        audit({ ip, device: who.deviceId, action: 'device-pair', id: pairing ? id : undefined, ok: pairing !== null });
+        audit({ ip, ...actor, action: 'device-pair', id: pairing ? id : undefined, ok: pairing !== null });
         if (!pairing) throw new CommandError(404, 'unknown device');
         // The phone needs this PC's LAN address, not the loopback Host the PC used. The code is the only secret in the link.
         const path = `/pair?c=${pairing.code}`;
@@ -382,7 +402,7 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
       const prompt = validatePrompt(body.prompt);
       const mode = validateMode(body.permissionMode);
       const r = await startTask(join(projectsRoot, project), prompt, mode);
-      audit({ ip, device: who?.deviceId ?? null, action: 'start', project, mode, prompt: prompt.slice(0, 200), ok: r.ok, id: r.id });
+      audit({ ip, ...actor, action: 'start', project, mode, prompt: prompt.slice(0, 200), ok: r.ok, id: r.id });
       send(res, 200, r);
       return;
     }
