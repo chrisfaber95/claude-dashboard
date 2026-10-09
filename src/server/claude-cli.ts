@@ -138,8 +138,11 @@ export function audit(entry: Record<string, unknown>) {
   }
 }
 
-export async function startTask(cwd: string, prompt: string, mode: PermissionMode): Promise<CommandResult> {
-  return toResult(await run(['--bg', '--permission-mode', mode, prompt], cwd));
+/** `--settings <file>` (the permission hook, see permissions.ts) when the dashboard has one; nothing else changes. */
+const settingsArgs = (settingsFile?: string) => (settingsFile ? ['--settings', settingsFile] : []);
+
+export async function startTask(cwd: string, prompt: string, mode: PermissionMode, settingsFile?: string): Promise<CommandResult> {
+  return toResult(await run(['--bg', ...settingsArgs(settingsFile), '--permission-mode', mode, prompt], cwd));
 }
 
 const SUMMARY_INSTRUCTION =
@@ -160,9 +163,9 @@ export async function summarizeWithModel(excerpt: string, cwd: string, timeoutMs
   return r.output;
 }
 
-export async function continueSession(sessionId: string, cwd: string, prompt: string, mode: PermissionMode): Promise<CommandResult> {
+export async function continueSession(sessionId: string, cwd: string, prompt: string, mode: PermissionMode, settingsFile?: string): Promise<CommandResult> {
   if (!UUID_RE.test(sessionId)) throw new CommandError(400, 'invalid session id');
-  return toResult(await run(['--bg', '--resume', sessionId, '--permission-mode', mode, prompt], cwd));
+  return toResult(await run(['--bg', ...settingsArgs(settingsFile), '--resume', sessionId, '--permission-mode', mode, prompt], cwd));
 }
 
 /**

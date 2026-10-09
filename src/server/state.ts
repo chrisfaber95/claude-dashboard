@@ -184,5 +184,6 @@ export function buildState(features: { lan?: boolean; commands?: boolean; manage
     features: { lan: features.lan ?? LAN_MODE, commands: features.commands ?? COMMANDS_ENABLED, permissionModes: PERMISSION_MODES, manageDevices: features.manageDevices ?? false },
     team,
     alerts: buildAlerts({ sessions, limits, team, nowMs: now }),
+    permissions: [],
   };
 }

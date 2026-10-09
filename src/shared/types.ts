@@ -231,6 +231,18 @@ export interface PairingInfo {
   expiresMs: number;
 }
 
+export type PermissionRequestStatus = 'pending' | 'expired';
+
+export interface PermissionRequestInfo {
+  id: string;
+  sessionId: string;
+  tool: string;
+  /** What the session wants to do, as plain text (untrusted, show with esc()). */
+  text: string;
+  createdMs: number;
+  status: PermissionRequestStatus;
+}
+
 export interface DashboardState {
   generatedAtMs: number;
   projects: ProjectInfo[];
@@ -252,4 +264,6 @@ export interface DashboardState {
   team: TeamBoard | null;
   /** Things that need the user, derived on the server and de-duplicated by id. */
   alerts: AlertsInfo;
+  /** Permission prompts of dashboard-started sessions that wait for an answer, plus recently expired ones. */
+  permissions: PermissionRequestInfo[];
 }

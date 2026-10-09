@@ -8,6 +8,7 @@ import { APP_ROOT, COMMANDS_ENABLED, DATA_DIR, HOST, LAN_MODE, PORT, PROJECTS_RO
 import { dismissAlert, recordFailedSignin, setAlertThreshold } from './alerts.ts';
 import { LAUNCHES_MAX, readAudit } from './audit-log.ts';
 import { composeLaunch, GOAL_AUDIT_MAX } from './launch.ts';
+import { createPermissionStore, requestText, type PermissionStore } from './permissions.ts';
 import { PC_DEVICE, createAuth, type Auth } from './auth.ts';
 import { MAX_DEVICES, createDeviceStore } from './devices.ts';
 import {
@@ -50,6 +51,8 @@ export interface ServerOptions {
   tls?: { key: Buffer; cert: Buffer } | null;
   commands?: boolean;
   projectsRoot?: string;
+  /** Permission-prompt store (tests inject one). */
+  permissions?: PermissionStore;
 }
 
 const SECURITY_HEADERS = {
@@ -139,7 +142,11 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
   };
   auth?.onRevoke((deviceId) => closeStreams((c) => c.deviceId === deviceId));
   auth?.onSessionEnd((sid) => closeStreams((c) => c.sid === sid));
-  const state = () => buildState({ lan: Boolean(auth), commands });
+  const perms = opts.permissions ?? createPermissionStore();
+  /** `--settings` file for sessions the dashboard starts; known once the server listens (it holds the dashboard's own URL). */
+  let settingsFile: string | undefined;
+  const loopbackSocket = (req: IncomingMessage) => ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress ?? '');
+  const state = () => ({ ...buildState({ lan: Boolean(auth), commands }), permissions: perms.list() });
   /** The device-management flag depends on the caller: only this PC (loopback `pc`) may manage devices. */
   const withManage = (s: ReturnType<typeof state>, manage: boolean) => (manage ? { ...s, features: { ...s.features, manageDevices: true } } : s);
 
@@ -187,6 +194,38 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
         send(res, 403, { error: 'missing X-Dashboard header' });
         return;
       }
+    }
+
+    // Permission hook of dashboard-started sessions: a loopback socket plus the hook secret, no login. It sits before
+    // the login gate because Claude's hook process has no device session. A bad secret is a plain 403.
+    if (url.pathname === '/hook/permission' || url.pathname === '/hook/permission/answer') {
+      if (!commands || !loopbackSocket(req) || !perms.checkSecret(req.headers['x-hook-secret'])) throw new CommandError(403, 'forbidden');
+      if (url.pathname === '/hook/permission' && method === 'GET') {
+        send(res, 200, { requests: perms.list().filter((r) => r.status === 'pending') });
+        return;
+      }
+      if (url.pathname === '/hook/permission/answer' && method === 'POST') {
+        const body = await readJson(req);
+        if (typeof body.id !== 'string' || (body.decision !== 'allow' && body.decision !== 'deny')) throw new CommandError(400, 'expected id and allow|deny');
+        const answered = perms.list().find((r) => r.id === body.id && r.status === 'pending');
+        if (!perms.answer(body.id, body.decision)) throw new CommandError(404, 'unknown or settled request');
+        audit({ ip, action: 'permission', decision: body.decision, id: body.id, session: answered?.sessionId, tool: answered?.tool, text: answered?.text.slice(0, 500) });
+        send(res, 200, { ok: true });
+        return;
+      }
+      if (url.pathname === '/hook/permission' && method === 'POST') {
+        const body = await readJson(req);
+        if (typeof body.sessionId !== 'string' || !UUID_RE.test(body.sessionId)) throw new CommandError(400, 'invalid session id');
+        if (typeof body.tool !== 'string' || !body.tool || body.tool.length > 100) throw new CommandError(400, 'invalid tool');
+        const held = perms.request(body.sessionId, body.tool, requestText(body.tool, body.toolInput));
+        if (!held) throw new CommandError(429, 'too many pending requests');
+        // The hook went away (killed, timed out): free the request instead of leaving it pending.
+        res.on('close', () => perms.abandon(held.id));
+        audit({ ip, action: 'permission-request', id: held.id, session: body.sessionId, tool: body.tool });
+        send(res, 200, { id: held.id, decision: await held.outcome });
+        return;
+      }
+      throw new CommandError(405, 'method not allowed');
     }
 
     if (auth && url.pathname === '/login') {
@@ -361,7 +400,7 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
             // Still running: resuming now would start a copy, so give up. (A failed stop of a session that exited on its own is fine.)
             if (isLive()) throw new CommandError(stopped.ok ? 504 : 502, 'The session did not stop. Try again.');
           }
-          const r = await continueSession(id, t.cwd, prompt, mode);
+          const r = await continueSession(id, t.cwd, prompt, mode, settingsFile);
           audit({ ip, ...actor, action: 'message', session: id, project: t.project, mode, prompt: prompt.slice(0, 200), ok: r.ok });
           send(res, 200, r);
         } finally {
@@ -461,7 +500,7 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
       if (!projectNames(projectsRoot).includes(project)) throw new CommandError(400, 'unknown project');
       const launch = composeLaunch(body);
       const mode = validateMode(body.permissionMode);
-      const r = await startTask(join(projectsRoot, project), launch.prompt, mode);
+      const r = await startTask(join(projectsRoot, project), launch.prompt, mode, settingsFile);
       audit({ ip, ...actor, action: 'start', project, mode, goal: launch.goal.slice(0, GOAL_AUDIT_MAX), notesLength: launch.notesLength, ok: r.ok, id: r.id, session: r.id });
       // A failed start leaves no session behind; say so next to the reason.
       send(res, 200, r.ok ? { ...r, started: true } : { ...r, started: false });
@@ -504,6 +543,15 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
     const pc = `data: ${JSON.stringify(withManage(base, true))}\n\n`;
     for (const [res, c] of clients) res.write(c.deviceId === PC_DEVICE ? pc : plain);
   }, 2000);
+  server.on('listening', () => {
+    const a = server.address();
+    if (!commands || !a || typeof a === 'string') return;
+    try {
+      settingsFile = perms.writeSettings(`${proto}://127.0.0.1:${a.port}`);
+    } catch {
+      // no settings file: sessions then start without the hook and prompt normally
+    }
+  });
   server.on('close', () => {
     clearInterval(timer);
     for (const c of clients.keys()) c.end();
