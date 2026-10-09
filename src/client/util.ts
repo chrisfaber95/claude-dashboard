@@ -40,3 +40,29 @@ export async function api<T>(path: string, body?: unknown): Promise<T> {
   if (!res.ok) throw new ApiError((data as { error?: string }).error ?? `request failed (${res.status})`);
   return data as T;
 }
+
+export function uptime(ms: number | null): string {
+  const s = (Date.now() - (ms ?? Date.now())) / 1000;
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return h ? `${h}h ${m}m` : `${m}m`;
+}
+
+export type TimeKind = 'ago' | 'until' | 'up';
+
+const TIME_FORMAT: Record<TimeKind, (ms: number | null) => string> = { ago, until, up: uptime };
+
+/** A relative time whose text `tickTimes()` keeps current between pushes. */
+export function timeSpan(kind: TimeKind, ms: number | null): string {
+  return `<span data-time="${kind}" data-ms="${ms ?? ''}">${esc(TIME_FORMAT[kind](ms))}</span>`;
+}
+
+/** Rewrite the text of every `timeSpan`, only where it changed. */
+export function tickTimes(root: ParentNode = document): void {
+  for (const e of root.querySelectorAll<HTMLElement>('[data-time]')) {
+    const kind = e.dataset['time'] as TimeKind;
+    const raw = e.dataset['ms'] ?? '';
+    const text = TIME_FORMAT[kind]?.(raw === '' ? null : Number(raw));
+    if (text !== undefined && e.textContent !== text) e.textContent = text;
+  }
+}

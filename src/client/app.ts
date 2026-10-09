@@ -11,19 +11,13 @@ import type { Skin } from './skin.ts';
 import { initAudit, renderAudit } from './audit.ts';
 import { initDevices, renderDevices } from './devices.ts';
 import { renderTeam } from './team.ts';
-import { $, ago, api, esc, until } from './util.ts';
+import { patchHtml } from './patch.ts';
+import { $, api, esc, tickTimes, timeSpan } from './util.ts';
 
 const fmt = (n: number) =>
   n >= 1e9 ? (n / 1e9).toFixed(2) + 'B' : n >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'k' : String(n);
 
 const total = (t: TokenCounts) => t.input + t.output + t.cacheRead + t.cacheWrite;
-
-function uptime(ms: number): string {
-  const s = (Date.now() - ms) / 1000;
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  return h ? `${h}h ${m}m` : `${m}m`;
-}
 
 // Project colour follows the project (alphabetical, fixed order), never its rank.
 let colorOf = (_name: string) => 'var(--s1)';
@@ -57,8 +51,6 @@ document.addEventListener('mousemove', (e) => {
 
 // ---- sections ----
 
-// Rebuilding #limits restarts the gauge sweep animation, so skip the write when nothing changed.
-let limitsHtml = '';
 function renderLimits(s: DashboardState) {
   const l = s.limits;
   const gauges = l.windows
@@ -66,51 +58,46 @@ function renderLimits(s: DashboardState) {
       const pct = Math.max(0, Math.min(100, w.utilization));
       const cls = pct >= 90 ? 'is-crit' : pct >= 75 ? 'is-warn' : '';
       const status = pct >= 90 ? ' · near limit' : pct >= 75 ? ' · high' : '';
-      return `<div class="gauge">
+      return `<div class="gauge" data-key="${esc(w.label)}">
         <div class="gauge__row"><span>${esc(w.label)}</span><span class="gauge__value">${Math.round(pct)}%</span></div>
         <div class="gauge__track" role="progressbar" aria-valuenow="${Math.round(pct)}" aria-valuemin="0" aria-valuemax="100" aria-label="${esc(w.label)} usage">
           <div class="gauge__fill ${cls}" style="width:${pct}%"></div></div>
-        <div class="sub">${esc(until(w.resetsAtMs))}${status}</div></div>`;
+        <div class="sub">${timeSpan('until', w.resetsAtMs)}${status}</div></div>`;
     })
     .join('');
   const hits = l.hits.length
     ? `<p class="sub">Last limit hits: ${l.hits
         .slice(-3)
         .reverse()
-        .map((h) => `${esc(h.type)} ${ago(h.tsMs)} (${esc(h.project)})`)
+        .map((h) => `${esc(h.type)} ${timeSpan('ago', h.tsMs)} (${esc(h.project)})`)
         .join(' · ')}</p>`
     : '';
   const src =
     l.source === 'live'
-      ? `live · updated ${ago(l.fetchedAtMs)}`
+      ? `live · updated ${timeSpan('ago', l.fetchedAtMs)}`
       : l.source === 'cache'
-        ? `from Claude Code's local cache · updated ${ago(l.fetchedAtMs)}`
+        ? `from Claude Code's local cache · updated ${timeSpan('ago', l.fetchedAtMs)}`
         : 'no limit data';
   const html = `<h2 id="h-limits">Subscription limits</h2>
     ${gauges ? `<div class="gauges">${gauges}</div>` : '<div class="empty">No limit data available.</div>'}
-    <p class="sub">${esc(src)}${l.error ? ` · ${esc(l.error)}` : ''}</p>${hits}`;
-  if (html === limitsHtml) return;
-  limitsHtml = html;
-  $('limits').innerHTML = html;
+    <p class="sub">${src}${l.error ? ` · ${esc(l.error)}` : ''}</p>${hits}`;
+  patchHtml($('limits'), html);
 }
 
 function renderProjects(s: DashboardState) {
   const subsWorking = (project: string) => s.subagents.filter((a) => a.project === project && a.state === 'working').length;
-  // The cards are re-rendered on every push; keep keyboard focus on the one the user is on.
-  const focused = document.activeElement?.closest('[data-building]')?.getAttribute('data-building') ?? null;
-  $('projects').innerHTML = `<h2 id="h-projects">Projects</h2><div class="grid">${s.projects
+  patchHtml($('projects'), `<h2 id="h-projects">Projects</h2><div class="grid">${s.projects
     .map(
-      (p) => `<div class="card card--click" data-building="${esc(p.name)}" role="button" tabindex="0" aria-label="${esc(`Open the ${p.name} building`)}">
+      (p) => `<div class="card card--click" data-key="${esc(p.name)}" data-building="${esc(p.name)}" role="button" tabindex="0" aria-label="${esc(`Open the ${p.name} building`)}">
         <div class="card__head"><span><span class="card__swatch" style="background:${colorOf(p.name)}"></span>${esc(p.name)}</span>
           <span class="badge ${p.liveSessions ? 'badge--live' : ''}">${p.liveSessions ? `${p.liveSessions} live` : 'idle'}</span></div>
         <div class="sub">${p.branch ? esc(p.branch) : 'no git'}${p.isWorktree ? ' · worktree' : ''}${
           s.features.commands && !p.trusted ? ' · <span data-tip="Run claude once in this folder and accept the trust prompt to allow background tasks.">not trusted for tasks</span>' : ''
         }</div>
-        <div class="sub">active ${ago(p.lastActiveMs)}${subsWorking(p.name) ? ` · ${subsWorking(p.name)} subagent${subsWorking(p.name) === 1 ? '' : 's'} working` : ''}</div>
+        <div class="sub">active ${timeSpan('ago', p.lastActiveMs)}${subsWorking(p.name) ? ` · ${subsWorking(p.name)} subagent${subsWorking(p.name) === 1 ? '' : 's'} working` : ''}</div>
         <div class="sub">today ${fmt(p.tokensToday)} · 7d ${fmt(p.tokens7d)} tokens</div></div>`,
     )
-    .join('')}</div>`;
-  if (focused) $('projects').querySelector<HTMLElement>(`[data-building="${CSS.escape(focused)}"]`)?.focus();
+    .join('')}</div>`);
 }
 
 function renderSessions(s: DashboardState) {
@@ -127,10 +114,10 @@ function renderSessions(s: DashboardState) {
             ]
           : []),
       ].join(' ');
-      return `<tr>
+      return `<tr data-key="${esc(x.sessionId)}">
       <td><span class="dot ${x.status === 'busy' ? 'is-busy' : x.status === 'idle' ? 'is-idle' : ''}"></span>${esc(x.name)}${bg ? ' <span class="badge">background</span>' : ''}</td>
       <td>${esc(x.project)}</td><td>${esc(x.status)}</td><td>${x.branch ? esc(x.branch) : '—'}</td>
-      <td>${esc(x.entrypoint || x.kind)}</td><td>${uptime(x.startedAtMs)}</td>
+      <td>${esc(x.entrypoint || x.kind)}</td><td>${timeSpan('up', x.startedAtMs)}</td>
       <td class="num" data-tip="in ${fmt(x.tokens.input)} · out ${fmt(x.tokens.output)}&#10;cache read ${fmt(x.tokens.cacheRead)} · write ${fmt(x.tokens.cacheWrite)}">${fmt(total(x.tokens))}</td>
       <td class="actions">${actions}</td></tr>`;
     })
@@ -139,15 +126,15 @@ function renderSessions(s: DashboardState) {
     .filter((r) => !r.live)
     .slice(0, 12)
     .map(
-      (r) => `<li><button class="link" data-view="${esc(r.sessionId)}" data-name="${esc(r.project)} · ${esc(r.sessionId.slice(0, 8))}">${esc(r.project)} · ${esc(r.sessionId.slice(0, 8))}</button>
-        <span class="sub">${ago(r.lastTsMs)}</span></li>`,
+      (r) => `<li data-key="${esc(r.sessionId)}"><button class="link" data-view="${esc(r.sessionId)}" data-name="${esc(r.project)} · ${esc(r.sessionId.slice(0, 8))}">${esc(r.project)} · ${esc(r.sessionId.slice(0, 8))}</button>
+        <span class="sub">${timeSpan('ago', r.lastTsMs)}</span></li>`,
     )
     .join('');
-  $('sessions').innerHTML = `<h2 id="h-sessions">Live sessions</h2>${
+  patchHtml($('sessions'), `<h2 id="h-sessions">Live sessions</h2>${
     rows
       ? `<div class="table-wrap"><table><thead><tr><th>Session</th><th>Project</th><th>Status</th><th>Branch</th><th>Source</th><th>Up</th><th class="num">Tokens</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${rows}</tbody></table></div>`
       : '<div class="empty">No live sessions.</div>'
-  }${recent ? `<h3 class="h3">Recent sessions</h3><ul class="recent">${recent}</ul>` : ''}`;
+  }${recent ? `<h3 class="h3">Recent sessions</h3><ul class="recent">${recent}</ul>` : ''}`);
 }
 
 function renderComms(s: DashboardState) {
@@ -183,15 +170,15 @@ function renderComms(s: DashboardState) {
       const [a, b] = k.split('\u0000');
       const p = pos.get(a)!;
       const q = pos.get(b)!;
-      return `<line class="edge" x1="${p.x}" y1="${p.y}" x2="${q.x}" y2="${q.y}" stroke-width="${Math.min(1 + n, 5)}" marker-end="url(#arrow)"/>
-        <line x1="${p.x}" y1="${p.y}" x2="${q.x}" y2="${q.y}" stroke="transparent" stroke-width="14" data-tip="${esc(a)} → ${esc(b)}: ${n} message${n > 1 ? 's' : ''}"/>`;
+      return `<g data-key="${esc(k)}"><line class="edge" x1="${p.x}" y1="${p.y}" x2="${q.x}" y2="${q.y}" stroke-width="${Math.min(1 + n, 5)}" marker-end="url(#arrow)"/>
+        <line x1="${p.x}" y1="${p.y}" x2="${q.x}" y2="${q.y}" stroke="transparent" stroke-width="14" data-tip="${esc(a)} → ${esc(b)}: ${n} message${n > 1 ? 's' : ''}"/></g>`;
     })
     .join('');
   const nodeSvg = nodes
     .map((n, i) => {
       const p = pos.get(n)!;
       const isLive = live.has(n);
-      return `<g><circle cx="${p.x}" cy="${p.y}" r="9" style="fill:var(--s${(i % 8) + 1});stroke:var(--surface);stroke-width:2" opacity="${isLive ? 1 : 0.5}"/>
+      return `<g data-key="${esc(n)}"><circle cx="${p.x}" cy="${p.y}" r="9" style="fill:var(--s${(i % 8) + 1});stroke:var(--surface);stroke-width:2" opacity="${isLive ? 1 : 0.5}"/>
         <text class="node-label" x="${p.x}" y="${p.y + 24}" text-anchor="middle">${esc(n.length > 18 ? n.slice(0, 17) + '…' : n)}</text></g>`;
     })
     .join('');
@@ -199,12 +186,12 @@ function renderComms(s: DashboardState) {
   const feed = s.messages
     .slice(0, 40)
     .map(
-      (m: MessageInfo) => `<li><div class="feed__meta">${m.direction === 'out' ? `${esc(m.sessionName)} → ${esc(m.peer)}` : `${esc(m.peer)} → ${esc(m.sessionName)}`}
-        · ${m.kind === 'subagent' ? 'subagent hand-back' : 'session message'} · ${ago(m.tsMs)}</div><div>${esc(m.snippet)}</div></li>`,
+      (m: MessageInfo) => `<li data-key="${esc(`${m.tsMs}|${m.kind}|${m.direction}|${m.sessionId}|${m.peer}`)}"><div class="feed__meta">${m.direction === 'out' ? `${esc(m.sessionName)} → ${esc(m.peer)}` : `${esc(m.peer)} → ${esc(m.sessionName)}`}
+        · ${m.kind === 'subagent' ? 'subagent hand-back' : 'session message'} · ${timeSpan('ago', m.tsMs)}</div><div>${esc(m.snippet)}</div></li>`,
     )
     .join('');
 
-  $('comms').innerHTML = `<h2 id="h-comms">Session communication</h2>
+  patchHtml($('comms'), `<h2 id="h-comms">Session communication</h2>
     <div class="split"><div>
       ${
         sessionMsgs.length
@@ -214,7 +201,7 @@ function renderComms(s: DashboardState) {
           : '<div class="empty">No session-to-session messages found yet.</div>'
       }
       <p class="sub">${sessionMsgs.length} session message${sessionMsgs.length === 1 ? '' : 's'} · ${sub} subagent hand-back${sub === 1 ? '' : 's'} (recent)</p>
-    </div><ul class="feed">${feed || '<li class="empty">Nothing yet.</li>'}</ul></div>`;
+    </div><ul class="feed">${feed || '<li class="empty">Nothing yet.</li>'}</ul></div>`);
 }
 
 const hidden = new Set<string>();
@@ -251,37 +238,37 @@ function renderUsage(s: DashboardState) {
           const y1 = y(acc + v);
           const h = y(acc) - y1;
           acc += v;
-          return `<rect x="${x}" y="${y1}" width="${w}" height="${Math.max(0, h - 2)}" rx="3" style="fill:${n === 'Other' ? 'var(--muted)' : colorOf(n)}" data-tip="${esc(d.day)}&#10;${esc(n)}: ${fmt(v)} tokens"/>`;
+          return `<rect data-key="${esc(`${d.day}|${n}`)}" x="${x}" y="${y1}" width="${w}" height="${Math.max(0, h - 2)}" rx="3" style="fill:${n === 'Other' ? 'var(--muted)' : colorOf(n)}" data-tip="${esc(d.day)}&#10;${esc(n)}: ${fmt(v)} tokens"/>`;
         })
         .join('');
-      return `${segs}<text x="${x + w / 2}" y="${H - 6}" text-anchor="middle">${d.day.slice(5)}</text>`;
+      return `${segs}<text data-key="${esc(`${d.day}|label`)}" x="${x + w / 2}" y="${H - 6}" text-anchor="middle">${d.day.slice(5)}</text>`;
     })
     .join('');
 
   const legend = [...series, ...(days.some((d) => other(d) > 0) ? ['Other'] : [])]
     .map(
       (n) =>
-        `<button class="btn legend-btn" data-toggle="${esc(n)}" aria-pressed="${!hidden.has(n)}" style="opacity:${hidden.has(n) ? 0.45 : 1}"><i style="display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;background:${n === 'Other' ? 'var(--muted)' : colorOf(n)}"></i>${esc(n)}</button>`,
+        `<button class="btn legend-btn" data-key="${esc(n)}" data-toggle="${esc(n)}" aria-pressed="${!hidden.has(n)}" style="opacity:${hidden.has(n) ? 0.45 : 1}"><i style="display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;background:${n === 'Other' ? 'var(--muted)' : colorOf(n)}"></i>${esc(n)}</button>`,
     )
     .join(' ');
 
   const t = s.usage.totals;
   const modelRows = Object.entries(s.usage.byModel)
     .sort(([, a], [, b]) => b - a)
-    .map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${fmt(v)}</td></tr>`)
+    .map(([k, v]) => `<tr data-key="${esc(k)}"><td>${esc(k)}</td><td class="num">${fmt(v)}</td></tr>`)
     .join('');
   const tableRows = days
     .slice()
     .reverse()
-    .map((d) => `<tr><td>${esc(d.day)}</td><td class="num">${fmt(d.tokens.input)}</td><td class="num">${fmt(d.tokens.output)}</td><td class="num">${fmt(d.tokens.cacheRead)}</td><td class="num">${fmt(d.tokens.cacheWrite)}</td></tr>`)
+    .map((d) => `<tr data-key="${esc(d.day)}"><td>${esc(d.day)}</td><td class="num">${fmt(d.tokens.input)}</td><td class="num">${fmt(d.tokens.output)}</td><td class="num">${fmt(d.tokens.cacheRead)}</td><td class="num">${fmt(d.tokens.cacheWrite)}</td></tr>`)
     .join('');
 
-  $('usage').innerHTML = `<h2 id="h-usage">Token usage · last 14 days</h2>
+  patchHtml($('usage'), `<h2 id="h-usage">Token usage · last 14 days</h2>
     <div class="legend">${legend}</div>
     <svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Daily tokens stacked by project">${grid}<line class="axis" x1="${m.l}" x2="${W - m.r}" y1="${H - m.b}" y2="${H - m.b}"/>${bars}</svg>
     <div class="split" style="margin-top:12px"><div class="table-wrap"><table><thead><tr><th>Day</th><th class="num">Input</th><th class="num">Output</th><th class="num">Cache read</th><th class="num">Cache write</th></tr></thead><tbody>${tableRows}</tbody>
       <tfoot><tr><th>All time</th><th class="num">${fmt(t.input)}</th><th class="num">${fmt(t.output)}</th><th class="num">${fmt(t.cacheRead)}</th><th class="num">${fmt(t.cacheWrite)}</th></tr></tfoot></table></div>
-      <div class="table-wrap"><table><thead><tr><th>Model</th><th class="num">Tokens</th></tr></thead><tbody>${modelRows}</tbody></table></div></div>`;
+      <div class="table-wrap"><table><thead><tr><th>Model</th><th class="num">Tokens</th></tr></thead><tbody>${modelRows}</tbody></table></div></div>`);
 }
 
 document.addEventListener('click', (e) => {
@@ -337,6 +324,9 @@ initDevices();
 initAudit();
 initBuilding();
 initCore();
+
+// Relative times ("3m ago", uptime, resets in) advance on their own light tick, writing only the text that changed.
+setInterval(() => tickTimes(), 10_000);
 
 // ---- skin + theme + transport ----
 
