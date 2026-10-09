@@ -4,11 +4,17 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { request as httpsRequest } from 'node:https';
 import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { makeFixture, raw } from './helpers.ts';
 
 const fx = makeFixture();
 // Never read the real team-hq board: a ticket in review would add alerts.
 process.env.TEAM_HQ_DIR = join(fx.root, 'no-team-hq');
+// A fake Claude CLI, so a signed-in device can start a task and the audit log gets a real entry.
+process.env.CLAUDE_BIN = process.execPath;
+process.env.CLAUDE_BIN_ARGS = JSON.stringify([fileURLToPath(new URL('./fake-claude.mjs', import.meta.url))]);
+process.env.FAKE_CLAUDE_LOG = join(fx.root, 'cli.log');
+mkdirSync(join(fx.projectsRoot, 'Alpha'));
 const publicDir = join(fx.root, 'public');
 mkdirSync(publicDir);
 writeFileSync(join(publicDir, 'index.html'), '<!doctype html><title>dash</title>');
@@ -365,9 +371,9 @@ test('device management writes audit entries without the token', async () => {
   assert.ok(!text.includes(made.token), 'the token is never logged');
   const entries = text.trim().split('\n').map((l) => JSON.parse(l) as Record<string, unknown>);
   const create = entries.find((e) => e.action === 'device-create' && e.id === made.id)!;
-  assert.deepEqual([create.device, create.name, create.ok], ['pc', 'audited', true]);
+  assert.deepEqual([create.device, create.deviceId, create.name, create.ok], ['This PC', 'pc', 'audited', true]);
   const revoke = entries.find((e) => e.action === 'device-revoke' && e.id === made.id)!;
-  assert.deepEqual([revoke.device, revoke.name, revoke.found, revoke.persisted], ['pc', 'audited', true, true]);
+  assert.deepEqual([revoke.device, revoke.deviceId, revoke.name, revoke.found, revoke.persisted], ['This PC', 'pc', 'audited', true, true]);
 });
 
 test('the device cap answers 409 with a fixed string', async () => {
@@ -528,5 +534,79 @@ test('pairing links are audited without the code', async () => {
   assert.ok(!text.includes(path.slice(8)), 'the code is never logged');
   const entry = text.trim().split('\n').map((l) => JSON.parse(l) as Record<string, unknown>).filter((e) => e.action === 'device-pair' && e.id === dev.id);
   assert.equal(entry.length, 1);
-  assert.deepEqual([entry[0].device, entry[0].ok], ['pc', true]);
+  assert.deepEqual([entry[0].device, entry[0].deviceId, entry[0].ok], ['This PC', 'pc', true]);
+});
+
+// ---- audit log by device (T-012) ----
+
+type AuditRow = { ts: string; action: string; device?: string; deviceId?: string; project?: string; mode?: string; ok?: boolean; prompt?: string };
+const auditOf = async (query = '') => JSON.parse((await pcCall('GET', '/api/audit' + query)).body).entries as AuditRow[];
+
+test('every logged action names the device (name and id); the PC is "This PC" / pc', async () => {
+  const phone = await newDevice('Kitchen phone');
+  const c = await signInDevice(phone.token);
+  const started = await deviceCall(c, 'POST', '/api/commands', { project: 'Alpha', prompt: 'hello from the phone', permissionMode: 'plan' });
+  assert.equal(started.status, 200, started.body);
+  const made = await newDevice('audit target');
+  await pcCall('POST', '/api/devices/revoke', { id: made.id });
+  await pairOf((await newDevice('audit pair')).id);
+
+  const entries = await auditOf();
+  const start = entries.find((e) => e.action === 'start' && e.deviceId === phone.id)!;
+  assert.deepEqual([start.device, start.deviceId, start.project, start.mode, start.ok, start.prompt], ['Kitchen phone', phone.id, 'Alpha', 'plan', true, 'hello from the phone']);
+  for (const action of ['device-create', 'device-revoke', 'device-pair']) {
+    const e = entries.find((x) => x.action === action)!;
+    assert.deepEqual([e.device, e.deviceId], ['This PC', 'pc'], action);
+  }
+  // every line the server wrote after this change names a device
+  const raw = readFileSync(join(fx.dataDir, 'commands.log'), 'utf8').trim().split('\n').map((l) => JSON.parse(l) as Record<string, unknown>);
+  assert.ok(raw.length >= 4);
+  for (const e of raw) assert.ok(typeof e.device === 'string' && typeof e.deviceId === 'string', JSON.stringify(e));
+});
+
+test('GET /api/audit: any signed-in device may read it, newest first, filtered by device id, allowlisted fields only', async () => {
+  const phone = await newDevice('Reader');
+  const c = await signInDevice(phone.token);
+  const asDevice = await deviceCall(c, 'GET', '/api/audit');
+  assert.equal(asDevice.status, 200, 'a LAN device may read the log');
+  assert.deepEqual(Object.keys(JSON.parse(asDevice.body)), ['entries']);
+  const all = JSON.parse(asDevice.body).entries as AuditRow[];
+  assert.ok(all.length >= 4);
+  const times = all.map((e) => Date.parse(e.ts));
+  assert.deepEqual(times, [...times].sort((a, b) => b - a), 'newest first');
+
+  const onlyPc = await auditOf('?device=pc');
+  assert.ok(onlyPc.length > 0 && onlyPc.every((e) => e.deviceId === 'pc'));
+  const onlyPhone = JSON.parse((await deviceCall(c, 'GET', '/api/audit?device=' + (await (async () => (JSON.parse((await pcCall('GET', '/api/devices')).body).devices as Array<{ id: string; name: string }>).find((d) => d.name === 'Kitchen phone')!.id)()))).body).entries as AuditRow[];
+  assert.ok(onlyPhone.length >= 1 && onlyPhone.every((e) => e.device === 'Kitchen phone'));
+  assert.deepEqual(await auditOf('?device=ffffffffffff'), []);
+
+  // nothing but the allowlisted fields: no ip, no target ids/names, no codes
+  const allowed = new Set(['ts', 'action', 'device', 'deviceId', 'project', 'session', 'mode', 'ok', 'prompt']);
+  for (const e of all) for (const k of Object.keys(e)) assert.ok(allowed.has(k), k);
+  assert.ok(!asDevice.body.includes('127.0.0.1') && !asDevice.body.includes('pair?c='));
+});
+
+test('GET /api/audit keeps every request check and answers with fixed strings', async () => {
+  assert.equal((await get('/api/audit')).status, 401, 'login required');
+  assert.equal((await pcCall('GET', '/api/audit', undefined, { 'Sec-Fetch-Site': 'cross-site' })).status, 403);
+  for (const bad of ['?device=', '?device=a%20b', '?device=' + 'x'.repeat(65), '?device=..%2f..%2fsecret', '?device=a;b']) {
+    const r = await pcCall('GET', '/api/audit' + bad);
+    assert.equal(r.status, 400, bad);
+    assert.deepEqual(JSON.parse(r.body), { error: 'invalid device filter' });
+  }
+  assert.equal((await pcCall('POST', '/api/audit', {})).status, 404, 'read-only');
+  // an unreadable log: a fixed message, no path or error text
+  const log = join(fx.dataDir, 'commands.log');
+  const saved = readFileSync(log);
+  rmSync(log);
+  mkdirSync(log);
+  try {
+    const r = await pcCall('GET', '/api/audit');
+    assert.equal(r.status, 500);
+    assert.deepEqual(JSON.parse(r.body), { error: 'could not read the audit log' });
+  } finally {
+    rmSync(log, { recursive: true, force: true });
+    writeFileSync(log, saved);
+  }
 });
