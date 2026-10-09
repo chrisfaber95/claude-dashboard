@@ -130,3 +130,13 @@ test('POST /api/settings/alerts sets the threshold used by the next state build'
   assert.deepEqual(JSON.parse(ok.body), { ok: true });
   assert.equal((await alertIds()).threshold, 42);
 });
+
+test('without a login there are no devices: the endpoints 404 and manageDevices is false', async () => {
+  assert.equal((await alertIds().then(() => fetch(`${base}/api/devices`))).status, 404);
+  const created = await apiPost('/api/devices', { name: 'x' });
+  assert.equal(created.status, 404);
+  assert.deepEqual(JSON.parse(created.body), { error: 'devices are not available' });
+  assert.equal((await apiPost('/api/devices/revoke', { id: 'x' })).status, 404);
+  const j = (await (await fetch(`${base}/api/state`)).json()) as { features: { manageDevices: boolean } };
+  assert.equal(j.features.manageDevices, false);
+});

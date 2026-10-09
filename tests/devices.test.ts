@@ -103,3 +103,11 @@ test('a revoke whose write fails is reported as not persisted, but the device is
   assert.deepEqual(s.revoke(b.id), { found: true, persisted: true });
   assert.equal(createDeviceStore(dir).list().length, 0);
 });
+
+test('a stored device id of pc is ignored: pc is reserved for the loopback exemption', () => {
+  const dir = join(fx.root, 'reserved');
+  mkdirSync(dir, { recursive: true });
+  const hash = 'a'.repeat(64);
+  writeFileSync(join(dir, 'devices.json'), JSON.stringify({ devices: [{ id: 'pc', name: 'sneaky', sha256: hash, createdMs: 1, lastSeenMs: null }, { id: 'ok', name: 'fine', sha256: hash, createdMs: 1, lastSeenMs: null }] }));
+  assert.deepEqual(createDeviceStore(dir).list().map((d) => d.id), ['ok']);
+});

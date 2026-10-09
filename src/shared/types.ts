@@ -185,7 +185,13 @@ export interface DashboardState {
   usage: { days: UsageDay[]; totals: TokenCounts; byModel: Record<string, number> };
   limits: LimitsInfo;
   recentSessions: RecentSession[];
-  features: { lan: boolean; commands: boolean; permissionModes: readonly PermissionMode[] };
+  features: {
+    lan: boolean;
+    commands: boolean;
+    permissionModes: readonly PermissionMode[];
+    /** True only for the loopback `pc` request: only it may create, list and revoke devices. */
+    manageDevices: boolean;
+  };
   /** Team board summary; null = no board found (hidden). */
   team: TeamBoard | null;
   /** Things that need the user, derived on the server and de-duplicated by id. */

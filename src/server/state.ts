@@ -94,7 +94,7 @@ function gitBranch(dir: string): { branch: string | null; worktree: boolean } {
   }
 }
 
-export function buildState(features: { lan?: boolean; commands?: boolean } = {}): DashboardState {
+export function buildState(features: { lan?: boolean; commands?: boolean; manageDevices?: boolean } = {}): DashboardState {
   scanTranscripts();
   const sessions = readSessions();
   const now = Date.now();
@@ -181,7 +181,7 @@ export function buildState(features: { lan?: boolean; commands?: boolean } = {})
     usage: { days, totals, byModel: { ...modelTotals } },
     limits,
     recentSessions,
-    features: { lan: features.lan ?? LAN_MODE, commands: features.commands ?? COMMANDS_ENABLED, permissionModes: PERMISSION_MODES },
+    features: { lan: features.lan ?? LAN_MODE, commands: features.commands ?? COMMANDS_ENABLED, permissionModes: PERMISSION_MODES, manageDevices: features.manageDevices ?? false },
     team,
     alerts: buildAlerts({ sessions, limits, team, nowMs: now }),
   };

@@ -1,5 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /** What leaves the store: never the token or its hash. */
@@ -16,7 +16,10 @@ interface StoredDevice extends DeviceInfo {
 }
 
 export interface DeviceStore {
-  /** Returns the token once; only its hash is kept. Throws on an invalid name or when the store is full. */
+  /**
+   * Returns the token once; only its hash is kept. Throws 'invalid device name', 'too many devices' or
+   * 'could not save devices' (nothing is kept then: a token that would not survive a restart is never handed out).
+   */
   create(name: string): { id: string; token: string };
   list(): DeviceInfo[];
   /**
@@ -44,6 +47,7 @@ function isStored(d: unknown): d is StoredDevice {
   return (
     !!x &&
     typeof x.id === 'string' &&
+    x.id !== 'pc' && // reserved for the loopback exemption
     typeof x.name === 'string' &&
     typeof x.sha256 === 'string' &&
     /^[0-9a-f]{64}$/.test(x.sha256) &&
@@ -76,6 +80,11 @@ export function createDeviceStore(dataDir: string, now: () => number = Date.now)
       return true;
     } catch {
       // keep the in-memory state; the next change retries
+      try {
+        rmSync(`${file}.tmp`, { force: true });
+      } catch {
+        // best effort
+      }
       return false;
     }
   }
@@ -88,7 +97,10 @@ export function createDeviceStore(dataDir: string, now: () => number = Date.now)
       const token = randomBytes(32).toString('base64url');
       const id = randomBytes(6).toString('hex');
       devices.push({ id, name: clean, sha256: hashOf(token).toString('hex'), createdMs: now(), lastSeenMs: null });
-      save();
+      if (!save()) {
+        devices.pop();
+        throw new Error('could not save devices');
+      }
       return { id, token };
     },
     list: () => devices.map(publicOf),

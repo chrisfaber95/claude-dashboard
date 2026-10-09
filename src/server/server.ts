@@ -6,8 +6,8 @@ import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { APP_ROOT, COMMANDS_ENABLED, DATA_DIR, HOST, LAN_MODE, PORT, PROJECTS_ROOT, UUID_RE, normPath } from './config.ts';
 import { dismissAlert, setAlertThreshold } from './alerts.ts';
-import { createAuth, type Auth } from './auth.ts';
-import { createDeviceStore } from './devices.ts';
+import { PC_DEVICE, createAuth, type Auth } from './auth.ts';
+import { MAX_DEVICES, createDeviceStore } from './devices.ts';
 import {
   CommandError,
   audit,
@@ -127,6 +127,8 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
     }
   });
   const state = () => buildState({ lan: Boolean(auth), commands });
+  /** The device-management flag depends on the caller: only this PC (loopback `pc`) may manage devices. */
+  const withManage = (s: ReturnType<typeof state>, manage: boolean) => (manage ? { ...s, features: { ...s.features, manageDevices: true } } : s);
 
   async function serveStatic(res: ServerResponse, rel: string) {
     const file = normalize(join(publicDir, rel));
@@ -208,13 +210,13 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
     }
 
     if (url.pathname === '/api/state') {
-      send(res, 200, state());
+      send(res, 200, withManage(state(), who?.deviceId === PC_DEVICE));
       return;
     }
 
     if (url.pathname === '/api/events') {
       res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive', ...SECURITY_HEADERS });
-      res.write(`data: ${JSON.stringify(state())}\n\n`);
+      res.write(`data: ${JSON.stringify(withManage(state(), who?.deviceId === PC_DEVICE))}\n\n`);
       clients.set(res, who?.deviceId ?? '');
       req.on('close', () => clients.delete(res));
       return;
@@ -292,6 +294,45 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
       }
     }
 
+    // Device management: only the loopback-exempt PC, never a signed-in LAN device (decision 0003).
+    if (url.pathname === '/api/devices' || url.pathname === '/api/devices/revoke') {
+      if (!auth) throw new CommandError(404, 'devices are not available');
+      if (who?.deviceId !== PC_DEVICE) throw new CommandError(403, 'only this PC can manage devices');
+      if (url.pathname === '/api/devices' && method === 'GET') {
+        send(res, 200, { devices: auth.devices.list() });
+        return;
+      }
+      if (url.pathname === '/api/devices' && method === 'POST') {
+        const body = await readJson(req);
+        let created: { id: string; token: string };
+        try {
+          created = auth.devices.create(typeof body.name === 'string' ? body.name : '');
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : '';
+          audit({ ip, device: who.deviceId, action: 'device-create', ok: false });
+          if (msg === 'invalid device name') throw new CommandError(400, 'invalid device name');
+          if (msg === 'too many devices') throw new CommandError(409, `at most ${MAX_DEVICES} devices`);
+          throw new CommandError(500, 'could not save the device');
+        }
+        audit({ ip, device: who.deviceId, action: 'device-create', id: created.id, name: auth.devices.list().find((d) => d.id === created.id)?.name, ok: true });
+        send(res, 200, created);
+        return;
+      }
+      if (url.pathname === '/api/devices/revoke' && method === 'POST') {
+        const body = await readJson(req);
+        const id = typeof body.id === 'string' ? body.id : '';
+        const name = auth.devices.list().find((d) => d.id === id)?.name;
+        const r = auth.revokeDevice(id);
+        audit({ ip, device: who.deviceId, action: 'device-revoke', id: r.found ? id : undefined, name, found: r.found, persisted: r.persisted });
+        if (!r.found) throw new CommandError(404, 'unknown device');
+        // Sessions and streams are already ended; the file just could not be written, so it may come back after a restart.
+        if (!r.persisted) throw new CommandError(500, 'device revoked, but the change could not be saved');
+        send(res, 200, { ok: true });
+        return;
+      }
+      throw new CommandError(405, 'method not allowed');
+    }
+
     if (url.pathname === '/api/alerts/dismiss' && method === 'POST') {
       const body = await readJson(req);
       if (typeof body.id !== 'string' || body.id.length === 0 || body.id.length > 200) throw new CommandError(400, 'invalid alert id');
@@ -351,8 +392,10 @@ export function createDashboardServer(opts: ServerOptions = {}): Server {
 
   const timer = setInterval(() => {
     if (!clients.size) return;
-    const payload = `data: ${JSON.stringify(state())}\n\n`;
-    for (const c of clients.keys()) c.write(payload);
+    const base = state();
+    const plain = `data: ${JSON.stringify(base)}\n\n`;
+    const pc = `data: ${JSON.stringify(withManage(base, true))}\n\n`;
+    for (const [c, d] of clients) c.write(d === PC_DEVICE ? pc : plain);
   }, 2000);
   server.on('close', () => {
     clearInterval(timer);
