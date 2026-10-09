@@ -99,3 +99,17 @@ test('GET /api/sessions/:id/summary returns the recap; bad or unknown ids fail w
   assert.equal(bad.status, 400);
   assert.deepEqual(JSON.parse(bad.body), { error: 'invalid session id' });
 });
+
+test('secrets in a command or URL are masked before the target is cut', async () => {
+  const p = join(transcriptDir(fx, cwd), 'redact.jsonl');
+  writeFileSync(
+    p,
+    jsonl([
+      tool(1, 'Bash', { command: 'curl -H "Authorization: Bearer sk-FAKE123" https://u:pw@h.test/a?token=FAKE456' }),
+      tool(2, 'Bash', { command: 'export API_TOKEN=FAKE789 && npm test' }),
+    ]),
+  );
+  const r = await recapSession(p);
+  assert.doesNotMatch(r.text, /FAKE\d|pw@/);
+  assert.match(r.text, /npm test/);
+});

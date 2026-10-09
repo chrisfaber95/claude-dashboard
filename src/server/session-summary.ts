@@ -18,12 +18,22 @@ function cut(s: string, max: number): string {
   return t.length > max ? t.slice(0, max - 1) + '…' : t;
 }
 
+/** Masks likely secrets (bearer tokens, key=value, URL userinfo and query) before a target is cut. */
+function redact(s: string): string {
+  return s
+    .replace(/(\b(?:bearer|basic)\s+)\S+/gi, '$1***')
+    .replace(/(\b[\w-]*(?:token|secret|key|password|passwd|auth)[\w-]*\s*[=:]\s*)\S+/gi, '$1***')
+    .replace(/(--?[\w-]*(?:token|secret|key|password|auth)[\w-]*[ =])\S+/gi, '$1***')
+    .replace(/(\w+:\/\/)[^/\s@]*@/g, '$1')
+    .replace(/\?\S*/g, (m) => (/^\?[\w%.~-]+=/.test(m) ? '?***' : m));
+}
+
 /** Tool name plus a short target only: tool inputs can hold secrets or long text. */
 function toolAction(name: string, input: any): string {
   if (input && typeof input === 'object') {
-    if (typeof input.command === 'string') return `${name}: ${cut(input.command, TARGET_MAX)}`;
+    if (typeof input.command === 'string') return `${name}: ${cut(redact(input.command), TARGET_MAX)}`;
     const target = input.file_path ?? input.notebook_path ?? input.path ?? input.pattern ?? input.url;
-    if (typeof target === 'string') return `${name} ${cut(target, TARGET_MAX)}`;
+    if (typeof target === 'string') return `${name} ${cut(redact(target), TARGET_MAX)}`;
   }
   return name;
 }
