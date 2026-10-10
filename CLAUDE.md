@@ -12,9 +12,10 @@ Web dashboard for Claude Code activity: the projects in `N:\Projects`, live sess
 - `npm run dev:lan`: same, but server listens on all interfaces over HTTPS with login (`--lan` flag)
 - `npm test`: `node:test` suites in `tests/`
 - `npm run typecheck`: `tsc --noEmit` over `src` and `tests`
+- `npm run lint`: ESLint readability rules of `docs/code-style.md` over `src` and `tests` (`eslint.config.js`; `LEGACY_FILES` lists files exempt for now and may only shrink)
 - `npm run build`: esbuild `src/client/app.ts` + `login.ts` + `boot.ts` → `public/`, sass `style.scss` → `public/style.css`, copy `index.html` + `login.html` + `src/client/fonts` → `public/fonts` + `src/client/root` → `public/root` (via `scripts/copy-assets.mjs`)
 
-Run `npm run typecheck` and `npm test` after every change, except changes that only touch documentation (Markdown, agent/skill/parameter files, comments).
+Run `npm run typecheck`, `npm run lint` and `npm test` after every change, except changes that only touch documentation (Markdown, agent/skill/parameter files, comments).
 
 ## Reference docs (read when relevant)
 
