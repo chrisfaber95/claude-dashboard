@@ -16,4 +16,10 @@ export interface AuditEntry {
   goal?: string;
   /** Length of the launch notes; the notes text is never logged. */
   notesLength?: number;
+  /** Name of the tool a permission request asked for (approval entries), cut to 100 characters. */
+  tool?: string;
+  /** Text of a permission request, cut to 500 characters; untrusted, show it with `esc()`. */
+  text?: string;
+  /** How a permission request ended: `allow`, `deny` or `expired`. */
+  outcome?: string;
 }

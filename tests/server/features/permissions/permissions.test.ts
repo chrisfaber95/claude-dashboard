@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { createPermissionStore, requestText, TEXT_MAX } from '../../../../src/server/features/permissions/permissions.ts';
 // @ts-expect-error plain .mjs script without types
 import { decisionOutput, runHook } from '../../../../scripts/permission-hook.mjs';
@@ -25,15 +25,17 @@ test('store: secret is created once and checked; answer, expiry and abandon sett
   const s2 = createPermissionStore({ dataDir: d, waitMs: 5000 });
   const r = s2.request(SID, 'Bash', 'ls')!;
   assert.deepEqual(s2.list().map((x) => [x.id, x.status]), [[r.id, 'pending']]);
-  assert.equal(s2.answer(r.id, 'allow'), true);
+  const pendingInfo = s2.list()[0];
+  assert.deepEqual(s2.answer(r.id, 'allow'), { outcome: 'answered', request: { id: r.id, sessionId: SID, tool: 'Bash', text: 'ls', createdMs: pendingInfo.createdMs, status: 'pending' } });
   assert.equal(await r.outcome, 'allow');
-  assert.equal(s2.answer(r.id, 'deny'), false);
+  assert.deepEqual(s2.answer(r.id, 'deny'), { outcome: 'settled' });
+  assert.deepEqual(s2.answer('00000000-0000-4000-8000-000000000000', 'deny'), { outcome: 'unknown' });
   assert.deepEqual(s2.list(), []);
 
   const b = s.request(SID, 'Write', 'x')!;
   assert.equal(await b.outcome, 'expired'); // waitMs elapsed
   assert.deepEqual(s.list().map((x) => x.status), ['expired']);
-  assert.equal(s.answer(b.id, 'allow'), false);
+  assert.deepEqual(s.answer(b.id, 'allow'), { outcome: 'settled' });
 
   const c = s2.request(SID, 'Bash', 'y')!;
   s2.abandon(c.id);
@@ -50,6 +52,10 @@ test('store: settings file holds only the PermissionRequest hook and not the sec
   assert.match(cmd, /--url "http:\/\/127\.0\.0\.1:4777"/);
   assert.ok(!cmd.includes(readFileSync(s.secretPath(), 'utf8').trim()));
   assert.ok(statSync(s.secretPath()).isFile());
+  // The hook runs from a copy in the data folder, not from the repo's scripts folder.
+  const copy = join(dirname(file), 'permission-hook.mjs');
+  assert.ok(cmd.includes(copy.replaceAll('\\', '/')));
+  assert.equal(readFileSync(copy, 'utf8'), readFileSync(new URL('../../../../scripts/permission-hook.mjs', import.meta.url), 'utf8'));
 });
 
 test('requestText: command for Bash, pretty JSON otherwise, capped', () => {

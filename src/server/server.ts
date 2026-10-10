@@ -5,10 +5,11 @@ import { join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { APP_ROOT, COMMANDS_ENABLED, DATA_DIR, HOST, LAN_MODE, PORT, PROJECTS_ROOT } from './config.ts';
 import { recordFailedSignin } from './features/alerts/alerts.ts';
-import { createPermissionStore, type PermissionStore } from './features/permissions/permissions.ts';
+import { APPROVAL_TEXT_AUDIT_MAX, createPermissionStore, type PermissionStore } from './features/permissions/permissions.ts';
 import { PC_DEVICE, createAuth, type Auth } from './auth/auth.ts';
+import { isLocalPeer } from './auth/loopback.ts';
 import { createDeviceStore } from './auth/devices.ts';
-import { CommandError } from './claude/claude-cli.ts';
+import { CommandError, audit } from './claude/claude-cli.ts';
 import { buildState } from './transcripts/state.ts';
 import { ensureCert, lanAddresses } from './auth/tls.ts';
 import type { Actor, AuthedCall, RequestCall, RouteHandler, ServerContext } from './http/context.ts';
@@ -18,6 +19,7 @@ import { handleCommandRoutes } from './http/routes-commands.ts';
 import { handleDeviceRoutes } from './http/routes-devices.ts';
 import { handleLoginRoutes, handleLogout } from './http/routes-login.ts';
 import { handlePermissionHook } from './http/routes-permission-hook.ts';
+import { handlePermissionRoutes } from './http/routes-permissions.ts';
 import { handleSessionRoutes } from './http/routes-sessions.ts';
 import { handleSettingsRoutes } from './http/routes-settings.ts';
 import { handleStateRoutes } from './http/routes-state.ts';
@@ -34,6 +36,7 @@ const API_ROUTES: RouteHandler[] = [
   handleDeviceRoutes,
   handleSettingsRoutes,
   handleCommandRoutes,
+  handlePermissionRoutes,
 ];
 
 /** Options for the dashboard server; tests inject their own. */
@@ -46,6 +49,8 @@ export interface ServerOptions {
   projectsRoot?: string;
   /** Permission-prompt store (tests inject one). */
   permissions?: PermissionStore;
+  /** Whether a request's socket peer is this PC (tests replace it: every test client connects from loopback). */
+  isLocalPeer?: (req: IncomingMessage) => boolean;
 }
 
 /** Who is acting, for the audit log. Without a login (localhost mode) the caller is this PC. */
@@ -97,6 +102,10 @@ export function createDashboardServer(options: ServerOptions = {}): Server {
   const tls = options.tls ?? null;
   const isCommandsEnabled = options.commands ?? COMMANDS_ENABLED;
   const permissions = options.permissions ?? createPermissionStore();
+  // Expiry has no device behind it; answers are audited by the route that takes them.
+  permissions.onExpired((request) =>
+    audit({ action: 'approval', outcome: 'expired', id: request.id, session: request.sessionId, tool: request.tool, text: request.text.slice(0, APPROVAL_TEXT_AUDIT_MAX) }),
+  );
   const streams = createLiveStreams(auth);
   let settingsFile: string | undefined;
   const context: ServerContext = {
@@ -107,6 +116,7 @@ export function createDashboardServer(options: ServerOptions = {}): Server {
     areCommandsEnabled: isCommandsEnabled,
     projectsRoot: options.projectsRoot ?? PROJECTS_ROOT,
     permissions,
+    isLocalPeer: options.isLocalPeer ?? isLocalPeer,
     streams,
     buildDashboardState: () => ({ ...buildState({ lan: Boolean(auth), commands: isCommandsEnabled }), permissions: permissions.list() }),
     getSettingsFile: () => settingsFile,

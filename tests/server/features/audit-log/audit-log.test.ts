@@ -114,3 +114,8 @@ test('an unreadable log is an error for the caller to turn into a fixed message'
     rmSync(log, { recursive: true, force: true });
   }
 });
+
+test('approval entries keep tool, text cut to 500 characters and outcome, and drop unknown fields', () => {
+  const entry = toAuditEntry({ ts: 't1', action: 'approval', tool: 'Bash', text: 'x'.repeat(600), outcome: 'allow', secret: 'nope' });
+  assert.deepEqual(entry, { ts: 't1', action: 'approval', tool: 'Bash', text: 'x'.repeat(500), outcome: 'allow' });
+});
