@@ -4,6 +4,7 @@ import { elementById } from '../../shared/dom.ts';
 import { esc } from '../../shared/escape.ts';
 import { timeSpan } from '../../shared/time.ts';
 import { formatTokenCount, sumTokens } from '../../shared/token-format.ts';
+import { permissionItemsHtml } from '../permissions/permissions.view.ts';
 import { dotStateClass, isBackgroundSession } from './sessions.logic.ts';
 
 const RECENT_SESSIONS_SHOWN = 12;
@@ -50,5 +51,7 @@ export function renderSessions(state: DashboardState): void {
     ? `<div class="table-wrap"><table><thead><tr><th>Session</th><th>Project</th><th>Status</th><th>Branch</th><th>Source</th><th>Up</th><th class="num">Tokens</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${rows}</tbody></table></div>`
     : '<div class="empty">No live sessions.</div>';
   const recentList = recent ? `<h3 class="h3">Recent sessions</h3><ul class="recent">${recent}</ul>` : '';
-  patchHtml(elementById('sessions'), `<h2 id="h-sessions">Live sessions</h2>${table}${recentList}`);
+  const requests = permissionItemsHtml(state, 'sessions');
+  const requestBlock = requests ? `<h3 class="h3">Permission requests</h3><ul class="permissions">${requests}</ul>` : '';
+  patchHtml(elementById('sessions'), `<h2 id="h-sessions">Live sessions</h2>${requestBlock}${table}${recentList}`);
 }

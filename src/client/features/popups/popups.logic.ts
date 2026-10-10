@@ -10,6 +10,7 @@ export const POPUPS = [
   { id: 'run', label: 'Launch a task' },
   { id: 'devices', label: 'Devices' },
   { id: 'audit', label: 'Activity' },
+  { id: 'approvals', label: 'Approvals' },
 ] as const;
 
 /** Id of one popup. */

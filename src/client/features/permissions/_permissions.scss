@@ -1,0 +1,109 @@
+// Permission prompts (sessions section and needs-you list) and the Approvals popup.
+.permissions {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.permission {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--warn);
+  border-radius: 8px;
+  padding: 8px 12px;
+
+  &__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 10px;
+  }
+
+  &__tool {
+    overflow-wrap: anywhere;
+  }
+
+  &__text {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    max-height: 40vh;
+    overflow-y: auto;
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &__hint,
+  &__status {
+    overflow-wrap: anywhere;
+  }
+}
+
+.approvals {
+  &__bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  &__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 6px;
+  }
+
+  &__item {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 12px;
+  }
+
+  &__line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 10px;
+  }
+
+  &__session,
+  &__device,
+  &__tool {
+    overflow-wrap: anywhere;
+  }
+
+  &__outcome {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+
+    &--allow,
+    &--unknown {
+      color: var(--ink-2);
+    }
+
+    &--deny {
+      color: var(--crit);
+    }
+
+    &--expired {
+      color: var(--warn);
+    }
+  }
+}
