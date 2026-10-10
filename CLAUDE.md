@@ -29,6 +29,12 @@ Moved verbatim to `docs/architecture.md` to keep this file small. Read the match
 - **Tests**: fixtures, `makeFixture()`, fake CLI, `raw()`. Read before writing or changing tests.
 - **UI conventions**: palette, skins, animations, no inline styles, `esc()`. Read before any change in `src/client/`, and include it in every `frontend-developer` delegation.
 
+- **Vendored Vue skills** (`docs/vendored-skills.md`): source, commit and update steps of the skills in `.claude/skills/`.
+
+## Vue work
+
+For `.vue` work load the `vue-best-practices` skill (component tests: `vue-testing-best-practices`; Vue runtime warnings: `vue-debug-guides`). Where a vendored skill disagrees with decision 0007, `docs/code-style.md` or this file, the repo docs win (e.g. no Pinia, no Options API, no `v-html`). Never edit the vendored skill files.
+
 ## TypeScript constraints
 
 - `erasableSyntaxOnly` is on: no `enum`, `namespace` or constructor parameter properties (Node can't strip them).
