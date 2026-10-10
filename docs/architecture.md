@@ -99,6 +99,7 @@ Reference sections moved out of `CLAUDE.md` (which links here) so they load only
 ## Tests
 
 - `tests/helpers.ts` → `makeFixture()` builds a fake `~/.claude`, projects tree and data dir in a temp dir and sets the env vars above. Server modules read env when they load, so call `makeFixture()` **before** a dynamic `await import(...)` of the module under test.
+- Component tests (`*.component.spec.ts`, Vitest + `happy-dom`) are run by `npm run test:component`; `node --test` only matches `*.test.ts`.
 - `node --test` runs each file in its own process, so module-level state doesn't leak between files.
 - Inside one file, `resetTranscripts()` also forgets file offsets, so the next scan re-reads every fixture written so far. Filter assertions by `sessionId`.
 - Mock `globalThis.fetch` in tests; tests must never touch the network or real user files.

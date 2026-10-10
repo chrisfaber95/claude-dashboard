@@ -10,7 +10,7 @@ Web dashboard for Claude Code activity: the projects in `N:\Projects`, live sess
 - `npm run start:lan`: same, but on all interfaces over HTTPS with a token login (`--lan` flag)
 - `npm run dev`: watch mode: rebuild HTML on change, esbuild watch for the client entry points, sass watch for styles, server restarts on `src/server/` or `src/shared/` changes (client changes don't restart); refresh browser tab manually
 - `npm run dev:lan`: same, but server listens on all interfaces over HTTPS with login (`--lan` flag)
-- `npm test`: `node:test` suites in `tests/`
+- `npm test`: both runners, in order: `npm run test:node` (`node:test` suites, `tests/**/*.test.ts`), then `npm run test:component` (Vitest + `@vue/test-utils` + `happy-dom`, `tests/client/**/*.component.spec.ts`, config `vitest.config.ts`); fails if either fails
 - `npm run typecheck`: `tsc --noEmit` over `src` and `tests`
 - `npm run lint`: ESLint readability rules of `docs/code-style.md` over `src` and `tests` (`eslint.config.js`; `LEGACY_FILES` lists files exempt for now and may only shrink)
 - `npm run build`: esbuild `src/client/app/app.ts` + `features/login/login.view.ts` + `features/pair/pair.view.ts` + `app/boot.ts` → `public/{app,login,pair,boot}.js`, sass `style.scss` → `public/style.css`, copy `index.html` + `login.html` + `src/client/fonts` → `public/fonts` + `src/client/skins/root` → `public/root` (via `scripts/copy-assets.mjs`)

@@ -104,3 +104,14 @@ const sumTokens = (tokens: TokenCounts) => tokens.input + tokens.output + tokens
 
 Folder: `src/client/alerts.ts` and `alerts-logic.ts` become `src/client/features/alerts/alerts.view.ts` and
 `alerts.logic.ts`, with `tests/client/features/alerts/alerts.logic.test.ts` beside the mirror.
+
+## Component tests
+
+Two runners, each with its own file suffix, so neither picks up the other's files:
+
+- `*.test.ts`: `node:test` (`npm run test:node`), for logic, server and source-scan tests.
+- `*.component.spec.ts`: Vitest with `@vue/test-utils` and `happy-dom` (`npm run test:component`, config in
+  `vitest.config.ts`), for Vue components. They live in `tests/client/features/<feature>/` beside the mirror, e.g.
+  `tests/client/features/core/click-counter.component.spec.ts`.
+
+`npm test` runs both. Import `describe`, `it` and `expect` from `vitest` explicitly (no globals).
