@@ -1,3 +1,4 @@
+// The summary setting and model-written summaries: the claude -p call, timeouts, failures and recap mode.
 import { after, before, beforeEach, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -37,7 +38,7 @@ before(async () => {
       assistantLine({ sessionId: ID, cwd, ts: '2026-10-01T10:07:00Z', id: 'm7', content: [{ type: 'text', text: 'done' }] }),
     ]),
   );
-  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   port = (server.address() as AddressInfo).port;
 });
 after(() => {
@@ -52,11 +53,11 @@ beforeEach(() => {
 });
 
 const host = () => `127.0.0.1:${port}`;
-const get = (p: string) => raw(port, { path: p, headers: { Host: host() } });
-const post = (p: string, body: object) =>
-  raw(port, { method: 'POST', path: p, body: JSON.stringify(body), headers: { Host: host(), Origin: `http://${host()}`, 'X-Dashboard': '1', 'Content-Type': 'application/json' } });
-const calls = () => (existsSync(cliLog) ? readFileSync(cliLog, 'utf8').trim().split('\n').map((l) => JSON.parse(l) as { args?: string[]; stdin?: string }) : []);
-const auditLines = () => readFileSync(join(fx.dataDir, 'commands.log'), 'utf8').trim().split('\n').map((l) => JSON.parse(l) as Record<string, unknown>);
+const get = (filePath: string) => raw(port, { path: filePath, headers: { Host: host() } });
+const post = (filePath: string, body: object) =>
+  raw(port, { method: 'POST', path: filePath, body: JSON.stringify(body), headers: { Host: host(), Origin: `http://${host()}`, 'X-Dashboard': '1', 'Content-Type': 'application/json' } });
+const calls = () => (existsSync(cliLog) ? readFileSync(cliLog, 'utf8').trim().split('\n').map((line) => JSON.parse(line) as { args?: string[]; stdin?: string }) : []);
+const auditLines = () => readFileSync(join(fx.dataDir, 'commands.log'), 'utf8').trim().split('\n').map((line) => JSON.parse(line) as Record<string, unknown>);
 
 test('the setting defaults to recap, persists, and rejects other values', async () => {
   assert.equal(getSummaryMode(), 'recap');
@@ -76,9 +77,9 @@ test('the setting defaults to recap, persists, and rejects other values', async 
 });
 
 test('model mode runs one claude -p call: haiku, no tools, no --bg or resume, transcript on stdin only', async () => {
-  const r = await get(`/api/sessions/${ID}/summary`);
-  assert.equal(r.status, 200);
-  const body = JSON.parse(r.body) as SessionSummary;
+  const response = await get(`/api/sessions/${ID}/summary`);
+  assert.equal(response.status, 200);
+  const body = JSON.parse(response.body) as SessionSummary;
   assert.equal(body.mode, 'model');
   assert.equal(body.text, 'Model summary: <b>fixed</b>');
   assert.equal(body.note, undefined);
@@ -88,10 +89,10 @@ test('model mode runs one claude -p call: haiku, no tools, no --bg or resume, tr
   assert.equal(a[0], '-p');
   assert.deepEqual(a.slice(2), ['--model', 'haiku', '--tools', '', '--disable-slash-commands', '--strict-mcp-config', '--setting-sources', 'user', '--no-session-persistence', '--output-format', 'text']);
   for (const bad of ['--bg', '--resume', '--permission-mode', 'bypassPermissions', 'dontAsk', '--dangerously-skip-permissions']) assert.ok(!a.includes(bad), bad);
-  assert.ok(!a.some((x) => x.includes('please fix it')));
+  assert.ok(!a.some((item) => item.includes('please fix it')));
   assert.match(data.stdin!, /user: .*please fix it/);
   assert.ok(!data.stdin!.includes(TOKEN));
-  const entry = auditLines().find((e) => e.action === 'summary')!;
+  const entry = auditLines().find((auditLine) => auditLine.action === 'summary')!;
   assert.equal(entry.session, ID);
   assert.equal(entry.ok, true);
   assert.ok(!JSON.stringify(entry).includes('please fix it'));
@@ -104,7 +105,7 @@ test('a failing model call returns the recap with a fixed note and an audited fa
   assert.equal(body.note, MODEL_FALLBACK_NOTE);
   assert.match(body.text, /Last reply: done/);
   assert.ok(!body.text.includes('boom'));
-  assert.equal(auditLines().filter((e) => e.action === 'summary').pop()!.ok, false);
+  assert.equal(auditLines().filter((auditLine) => auditLine.action === 'summary').pop()!.ok, false);
 });
 
 test('recap mode never starts the CLI', async () => {
@@ -123,17 +124,17 @@ test('a call over the timeout fails', async () => {
 test('summary calls count toward the 4-process cap', async () => {
   process.env.FAKE_CLAUDE_SUMMARY_DELAY_MS = '1500';
   const results = await Promise.allSettled(Array.from({ length: 5 }, () => summarizeWithModel('x', cwd)));
-  assert.equal(results.filter((r) => r.status === 'fulfilled').length, 4);
-  assert.equal(results.filter((r) => r.status === 'rejected').length, 1);
+  assert.equal(results.filter((result) => result.status === 'fulfilled').length, 4);
+  assert.equal(results.filter((result) => result.status === 'rejected').length, 1);
 });
 
 test('the excerpt is the newest text, masked, and at most 20 KB', async () => {
   const big = jsonl(
     Array.from({ length: 60 }, (_, i) => ({ type: 'user', sessionId: ID, cwd, timestamp: '2026-10-01T10:00:00Z', uuid: `u${i}`, message: { content: `turn ${i} ` + 'y'.repeat(900) } })),
   );
-  const p = join(transcriptDir(fx, cwd), 'big.jsonl');
-  writeFileSync(p, big);
-  const ex = await excerptSession(p);
+  const filePath = join(transcriptDir(fx, cwd), 'big.jsonl');
+  writeFileSync(filePath, big);
+  const ex = await excerptSession(filePath);
   assert.ok(ex.length <= EXCERPT_MAX);
   assert.ok(ex.includes('turn 59'));
   assert.ok(!ex.includes('turn 0 '));
@@ -141,44 +142,44 @@ test('the excerpt is the newest text, masked, and at most 20 KB', async () => {
 
 test('model summaries are cached per unchanged transcript and wait a cooldown for a new call', async () => {
   const { summarize, resetSummaryCache, SUMMARY_COOLDOWN_MS, SUMMARY_CACHE_MAX, COOLDOWN_NOTE } = await import('../../../src/server/claude/session-summary.ts');
-  let t = 1_000_000;
-  resetSummaryCache(() => t);
-  const p = join(transcriptDir(fx, cwd), 'cache.jsonl');
-  writeFileSync(p, jsonl([{ type: 'user', sessionId: ID, cwd, timestamp: '2026-10-01T10:00:00Z', uuid: 'c1', message: { content: 'hello' } }]));
+  let nowMs = 1_000_000;
+  resetSummaryCache(() => nowMs);
+  const filePath = join(transcriptDir(fx, cwd), 'cache.jsonl');
+  writeFileSync(filePath, jsonl([{ type: 'user', sessionId: ID, cwd, timestamp: '2026-10-01T10:00:00Z', uuid: 'c1', message: { content: 'hello' } }]));
   const ctx = { cwd, onAudit: () => {} };
-  const first = await summarize(p, 'model', undefined, ctx);
+  const first = await summarize(filePath, 'model', undefined, ctx);
   assert.equal(first.mode, 'model');
   assert.equal(calls().length, 2);
   // Unchanged transcript: reused, even after the cooldown, no process.
-  t += SUMMARY_COOLDOWN_MS * 5;
-  assert.deepEqual(await summarize(p, 'model', undefined, ctx), first);
+  nowMs += SUMMARY_COOLDOWN_MS * 5;
+  assert.deepEqual(await summarize(filePath, 'model', undefined, ctx), first);
   assert.equal(calls().length, 2);
   // Changed transcript after the cooldown gets a new call.
-  writeFileSync(p, jsonl([{ type: 'user', sessionId: ID, cwd, timestamp: '2026-10-01T10:00:00Z', uuid: 'c2', message: { content: 'hello again, longer' } }]));
-  assert.equal((await summarize(p, 'model', undefined, ctx)).mode, 'model');
+  writeFileSync(filePath, jsonl([{ type: 'user', sessionId: ID, cwd, timestamp: '2026-10-01T10:00:00Z', uuid: 'c2', message: { content: 'hello again, longer' } }]));
+  assert.equal((await summarize(filePath, 'model', undefined, ctx)).mode, 'model');
   assert.equal(calls().length, 4);
   // Changed again inside the cooldown: cached answer, no process.
-  writeFileSync(p, jsonl([{ type: 'user', sessionId: ID, cwd, timestamp: '2026-10-01T10:00:00Z', uuid: 'c3', message: { content: 'hello a third time, longer still' } }]));
-  t += 1;
-  assert.equal((await summarize(p, 'model', undefined, ctx)).mode, 'model');
+  writeFileSync(filePath, jsonl([{ type: 'user', sessionId: ID, cwd, timestamp: '2026-10-01T10:00:00Z', uuid: 'c3', message: { content: 'hello a third time, longer still' } }]));
+  nowMs += 1;
+  assert.equal((await summarize(filePath, 'model', undefined, ctx)).mode, 'model');
   assert.equal(calls().length, 4);
   // A failed first call: inside the cooldown the recap comes back with the fixed note, no process.
-  resetSummaryCache(() => t);
+  resetSummaryCache(() => nowMs);
   process.env.FAKE_CLAUDE_SUMMARY_FAILS = '1';
   rmSync(cliLog, { force: true });
-  assert.equal((await summarize(p, 'model', undefined, ctx)).note, MODEL_FALLBACK_NOTE);
-  const n = calls().length;
-  const again = await summarize(p, 'model', undefined, ctx);
+  assert.equal((await summarize(filePath, 'model', undefined, ctx)).note, MODEL_FALLBACK_NOTE);
+  const count = calls().length;
+  const again = await summarize(filePath, 'model', undefined, ctx);
   assert.equal(again.mode, 'recap');
   assert.equal(again.note, COOLDOWN_NOTE);
-  assert.equal(calls().length, n);
+  assert.equal(calls().length, count);
   // The cache is bounded.
-  resetSummaryCache(() => t);
+  resetSummaryCache(() => nowMs);
   delete process.env.FAKE_CLAUDE_SUMMARY_FAILS;
   for (let i = 0; i < SUMMARY_CACHE_MAX + 3; i++) {
-    const q = join(transcriptDir(fx, cwd), `many-${i}.jsonl`);
-    writeFileSync(q, jsonl([{ type: 'user', sessionId: ID, cwd, timestamp: '2026-10-01T10:00:00Z', uuid: `m${i}`, message: { content: 'x' } }]));
-    await summarize(q, 'model', undefined, ctx);
+    const manyFilePath = join(transcriptDir(fx, cwd), `many-${i}.jsonl`);
+    writeFileSync(manyFilePath, jsonl([{ type: 'user', sessionId: ID, cwd, timestamp: '2026-10-01T10:00:00Z', uuid: `m${i}`, message: { content: 'x' } }]));
+    await summarize(manyFilePath, 'model', undefined, ctx);
   }
   rmSync(cliLog, { force: true });
   await summarize(join(transcriptDir(fx, cwd), 'many-0.jsonl'), 'model', undefined, ctx);
@@ -189,11 +190,11 @@ test('model summaries are cached per unchanged transcript and wait a cooldown fo
 test('two concurrent model summaries for one session start one process', async () => {
   const { summarize, resetSummaryCache } = await import('../../../src/server/claude/session-summary.ts');
   resetSummaryCache();
-  const p = join(transcriptDir(fx, cwd), 'inflight.jsonl');
-  writeFileSync(p, jsonl([{ type: 'user', sessionId: ID, cwd, timestamp: '2026-10-01T10:00:00Z', uuid: 'f1', message: { content: 'hello' } }]));
+  const filePath = join(transcriptDir(fx, cwd), 'inflight.jsonl');
+  writeFileSync(filePath, jsonl([{ type: 'user', sessionId: ID, cwd, timestamp: '2026-10-01T10:00:00Z', uuid: 'f1', message: { content: 'hello' } }]));
   process.env.FAKE_CLAUDE_SUMMARY_DELAY_MS = '400';
   const ctx = { cwd, onAudit: () => {} };
-  const [a, b] = await Promise.all([summarize(p, 'model', undefined, ctx), summarize(p, 'model', undefined, ctx)]);
+  const [a, b] = await Promise.all([summarize(filePath, 'model', undefined, ctx), summarize(filePath, 'model', undefined, ctx)]);
   assert.equal(a.mode, 'model');
   assert.deepEqual(b, a);
   assert.equal(calls().length, 2); // one process: its argv line and its stdin line
@@ -202,22 +203,22 @@ test('two concurrent model summaries for one session start one process', async (
 
 test('a failed call on a changed transcript does not store the old answer as current', async () => {
   const { summarize, resetSummaryCache, SUMMARY_COOLDOWN_MS } = await import('../../../src/server/claude/session-summary.ts');
-  let t = 2_000_000;
-  resetSummaryCache(() => t);
-  const p = join(transcriptDir(fx, cwd), 'stale.jsonl');
+  let nowMs = 2_000_000;
+  resetSummaryCache(() => nowMs);
+  const filePath = join(transcriptDir(fx, cwd), 'stale.jsonl');
   const line = (id: string, text: string) => jsonl([{ type: 'user', sessionId: ID, cwd, timestamp: '2026-10-01T10:00:00Z', uuid: id, message: { content: text } }]);
   const ctx = { cwd, onAudit: () => {} };
-  writeFileSync(p, line('s1', 'hello'));
-  assert.equal((await summarize(p, 'model', undefined, ctx)).mode, 'model');
-  writeFileSync(p, line('s2', 'hello, now a longer transcript'));
-  t += SUMMARY_COOLDOWN_MS + 1;
+  writeFileSync(filePath, line('s1', 'hello'));
+  assert.equal((await summarize(filePath, 'model', undefined, ctx)).mode, 'model');
+  writeFileSync(filePath, line('s2', 'hello, now a longer transcript'));
+  nowMs += SUMMARY_COOLDOWN_MS + 1;
   process.env.FAKE_CLAUDE_SUMMARY_FAILS = '1';
-  assert.equal((await summarize(p, 'model', undefined, ctx)).note, MODEL_FALLBACK_NOTE);
+  assert.equal((await summarize(filePath, 'model', undefined, ctx)).note, MODEL_FALLBACK_NOTE);
   // After the cooldown, with the CLI working again, the next request makes a fresh call.
   delete process.env.FAKE_CLAUDE_SUMMARY_FAILS;
-  t += SUMMARY_COOLDOWN_MS + 1;
+  nowMs += SUMMARY_COOLDOWN_MS + 1;
   rmSync(cliLog, { force: true });
-  const next = await summarize(p, 'model', undefined, ctx);
+  const next = await summarize(filePath, 'model', undefined, ctx);
   assert.equal(next.mode, 'model');
   assert.equal(next.note, undefined);
   assert.equal(calls().length, 2);
@@ -227,12 +228,12 @@ test('a failed call on a changed transcript does not store the old answer as cur
 test('with commands disabled the endpoint answers with the recap and starts no process', async () => {
   await post('/api/settings/summary', { summary: 'model' });
   const off = createDashboardServer({ publicDir, commands: false });
-  await new Promise<void>((r) => off.listen(0, '127.0.0.1', r));
+  await new Promise<void>((resolve) => off.listen(0, '127.0.0.1', resolve));
   try {
     const p2 = (off.address() as AddressInfo).port;
-    const r = await raw(p2, { path: `/api/sessions/${ID}/summary`, headers: { Host: `127.0.0.1:${p2}` } });
-    assert.equal(r.status, 200);
-    assert.equal((JSON.parse(r.body) as SessionSummary).mode, 'recap');
+    const response = await raw(p2, { path: `/api/sessions/${ID}/summary`, headers: { Host: `127.0.0.1:${p2}` } });
+    assert.equal(response.status, 200);
+    assert.equal((JSON.parse(response.body) as SessionSummary).mode, 'recap');
     assert.equal(calls().length, 0);
   } finally {
     off.closeAllConnections();

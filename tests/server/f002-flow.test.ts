@@ -1,3 +1,4 @@
+// Device login, pairing, acting as a device, the audit trail and revoke on a LAN-mode server.
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -40,7 +41,7 @@ let lanHost = '';
 let pcHost = '';
 
 before(async () => {
-  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   port = (server.address() as AddressInfo).port;
   lanHost = `192.168.1.50:${port}`; // what a phone on the LAN sends
   pcHost = `127.0.0.1:${port}`;
@@ -56,7 +57,7 @@ const lanGet = (path: string, cookie?: string) => raw(port, { https: true, path,
 const lanPost = (path: string, body: string, headers: Record<string, string> = {}) =>
   raw(port, { https: true, method: 'POST', path, body, headers: { Host: lanHost, Origin: `https://${lanHost}`, ...headers } });
 const signIn = (tok: string) => lanPost('/login', `token=${encodeURIComponent(tok)}`, form);
-const cookieOf = (r: { headers: Record<string, string | string[] | undefined> }) => String(r.headers['set-cookie']).split(';')[0];
+const cookieOf = (response: { headers: Record<string, string | string[] | undefined> }) => String(response.headers['set-cookie']).split(';')[0];
 function call(host: string, method: string, path: string, body?: unknown, cookie?: string) {
   return raw(port, {
     https: true,
@@ -85,7 +86,7 @@ function openStream(host: string, cookie?: string) {
     req.end();
   });
 }
-const endedWithin = (p: Promise<void>, ms: number) => Promise.race([p.then(() => true), new Promise<boolean>((r) => setTimeout(() => r(false), ms))]);
+const endedWithin = (promise: Promise<void>, ms: number) => Promise.race([promise.then(() => true), new Promise<boolean>((resolve) => setTimeout(() => resolve(false), ms))]);
 
 type Alert = { kind: string; detail: string };
 type AuditRow = { action: string; device?: string; deviceId?: string; session?: string; project?: string; ok?: boolean };
@@ -104,7 +105,7 @@ test('F-002: device login, QR pairing, acting as a device, audit trail, revoke a
   assert.equal(made.status, 200);
   const dev = JSON.parse(made.body) as { id: string; token: string };
   const listed = JSON.parse((await pc('GET', '/api/devices')).body).devices as Array<{ id: string; name: string }>;
-  assert.equal(listed.find((d) => d.id === dev.id)?.name, 'Hallway phone');
+  assert.equal(listed.find((dValue) => dValue.id === dev.id)?.name, 'Hallway phone');
   assert.ok(!(await pc('GET', '/api/devices')).body.includes(dev.token), 'the token is not shown again');
 
   // 3. Sign in by token, then by QR code; the code works once.
@@ -142,13 +143,13 @@ test('F-002: device login, QR pairing, acting as a device, audit trail, revoke a
 
   // 5. The audit trail lists each action under the device's name, and the device filter applies.
   const mine = JSON.parse((await pc('GET', `/api/audit?device=${dev.id}`)).body).entries as AuditRow[];
-  const actions = mine.map((e) => e.action);
+  const actions = mine.map((entry) => entry.action);
   for (const a of ['start', 'message', 'stop']) assert.ok(actions.includes(a), `${a} is audited`);
-  assert.ok(mine.every((e) => e.device === 'Hallway phone' && e.deviceId === dev.id), 'only this device, under its name');
+  assert.ok(mine.every((entry) => entry.device === 'Hallway phone' && entry.deviceId === dev.id), 'only this device, under its name');
   const everything = JSON.parse((await pc('GET', '/api/audit')).body).entries as AuditRow[];
   const pcRows = JSON.parse((await pc('GET', '/api/audit?device=pc')).body).entries as AuditRow[];
-  assert.ok(pcRows.length > 0 && pcRows.every((e) => e.deviceId === 'pc'));
-  assert.ok(pcRows.some((e) => e.action === 'device-create') && pcRows.some((e) => e.action === 'device-pair'), 'PC actions are under "This PC"');
+  assert.ok(pcRows.length > 0 && pcRows.every((pcRow) => pcRow.deviceId === 'pc'));
+  assert.ok(pcRows.some((pcRow) => pcRow.action === 'device-create') && pcRows.some((pcRow) => pcRow.action === 'device-pair'), 'PC actions are under "This PC"');
   assert.ok(everything.length > mine.length, 'unfiltered shows more');
 
   // 6. Revoke from this PC: the open stream ends, the next call is refused, the token no longer signs in.

@@ -1,3 +1,4 @@
+// Fonts are served with their content type and exact bytes, and traversal is refused.
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -17,7 +18,7 @@ const { createDashboardServer } = await import('../../src/server/server.ts');
 const server = createDashboardServer({ publicDir });
 
 before(async () => {
-  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
 });
 after(() => {
   server.closeAllConnections();
@@ -30,7 +31,7 @@ function rawGet(path: string): Promise<{ status: number; type: string; body: Buf
   return new Promise((resolve, reject) => {
     const req = request({ host: '127.0.0.1', port, path, method: 'GET' }, (res) => {
       const chunks: Buffer[] = [];
-      res.on('data', (d: Buffer) => chunks.push(d));
+      res.on('data', (chunk: Buffer) => chunks.push(chunk));
       res.on('end', () => resolve({ status: res.statusCode ?? 0, type: String(res.headers['content-type']), body: Buffer.concat(chunks) }));
     });
     req.on('error', reject);
@@ -39,16 +40,16 @@ function rawGet(path: string): Promise<{ status: number; type: string; body: Buf
 }
 
 test('serves a woff2 font with its content type and exact bytes', async () => {
-  const r = await rawGet('/fonts/test.woff2');
-  assert.equal(r.status, 200);
-  assert.equal(r.type, 'font/woff2');
-  assert.ok(r.body.equals(fontBytes));
+  const response = await rawGet('/fonts/test.woff2');
+  assert.equal(response.status, 200);
+  assert.equal(response.type, 'font/woff2');
+  assert.ok(response.body.equals(fontBytes));
 });
 
 test('traversal out of the fonts folder is refused', async () => {
-  for (const p of ['/fonts/../../package.json', '/fonts/%2e%2e/%2e%2e/package.json', '/fonts/..%5c..%5cpackage.json']) {
-    const r = await rawGet(p);
-    assert.ok(!r.body.toString().includes('outside'), p);
-    assert.ok([403, 404].includes(r.status), `${p} -> ${r.status}`);
+  for (const path of ['/fonts/../../package.json', '/fonts/%2e%2e/%2e%2e/package.json', '/fonts/..%5c..%5cpackage.json']) {
+    const response = await rawGet(path);
+    assert.ok(!response.body.toString().includes('outside'), path);
+    assert.ok([403, 404].includes(response.status), `${path} -> ${response.status}`);
   }
 });

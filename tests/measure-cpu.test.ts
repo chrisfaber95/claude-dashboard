@@ -1,3 +1,4 @@
+// CPU measurement helpers: percent of wall time, median and browser discovery.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
@@ -29,6 +30,6 @@ test('median handles odd, even and unsorted input', () => {
 
 test('browserCandidates lists Chrome and Edge under the Windows install roots', () => {
   const list: string[] = browserCandidates({ ProgramFiles: 'C:\\PF', 'ProgramFiles(x86)': 'C:\\PF86' }, 'win32');
-  assert.ok(list.some((p) => p.endsWith('chrome.exe') && p.startsWith('C:\\PF')));
-  assert.ok(list.some((p) => p.endsWith('msedge.exe') && p.startsWith('C:\\PF86')));
+  assert.ok(list.some((path) => path.endsWith('chrome.exe') && path.startsWith('C:\\PF')));
+  assert.ok(list.some((path) => path.endsWith('msedge.exe') && path.startsWith('C:\\PF86')));
 });

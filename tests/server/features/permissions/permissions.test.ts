@@ -1,3 +1,4 @@
+// Permission store, hook settings and the hook script: secret, answers, expiry and output.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
@@ -13,45 +14,45 @@ const dir = () => mkdtempSync(join(tmpdir(), 'perm-'));
 const SID = '11111111-2222-4333-8444-555555555555';
 
 test('store: secret is created once and checked; answer, expiry and abandon settle a request', async () => {
-  const d = dir();
-  const s = createPermissionStore({ dataDir: d, waitMs: 60 });
-  assert.equal(s.checkSecret('nope'), false);
-  assert.equal(s.checkSecret(undefined), false);
-  const secret = readFileSync(s.secretPath(), 'utf8').trim();
+  const directory = dir();
+  const permissionStore = createPermissionStore({ dataDir: directory, waitMs: 60 });
+  assert.equal(permissionStore.checkSecret('nope'), false);
+  assert.equal(permissionStore.checkSecret(undefined), false);
+  const secret = readFileSync(permissionStore.secretPath(), 'utf8').trim();
   assert.match(secret, /^[0-9a-f]{64}$/);
-  assert.equal(s.checkSecret(secret), true);
-  assert.equal(readFileSync(createPermissionStore({ dataDir: d }).secretPath(), 'utf8').trim(), secret);
+  assert.equal(permissionStore.checkSecret(secret), true);
+  assert.equal(readFileSync(createPermissionStore({ dataDir: directory }).secretPath(), 'utf8').trim(), secret);
 
-  const s2 = createPermissionStore({ dataDir: d, waitMs: 5000 });
-  const r = s2.request(SID, 'Bash', 'ls')!;
-  assert.deepEqual(s2.list().map((x) => [x.id, x.status]), [[r.id, 'pending']]);
+  const s2 = createPermissionStore({ dataDir: directory, waitMs: 5000 });
+  const response = s2.request(SID, 'Bash', 'ls')!;
+  assert.deepEqual(s2.list().map((item) => [item.id, item.status]), [[response.id, 'pending']]);
   const pendingInfo = s2.list()[0];
-  assert.deepEqual(s2.answer(r.id, 'allow'), { outcome: 'answered', request: { id: r.id, sessionId: SID, tool: 'Bash', text: 'ls', createdMs: pendingInfo.createdMs, status: 'pending' } });
-  assert.equal(await r.outcome, 'allow');
-  assert.deepEqual(s2.answer(r.id, 'deny'), { outcome: 'settled' });
+  assert.deepEqual(s2.answer(response.id, 'allow'), { outcome: 'answered', request: { id: response.id, sessionId: SID, tool: 'Bash', text: 'ls', createdMs: pendingInfo.createdMs, status: 'pending' } });
+  assert.equal(await response.outcome, 'allow');
+  assert.deepEqual(s2.answer(response.id, 'deny'), { outcome: 'settled' });
   assert.deepEqual(s2.answer('00000000-0000-4000-8000-000000000000', 'deny'), { outcome: 'unknown' });
   assert.deepEqual(s2.list(), []);
 
-  const b = s.request(SID, 'Write', 'x')!;
+  const b = permissionStore.request(SID, 'Write', 'x')!;
   assert.equal(await b.outcome, 'expired'); // waitMs elapsed
-  assert.deepEqual(s.list().map((x) => x.status), ['expired']);
-  assert.deepEqual(s.answer(b.id, 'allow'), { outcome: 'settled' });
+  assert.deepEqual(permissionStore.list().map((item) => item.status), ['expired']);
+  assert.deepEqual(permissionStore.answer(b.id, 'allow'), { outcome: 'settled' });
 
-  const c = s2.request(SID, 'Bash', 'y')!;
-  s2.abandon(c.id);
-  assert.equal(await c.outcome, 'expired');
+  const call = s2.request(SID, 'Bash', 'y')!;
+  s2.abandon(call.id);
+  assert.equal(await call.outcome, 'expired');
 });
 
 test('store: settings file holds only the PermissionRequest hook and not the secret', () => {
-  const s = createPermissionStore({ dataDir: dir() });
-  const file = s.writeSettings('http://127.0.0.1:4777');
+  const permissionStore = createPermissionStore({ dataDir: dir() });
+  const file = permissionStore.writeSettings('http://127.0.0.1:4777');
   const j = JSON.parse(readFileSync(file, 'utf8'));
   assert.deepEqual(Object.keys(j), ['hooks']);
   assert.deepEqual(Object.keys(j.hooks), ['PermissionRequest']);
   const cmd: string = j.hooks.PermissionRequest[0].hooks[0].command;
   assert.match(cmd, /--url "http:\/\/127\.0\.0\.1:4777"/);
-  assert.ok(!cmd.includes(readFileSync(s.secretPath(), 'utf8').trim()));
-  assert.ok(statSync(s.secretPath()).isFile());
+  assert.ok(!cmd.includes(readFileSync(permissionStore.secretPath(), 'utf8').trim()));
+  assert.ok(statSync(permissionStore.secretPath()).isFile());
   // The hook runs from a copy in the data folder, not from the repo's scripts folder.
   const copy = join(dirname(file), 'permission-hook.mjs');
   assert.ok(cmd.includes(copy.replaceAll('\\', '/')));
@@ -77,15 +78,15 @@ async function fakeDashboard(reply: () => { status: number; body: string } | 'ha
   const seen: { headers: Record<string, unknown>; body: string }[] = [];
   const server = createServer((req, res) => {
     let body = '';
-    req.on('data', (c) => (body += c));
+    req.on('data', (chunk) => (body += chunk));
     req.on('end', () => {
       seen.push({ headers: req.headers, body });
-      const r = reply();
-      if (r === 'hang') return;
-      res.writeHead(r.status, { 'Content-Type': 'application/json' }).end(r.body);
+      const response = reply();
+      if (response === 'hang') return;
+      res.writeHead(response.status, { 'Content-Type': 'application/json' }).end(response.body);
     });
   });
-  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   return {
     url,
@@ -135,8 +136,8 @@ test('hook: deny, expired, bad secret (403) and bad JSON give the right output',
 
 test('hook: no decision on timeout, a dashboard that is down, bad stdin and a non-loopback url', async () => {
   const dash = await fakeDashboard(() => 'hang');
-  const t = setup(dash.url, ['--timeout-ms', '150']);
-  assert.equal(await runHook(t.stdin, t.argv), null);
+  const nowMs = setup(dash.url, ['--timeout-ms', '150']);
+  assert.equal(await runHook(nowMs.stdin, nowMs.argv), null);
   dash.close();
   const down = setup(dash.url); // closed now
   assert.equal(await runHook(down.stdin, down.argv), null);

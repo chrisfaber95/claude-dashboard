@@ -4,30 +4,7 @@ import tseslint from 'typescript-eslint';
 
 // Files that still break the readability rules. This list may only shrink: cleanup tickets remove entries as
 // they fix a file, and a new or moved file must pass the rules (a move only updates the path).
-export const LEGACY_FILES = [
-  'src/server/config.ts',
-  'tests/measure-cpu.test.ts',
-  'tests/server/auth/auth.test.ts',
-  'tests/server/auth/devices.test.ts',
-  'tests/server/claude/claude-bin.test.ts',
-  'tests/server/claude/session-summary.test.ts',
-  'tests/server/claude/summary-model.test.ts',
-  'tests/server/commands.test.ts',
-  'tests/server/config.test.ts',
-  'tests/server/f002-flow.test.ts',
-  'tests/server/features/alerts/alerts.test.ts',
-  'tests/server/features/audit-log/audit-log.test.ts',
-  'tests/server/features/limits/limits.test.ts',
-  'tests/server/features/permissions/permissions.test.ts',
-  'tests/server/features/team/team.test.ts',
-  'tests/server/lan.test.ts',
-  'tests/server/server.test.ts',
-  'tests/server/static-fonts.test.ts',
-  'tests/server/transcripts/state.test.ts',
-  'tests/server/transcripts/subagents.test.ts',
-  'tests/server/transcripts/transcript-view.test.ts',
-  'tests/server/transcripts/transcripts.test.ts',
-];
+export const LEGACY_FILES = [];
 
 const FORBIDDEN_ABBREVIATIONS = [
   'fmt', 'st', 'rec', 'sid', 'msg', 'buf', 'el', 'cls', 'tmp', 'cfg',

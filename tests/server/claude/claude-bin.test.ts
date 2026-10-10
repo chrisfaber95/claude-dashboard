@@ -1,24 +1,26 @@
+// How claude.exe is found: environment override, PATH and the VS Code extension folder.
 import { afterEach, beforeEach, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 
-const { CommandError, resolveClaudeBin, startTask } = await import('../../../src/server/claude/claude-cli.ts');
+const claudeCli = await import('../../../src/server/claude/claude-cli.ts');
+const { resolveClaudeBin, startTask } = claudeCli;
 
 const NAME = process.platform === 'win32' ? 'claude.exe' : 'claude';
 const KEYS = ['PATH', 'CLAUDE_BIN', 'CLAUDE_BIN_ARGS', 'HOME', 'USERPROFILE'] as const;
 
-let tmp = '';
+let temporaryDirectory = '';
 let home = '';
 let cwd = '';
 let saved: Record<string, string | undefined> = {};
 
 beforeEach(() => {
-  saved = Object.fromEntries(KEYS.map((k) => [k, process.env[k]]));
+  saved = Object.fromEntries(KEYS.map((key) => [key, process.env[key]]));
   cwd = process.cwd();
-  tmp = mkdtempSync(join(tmpdir(), 'claude-bin-'));
-  home = join(tmp, 'home');
+  temporaryDirectory = mkdtempSync(join(tmpdir(), 'claude-bin-'));
+  home = join(temporaryDirectory, 'home');
   mkdirSync(home);
   process.env.HOME = home;
   process.env.USERPROFILE = home;
@@ -29,38 +31,38 @@ beforeEach(() => {
 
 afterEach(() => {
   process.chdir(cwd);
-  for (const k of KEYS) {
-    if (saved[k] === undefined) delete process.env[k];
-    else process.env[k] = saved[k];
+  for (const key of KEYS) {
+    if (saved[key] === undefined) delete process.env[key];
+    else process.env[key] = saved[key];
   }
-  rmSync(tmp, { recursive: true, force: true });
+  rmSync(temporaryDirectory, { recursive: true, force: true });
 });
 
 function dir(name: string): string {
-  const d = join(tmp, name);
-  mkdirSync(d, { recursive: true });
-  return d;
+  const directory = join(temporaryDirectory, name);
+  mkdirSync(directory, { recursive: true });
+  return directory;
 }
 
-function fakeBin(d: string): string {
-  const p = join(d, NAME);
-  writeFileSync(p, 'placeholder', { mode: 0o755 });
-  return p;
+function fakeBin(directory: string): string {
+  const filePath = join(directory, NAME);
+  writeFileSync(filePath, 'placeholder', { mode: 0o755 });
+  return filePath;
 }
 
 function vscodeBin(version: string, withBin = true): string {
-  const d = join(home, '.vscode', 'extensions', `anthropic.claude-code-${version}-win32-x64`, 'resources', 'native-binary');
-  mkdirSync(d, { recursive: true });
-  return withBin ? fakeBin(d) : join(d, NAME);
+  const directory = join(home, '.vscode', 'extensions', `anthropic.claude-code-${version}-win32-x64`, 'resources', 'native-binary');
+  mkdirSync(directory, { recursive: true });
+  return withBin ? fakeBin(directory) : join(directory, NAME);
 }
 
 test('CLAUDE_BIN wins over PATH and VS Code, and CLAUDE_BIN_ARGS is parsed', () => {
   fakeBin(dir('pathdir'));
   vscodeBin('2.0.0');
-  process.env.PATH = join(tmp, 'pathdir');
-  process.env.CLAUDE_BIN = join(tmp, 'custom-bin');
+  process.env.PATH = join(temporaryDirectory, 'pathdir');
+  process.env.CLAUDE_BIN = join(temporaryDirectory, 'custom-bin');
   process.env.CLAUDE_BIN_ARGS = JSON.stringify(['script.mjs', '--x']);
-  assert.deepEqual(resolveClaudeBin(), { bin: join(tmp, 'custom-bin'), prefix: ['script.mjs', '--x'] });
+  assert.deepEqual(resolveClaudeBin(), { bin: join(temporaryDirectory, 'custom-bin'), prefix: ['script.mjs', '--x'] });
 });
 
 test('CLAUDE_BIN without args gives an empty prefix', () => {
@@ -79,36 +81,36 @@ test('finds the binary in the second PATH dir', () => {
 test('PATH wins over a VS Code extension binary', () => {
   vscodeBin('2.0.0');
   const bin = fakeBin(dir('p'));
-  process.env.PATH = join(tmp, 'p');
+  process.env.PATH = join(temporaryDirectory, 'p');
   assert.equal(resolveClaudeBin()?.bin, bin);
 });
 
 test('a quoted PATH entry is accepted', () => {
   const bin = fakeBin(dir('quoted'));
-  process.env.PATH = `"${join(tmp, 'quoted')}"`;
+  process.env.PATH = `"${join(temporaryDirectory, 'quoted')}"`;
   assert.equal(resolveClaudeBin()?.bin, bin);
 });
 
 test('a relative PATH entry is ignored', () => {
-  const d = dir('rel');
-  fakeBin(d);
-  process.chdir(d);
+  const directory = dir('rel');
+  fakeBin(directory);
+  process.chdir(directory);
   process.env.PATH = ['.', ''].join(delimiter);
   assert.equal(resolveClaudeBin(), null);
 });
 
 test('a drive-less or UNC PATH entry is ignored on Windows', { skip: process.platform !== 'win32' }, () => {
-  const d = dir('driveless');
-  fakeBin(d);
-  process.env.PATH = [d.slice(2), `\\\\127.0.0.1\\${d[0]}$${d.slice(2)}`].join(delimiter);
-  process.chdir(d);
+  const directory = dir('driveless');
+  fakeBin(directory);
+  process.env.PATH = [directory.slice(2), `\\\\127.0.0.1\\${directory[0]}$${directory.slice(2)}`].join(delimiter);
+  process.chdir(directory);
   assert.equal(resolveClaudeBin(), null);
 });
 
 test('a directory named like the binary is not accepted', () => {
-  const d = dir('dirbin');
-  mkdirSync(join(d, NAME));
-  process.env.PATH = d;
+  const directory = dir('dirbin');
+  mkdirSync(join(directory, NAME));
+  process.env.PATH = directory;
   assert.equal(resolveClaudeBin(), null);
 });
 
@@ -134,10 +136,10 @@ test('returns null when nothing is found', () => {
 
 test('commands fail with the unchanged not-found error when nothing is found', async () => {
   process.env.PATH = dir('empty');
-  await assert.rejects(startTask(tmp, 'x', 'plan'), (e: unknown) => {
-    assert.ok(e instanceof CommandError);
-    assert.equal(e.status, 500);
-    assert.equal(e.message, 'Claude CLI not found (set CLAUDE_BIN)');
+  await assert.rejects(startTask(temporaryDirectory, 'x', 'plan'), (entry: unknown) => {
+    assert.ok(entry instanceof claudeCli.CommandError);
+    assert.equal(entry.status, 500);
+    assert.equal(entry.message, 'Claude CLI not found (set CLAUDE_BIN)');
     return true;
   });
 });

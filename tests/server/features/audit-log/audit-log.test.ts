@@ -1,3 +1,4 @@
+// Audit log reading: newest first, device filter, cap, malformed lines and allowlisted fields.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -7,7 +8,7 @@ import { makeFixture } from '../../../helpers.ts';
 const fx = makeFixture();
 const { AUDIT_MAX_BYTES, AUDIT_MAX_ENTRIES, parseAudit, readAudit, toAuditEntry } = await import('../../../../src/server/features/audit-log/audit-log.ts');
 const log = join(fx.dataDir, 'commands.log');
-const line = (o: Record<string, unknown>) => JSON.stringify(o);
+const line = (fields: Record<string, unknown>) => JSON.stringify(fields);
 const write = (lines: string[]) => {
   mkdirSync(fx.dataDir, { recursive: true });
   writeFileSync(log, lines.join('\n') + '\n');
@@ -28,7 +29,7 @@ test('newest first, filtered by device id, capped at 200', async () => {
   assert.equal(all[199].ts, 't50');
   const phone = await readAudit('aaaaaaaaaaaa');
   assert.equal(phone.length, 125, 'the filter applies before the cap');
-  assert.ok(phone.every((e) => e.deviceId === 'aaaaaaaaaaaa' && e.device === 'phone'));
+  assert.ok(phone.every((entry) => entry.deviceId === 'aaaaaaaaaaaa' && entry.device === 'phone'));
   assert.equal(phone[0].ts, 't249');
   assert.deepEqual(await readAudit('ffffffffffff'), []);
 });
@@ -52,7 +53,7 @@ test('malformed lines are skipped, not fatal', () => {
 });
 
 test('only allowlisted fields leave the file, with sane types and lengths', () => {
-  const e = toAuditEntry({
+  const entry = toAuditEntry({
     ts: '2026-10-09T10:00:00.000Z',
     action: 'message',
     ip: '192.168.1.20',
@@ -69,9 +70,9 @@ test('only allowlisted fields leave the file, with sane types and lengths', () =
     code: 'pairing-code',
     extra: { nested: true },
   });
-  assert.deepEqual(Object.keys(e!).sort(), ['action', 'deviceId', 'device', 'mode', 'ok', 'project', 'prompt', 'session', 'ts'].sort());
-  assert.equal(e!.prompt!.length, 200);
-  assert.ok(!JSON.stringify(e).includes('192.168') && !JSON.stringify(e).includes('sekret') && !JSON.stringify(e).includes('pairing-code'));
+  assert.deepEqual(Object.keys(entry!).sort(), ['action', 'deviceId', 'device', 'mode', 'ok', 'project', 'prompt', 'session', 'ts'].sort());
+  assert.equal(entry!.prompt!.length, 200);
+  assert.ok(!JSON.stringify(entry).includes('192.168') && !JSON.stringify(entry).includes('sekret') && !JSON.stringify(entry).includes('pairing-code'));
   // wrong types are dropped, not coerced
   const odd = toAuditEntry({ ts: 't', action: 'a', ok: 'yes', project: 5, mode: { x: 1 }, prompt: null });
   assert.deepEqual(odd, { ts: 't', action: 'a' });
@@ -98,8 +99,8 @@ test('at most the last megabyte is read, and a cut first line is dropped', async
   assert.equal(all.length, AUDIT_MAX_ENTRIES);
   assert.equal(all[0].ts, `n${count - 1}`);
   // an entry from the first (unread) third of the file never shows up, even when filtering for it
-  const early = lines.slice(0, 1000).map((l) => JSON.parse(l).ts as string);
-  assert.ok(!all.some((e) => early.includes(e.ts)));
+  const early = lines.slice(0, 1000).map((currentLine) => JSON.parse(currentLine).ts as string);
+  assert.ok(!all.some((entry) => early.includes(entry.ts)));
   // a device that only appears in the unread part yields nothing
   writeFileSync(log, line({ ts: 'ancient', action: 'start', deviceId: 'bbbbbbbbbbbb' }) + '\n' + lines.join('\n') + '\n');
   assert.deepEqual(await readAudit('bbbbbbbbbbbb'), []);

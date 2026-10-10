@@ -1,3 +1,4 @@
+// Config helpers: transcript folder slugs, path normalisation, local day and empty token counts.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { cwdSlug, emptyTokens, localDay, normPath } from '../../src/server/config.ts';
@@ -13,8 +14,8 @@ test('normPath lowercases, unifies separators and strips trailing slashes', () =
 });
 
 test('localDay formats in local time as YYYY-MM-DD', () => {
-  const d = new Date(2026, 0, 5, 23, 59); // local
-  assert.equal(localDay(d.getTime()), '2026-01-05');
+  const date = new Date(2026, 0, 5, 23, 59); // local
+  assert.equal(localDay(date.getTime()), '2026-01-05');
 });
 
 test('emptyTokens returns a fresh zeroed object each call', () => {
