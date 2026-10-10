@@ -1,3 +1,4 @@
+// The session recap: times, status, token totals, last actions and tail-only reads.
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -21,8 +22,8 @@ const ID = '11111111-2222-3333-4444-555555555555';
 const cwd = join(fx.projectsRoot, 'demo');
 const SECRET = 'FAKE-SECRET-FOR-TEST';
 const longReply = 'x'.repeat(500);
-const tool = (n: number, name: string, input: object) =>
-  assistantLine({ sessionId: ID, cwd, ts: `2026-10-01T10:0${n}:00Z`, id: `m${n}`, usage: { input_tokens: 1, output_tokens: 2, cache_read_input_tokens: 3, cache_creation_input_tokens: 4 }, content: [{ type: 'tool_use', name, input }] });
+const tool = (count: number, name: string, input: object) =>
+  assistantLine({ sessionId: ID, cwd, ts: `2026-10-01T10:0${count}:00Z`, id: `m${count}`, usage: { input_tokens: 1, output_tokens: 2, cache_read_input_tokens: 3, cache_creation_input_tokens: 4 }, content: [{ type: 'tool_use', name, input }] });
 const path = join(transcriptDir(fx, cwd), `${ID}.jsonl`);
 
 before(async () => {
@@ -40,7 +41,7 @@ before(async () => {
       assistantLine({ sessionId: ID, cwd, ts: '2026-10-01T10:07:00Z', id: 'm7', content: [{ type: 'text', text: longReply }] }),
     ]),
   );
-  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   port = (server.address() as AddressInfo).port;
 });
 after(() => {
@@ -49,44 +50,44 @@ after(() => {
 });
 
 test('the recap has times, status, token totals, the last 5 actions and a cut reply', async () => {
-  const r = await recapSession(path, { status: 'idle', startedAtMs: Date.parse('2026-10-01T09:59:00Z') });
-  assert.equal(r.mode, 'recap');
-  assert.match(r.text, /Started: 2026-10-01 09:59 UTC/);
-  assert.match(r.text, /Last activity: 2026-10-01 10:07 UTC/);
-  assert.match(r.text, /Status: idle/);
+  const currentRecap = await recapSession(path, { status: 'idle', startedAtMs: Date.parse('2026-10-01T09:59:00Z') });
+  assert.equal(currentRecap.mode, 'recap');
+  assert.match(currentRecap.text, /Started: 2026-10-01 09:59 UTC/);
+  assert.match(currentRecap.text, /Last activity: 2026-10-01 10:07 UTC/);
+  assert.match(currentRecap.text, /Status: idle/);
   // 6 tool turns of 1/2/3/4 plus the reply turn of 10/20/30/40.
-  assert.match(r.text, /Tokens: 160 \(in 16, out 32, cache read 48, cache write 64\)/);
-  const actions = r.text.split('Last actions:\n')[1].split('\nLast reply')[0].split('\n');
+  assert.match(currentRecap.text, /Tokens: 160 \(in 16, out 32, cache read 48, cache write 64\)/);
+  const actions = currentRecap.text.split('Last actions:\n')[1].split('\nLast reply')[0].split('\n');
   assert.equal(actions.length, 5);
   assert.equal(actions[0], '- Edit src/server/auth.ts');
   assert.ok(actions[1].startsWith('- Bash: npm test'));
   assert.ok(actions[1].length <= '- Bash: '.length + 60);
   assert.deepEqual(actions.slice(2), ['- Grep foo', '- Write src/new.ts', '- TodoWrite']);
-  assert.match(r.text, /Last reply: x{299}…$/);
-  assert.ok(!/cost|\$/i.test(r.text));
+  assert.match(currentRecap.text, /Last reply: x{299}…$/);
+  assert.ok(!/cost|\$/i.test(currentRecap.text));
 });
 
 test('a recap without a live session says it is not running and takes times from the transcript', async () => {
-  const r = await recapSession(path);
-  assert.match(r.text, /Status: not running/);
-  assert.match(r.text, /Started: 2026-10-01 10:00 UTC/);
+  const recap = await recapSession(path);
+  assert.match(recap.text, /Status: not running/);
+  assert.match(recap.text, /Started: 2026-10-01 10:00 UTC/);
 });
 
 test('tool inputs other than the target never reach the recap', async () => {
-  const r = await recapSession(path);
-  assert.ok(!r.text.includes(SECRET));
-  assert.ok(!r.text.includes('old_string'));
-  assert.ok(!r.text.includes('todos'));
+  const recap = await recapSession(path);
+  assert.ok(!recap.text.includes(SECRET));
+  assert.ok(!recap.text.includes('old_string'));
+  assert.ok(!recap.text.includes('todos'));
 });
 
 test('only the tail of a big transcript is read', async () => {
-  const r = await recapSession(path, undefined, 1200);
-  assert.match(r.text, /Last reply: x{299}…$/);
-  assert.ok(!r.text.includes('src/old.ts'));
+  const recap = await recapSession(path, undefined, 1200);
+  assert.match(recap.text, /Last reply: x{299}…$/);
+  assert.ok(!recap.text.includes('src/old.ts'));
 });
 
 test('GET /api/sessions/:id/summary returns the recap; bad or unknown ids fail with fixed strings', async () => {
-  const get = (p: string) => raw(port, { path: p, headers: { Host: `127.0.0.1:${port}` } });
+  const get = (filePath: string) => raw(port, { path: filePath, headers: { Host: `127.0.0.1:${port}` } });
   const ok = await get(`/api/sessions/${ID}/summary`);
   assert.equal(ok.status, 200);
   const body = JSON.parse(ok.body) as SessionSummary;
@@ -101,15 +102,15 @@ test('GET /api/sessions/:id/summary returns the recap; bad or unknown ids fail w
 });
 
 test('secrets in a command or URL are masked before the target is cut', async () => {
-  const p = join(transcriptDir(fx, cwd), 'redact.jsonl');
+  const filePath = join(transcriptDir(fx, cwd), 'redact.jsonl');
   writeFileSync(
-    p,
+    filePath,
     jsonl([
       tool(1, 'Bash', { command: 'curl -H "Authorization: Bearer sk-FAKE123" https://u:pw@h.test/a?token=FAKE456' }),
       tool(2, 'Bash', { command: 'export API_TOKEN=FAKE789 && npm test' }),
     ]),
   );
-  const r = await recapSession(p);
-  assert.doesNotMatch(r.text, /FAKE\d|pw@/);
-  assert.match(r.text, /npm test/);
+  const recap = await recapSession(filePath);
+  assert.doesNotMatch(recap.text, /FAKE\d|pw@/);
+  assert.match(recap.text, /npm test/);
 });

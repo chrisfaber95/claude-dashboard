@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { CLAUDE_DIR, CLAUDE_JSON, COMMANDS_ENABLED, LAN_MODE, PROJECTS_ROOT, emptyTokens, localDay, normPath } from '../config.ts';
+import { CLAUDE_DIR, CLAUDE_JSON, canRunCommands, isLanMode, PROJECTS_ROOT, emptyTokens, localDay, normPath } from '../config.ts';
 import { buildAlerts } from '../features/alerts/alerts.ts';
 import { getLimits } from '../features/limits/limits.ts';
 import { readTeamBoard } from '../features/team/team.ts';
@@ -216,8 +216,8 @@ export function buildState(features: BuildStateFeatures = {}): DashboardState {
     limits,
     recentSessions: buildRecentSessions(liveIds),
     features: {
-      lan: features.lan ?? LAN_MODE,
-      commands: features.commands ?? COMMANDS_ENABLED,
+      lan: features.lan ?? isLanMode,
+      commands: features.commands ?? canRunCommands,
       permissionModes: PERMISSION_MODES,
       manageDevices: features.manageDevices ?? false,
     },

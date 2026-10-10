@@ -1,3 +1,4 @@
+// Dashboard state: live sessions, projects, per-project tokens, messages and usage days.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -54,19 +55,19 @@ writeFileSync(
   ]),
 );
 
-const s = buildState();
+const currentState = buildState();
 
 test('lists only live sessions with their aggregated tokens and branch', () => {
-  assert.deepEqual(s.sessions.map((x) => x.name), ['alpha-live']);
-  const x = s.sessions[0];
-  assert.equal(x.project, 'Alpha');
-  assert.equal(x.status, 'busy');
-  assert.equal(x.branch, 'feature/x');
-  assert.equal(x.tokens.output, 60);
+  assert.deepEqual(currentState.sessions.map((session) => session.name), ['alpha-live']);
+  const item = currentState.sessions[0];
+  assert.equal(item.project, 'Alpha');
+  assert.equal(item.status, 'busy');
+  assert.equal(item.branch, 'feature/x');
+  assert.equal(item.tokens.output, 60);
 });
 
 test('lists visible project folders with git info and worktree detection', () => {
-  const byName = Object.fromEntries(s.projects.map((p) => [p.name, p]));
+  const byName = Object.fromEntries(currentState.projects.map((project) => [project.name, project]));
   assert.deepEqual(Object.keys(byName).sort(), ['Alpha', 'Alpha-wt', 'Detached', 'Plain']);
   assert.equal(byName.Alpha.branch, 'feature/x');
   assert.equal(byName.Alpha.isWorktree, false);
@@ -77,7 +78,7 @@ test('lists visible project folders with git info and worktree detection', () =>
 });
 
 test('computes per-project today / 7d / total tokens and sorts live projects first', () => {
-  const a = s.projects[0];
+  const a = currentState.projects[0];
   assert.equal(a.name, 'Alpha');
   assert.equal(a.liveSessions, 1);
   assert.equal(a.tokensToday, 100);
@@ -86,19 +87,19 @@ test('computes per-project today / 7d / total tokens and sorts live projects fir
 });
 
 test('names messages after the receiving live session', () => {
-  assert.equal(s.messages.length, 1);
-  assert.equal(s.messages[0].sessionName, 'alpha-live');
-  assert.equal(s.messages[0].peer, 'plain-session');
+  assert.equal(currentState.messages.length, 1);
+  assert.equal(currentState.messages[0].sessionName, 'alpha-live');
+  assert.equal(currentState.messages[0].peer, 'plain-session');
 });
 
 test('usage days are sorted and totals add up', () => {
-  const days = s.usage.days.map((d) => d.day);
+  const days = currentState.usage.days.map((currentDay) => currentDay.day);
   assert.deepEqual(days, [...days].sort());
-  assert.deepEqual(s.usage.totals, { input: 30, output: 60, cacheRead: 90, cacheWrite: 120 });
-  assert.equal(s.usage.byModel['claude-sonnet-5-5'], 300);
+  assert.deepEqual(currentState.usage.totals, { input: 30, output: 60, cacheRead: 90, cacheWrite: 120 });
+  assert.equal(currentState.usage.byModel['claude-sonnet-5-5'], 300);
 });
 
 test('limits fall back cleanly when no cache file exists', () => {
-  assert.equal(s.limits.source, 'none');
-  assert.deepEqual(s.limits.windows, []);
+  assert.equal(currentState.limits.source, 'none');
+  assert.deepEqual(currentState.limits.windows, []);
 });

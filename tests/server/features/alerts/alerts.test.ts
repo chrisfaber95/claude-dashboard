@@ -1,3 +1,4 @@
+// Alerts: derived per condition, deduplicated, dismissal, threshold and failed sign-ins.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -18,7 +19,7 @@ function session(id: string, status: string): SessionInfo {
 function limits(utils: number[], source: LimitsInfo['source'] = 'live'): LimitsInfo {
   return {
     source, fetchedAtMs: 1, error: null, hits: [],
-    windows: utils.map((u, i) => ({ key: `w${i}`, label: `Window ${i}`, utilization: u, resetsAtMs: 9000 + i })),
+    windows: utils.map((utilization, i) => ({ key: `w${i}`, label: `Window ${i}`, utilization: utilization, resetsAtMs: 9000 + i })),
   };
 }
 function team(ids: string[]): TeamBoard {
@@ -36,11 +37,11 @@ test('derives one alert per condition with deterministic ids', () => {
     { sessions: [session('s1', 'waiting'), session('s2', 'busy')], limits: limits([79, 80, 95]), team: team(['T-1']), nowMs: 7000 },
     80,
   );
-  assert.deepEqual(a.map((x) => x.id), ['session:s1', 'usage:w1', 'usage:w2', 'ticket:T-1']);
-  const u = a.find((x) => x.id === 'usage:w2')!;
-  assert.equal(u.title, 'Window 2');
-  assert.equal(u.detail, '95% used');
-  assert.equal(u.resetsAtMs, 9002);
+  assert.deepEqual(a.map((item) => item.id), ['session:s1', 'usage:w1', 'usage:w2', 'ticket:T-1']);
+  const usageAlert = a.find((item) => item.id === 'usage:w2')!;
+  assert.equal(usageAlert.title, 'Window 2');
+  assert.equal(usageAlert.detail, '95% used');
+  assert.equal(usageAlert.resetsAtMs, 9002);
   assert.equal(a[0].sinceMs, 500);
   assert.equal(a[3].title, 'T-1');
   assert.equal(a[3].detail, 'title T-1');
@@ -52,8 +53,8 @@ test('no duplicates across repeated builds; alerts vanish with their condition',
   const first = store.buildAlerts(input);
   const second = store.buildAlerts({ ...input, nowMs: 2000 });
   assert.equal(first.items.length, 3);
-  assert.deepEqual(second.items.map((x) => x.id), first.items.map((x) => x.id));
-  assert.equal(second.items.find((x) => x.id === 'usage:w0')!.sinceMs, 1000);
+  assert.deepEqual(second.items.map((item) => item.id), first.items.map((item) => item.id));
+  assert.equal(second.items.find((item) => item.id === 'usage:w0')!.sinceMs, 1000);
   const gone = store.buildAlerts({ sessions: [session('s1', 'busy')], limits: limits([10]), team: team([]), nowMs: 3000 });
   assert.deepEqual(gone.items, []);
 });
@@ -101,7 +102,7 @@ test('threshold: default 80, validated, persisted', () => {
   assert.equal(store.alertThreshold(), 60);
   const out = store.buildAlerts({ sessions: [], limits: limits([59, 60]), team: null, nowMs: 1 });
   assert.equal(out.threshold, 60);
-  assert.deepEqual(out.items.map((x) => x.id), ['usage:w1']);
+  assert.deepEqual(out.items.map((item) => item.id), ['usage:w1']);
 });
 
 test('missing or corrupt file falls back to defaults', () => {
@@ -132,7 +133,7 @@ test('the file is only written when something changed', () => {
 
 // ---- failed sign-in alerts (T-014) ----
 const signins = (nowMs = 1) => store.buildAlerts({ sessions: [], limits: limits([]), team: null, nowMs }).items.filter((a) => a.kind === 'signin');
-const at = (h: number, m: number, s: number) => new Date(2026, 5, 1, h, m, s).getTime();
+const at = (hours: number, minutes: number, seconds: number) => new Date(2026, 5, 1, hours, minutes, seconds).getTime();
 
 test('failed sign-ins update one alert per source address instead of adding new ones', () => {
   reset();
@@ -142,11 +143,11 @@ test('failed sign-ins update one alert per source address instead of adding new 
   store.recordFailedSignin('192.168.1.99', at(8, 0, 0));
   const items = signins();
   assert.deepEqual(items.map((a) => a.id).sort(), ['signin:192.168.1.20', 'signin:192.168.1.99']);
-  const a = items.find((x) => x.id === 'signin:192.168.1.20')!;
+  const a = items.find((item) => item.id === 'signin:192.168.1.20')!;
   assert.equal(a.title, 'Failed sign-in');
   assert.equal(a.detail, '192.168.1.20 · 3 failed attempts · last at 14:30:01');
   assert.equal(a.sinceMs, at(14, 30, 1));
-  assert.equal(items.find((x) => x.id === 'signin:192.168.1.99')!.detail, '192.168.1.99 · 1 failed attempt · last at 08:00:00');
+  assert.equal(items.find((item) => item.id === 'signin:192.168.1.99')!.detail, '192.168.1.99 · 1 failed attempt · last at 08:00:00');
   // repeated builds do not duplicate and the alert stays until dismissed
   assert.equal(signins(2).length, 2);
   assert.equal(signins(9_999_999_999).length, 2);

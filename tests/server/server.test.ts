@@ -1,3 +1,4 @@
+// Localhost server: state JSON, event stream, static files, path traversal and alert dismissal.
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -20,7 +21,7 @@ const server = createDashboardServer({ publicDir });
 let base = '';
 
 before(async () => {
-  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 });
 after(() => {
@@ -34,7 +35,7 @@ function rawGet(path: string): Promise<{ status: number; type: string; body: str
   return new Promise((resolve, reject) => {
     const req = request({ host: '127.0.0.1', port, path, method: 'GET' }, (res) => {
       let body = '';
-      res.on('data', (d) => (body += d));
+      res.on('data', (chunk) => (body += chunk));
       res.on('end', () => resolve({ status: res.statusCode ?? 0, type: String(res.headers['content-type']), body }));
     });
     req.on('error', reject);
@@ -47,7 +48,7 @@ test('serves dashboard state as JSON', async () => {
   assert.equal(res.status, 200);
   assert.match(res.headers.get('content-type')!, /application\/json/);
   const j = await res.json();
-  for (const k of ['projects', 'sessions', 'messages', 'usage', 'limits']) assert.ok(k in j, k);
+  for (const key of ['projects', 'sessions', 'messages', 'usage', 'limits']) assert.ok(key in j, key);
 });
 
 test('streams state over server-sent events', async () => {
@@ -71,10 +72,10 @@ test('serves static files with the right content type', async () => {
 });
 
 test('blocks path traversal out of the public dir', async () => {
-  for (const p of ['/../secret.txt', '/%2e%2e/secret.txt', '/..%5csecret.txt']) {
-    const r = await rawGet(p);
-    assert.notEqual(r.body, 'nope', p);
-    assert.ok([403, 404].includes(r.status), `${p} -> ${r.status}`);
+  for (const path of ['/../secret.txt', '/%2e%2e/secret.txt', '/..%5csecret.txt']) {
+    const response = await rawGet(path);
+    assert.notEqual(response.body, 'nope', path);
+    assert.ok([403, 404].includes(response.status), `${path} -> ${response.status}`);
   }
 });
 
@@ -96,8 +97,8 @@ test('POST /api/alerts/dismiss hides an open alert and rejects anything else', a
   assert.equal((await alertIds()).items.length, 1, 'rejected calls change nothing');
 
   for (const body of [{}, { id: 5 }, { id: '' }, { id: 'x'.repeat(201) }, '[1]', 'nope']) {
-    const r = await apiPost('/api/alerts/dismiss', body);
-    assert.equal(r.status, 400, JSON.stringify(body));
+    const response = await apiPost('/api/alerts/dismiss', body);
+    assert.equal(response.status, 400, JSON.stringify(body));
   }
   const unknown = await apiPost('/api/alerts/dismiss', { id: 'session:not-open' });
   assert.equal(unknown.status, 404);
@@ -118,9 +119,9 @@ test('POST /api/settings/alerts sets the threshold used by the next state build'
   assert.equal((await alertIds()).threshold, 80);
 
   for (const body of [{}, { threshold: '50' }, { threshold: 0 }, { threshold: 101 }, { threshold: 55.5 }, { threshold: null }]) {
-    const r = await apiPost('/api/settings/alerts', body);
-    assert.equal(r.status, 400, JSON.stringify(body));
-    assert.deepEqual(JSON.parse(r.body), { error: 'threshold must be a whole number from 1 to 100' });
+    const response = await apiPost('/api/settings/alerts', body);
+    assert.equal(response.status, 400, JSON.stringify(body));
+    assert.deepEqual(JSON.parse(response.body), { error: 'threshold must be a whole number from 1 to 100' });
   }
   assert.equal((await apiPost('/api/settings/alerts', '[]')).status, 400);
   assert.equal((await alertIds()).threshold, 80);
@@ -142,7 +143,7 @@ test('without a login there are no devices: the endpoints 404 and manageDevices 
 });
 
 test('without a login /pair does not exist', async () => {
-  const r = await fetch(`${base}/pair?c=anything`, { redirect: 'manual' });
-  assert.equal(r.status, 404);
-  assert.equal(r.headers.get('set-cookie'), null);
+  const response = await fetch(`${base}/pair?c=anything`, { redirect: 'manual' });
+  assert.equal(response.status, 404);
+  assert.equal(response.headers.get('set-cookie'), null);
 });

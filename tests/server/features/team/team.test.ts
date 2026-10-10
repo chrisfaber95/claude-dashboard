@@ -1,3 +1,4 @@
+// Reading the team-hq board: ticket counts, lists, title fallback and malformed tickets.
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -13,13 +14,13 @@ const { buildState } = await import('../../../../src/server/transcripts/state.ts
 
 const made: string[] = [];
 after(() => {
-  for (const d of made) rmSync(d, { recursive: true, force: true });
+  for (const directory of made) rmSync(directory, { recursive: true, force: true });
 });
 
 function newHq(): string {
-  const d = mkdtempSync(join(tmpdir(), 'claude-dash-hq-'));
-  made.push(d);
-  return d;
+  const directory = mkdtempSync(join(tmpdir(), 'claude-dash-hq-'));
+  made.push(directory);
+  return directory;
 }
 
 function ticket(hq: string, col: string, file: string, id: string | null, goal?: string): void {
@@ -31,14 +32,14 @@ function ticket(hq: string, col: string, file: string, id: string | null, goal?:
 
 function snapshot(root: string): string[] {
   const out: string[] = [];
-  const walk = (d: string): void => {
-    for (const e of readdirSync(d, { withFileTypes: true })) {
-      const p = join(d, e.name);
-      if (e.isDirectory()) {
-        out.push(`D ${p} ${statSync(p).mtimeMs}`);
-        walk(p);
+  const walk = (directory: string): void => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const filePath = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        out.push(`D ${filePath} ${statSync(filePath).mtimeMs}`);
+        walk(filePath);
       } else {
-        out.push(`F ${p} ${statSync(p).mtimeMs} ${readFileSync(p, 'utf8')}`);
+        out.push(`F ${filePath} ${statSync(filePath).mtimeMs} ${readFileSync(filePath, 'utf8')}`);
       }
     }
   };
@@ -103,7 +104,7 @@ test('lists are sorted by id and capped at 20', () => {
   const b = readTeamBoard(hq)!;
   assert.equal(b.counts.review, 25);
   assert.equal(b.active.review.length, 20);
-  assert.deepEqual(b.active.review.map((t) => t.id), Array.from({ length: 20 }, (_, i) => `T-${String(i + 1).padStart(3, '0')}`));
+  assert.deepEqual(b.active.review.map((nowMs) => nowMs.id), Array.from({ length: 20 }, (_, i) => `T-${String(i + 1).padStart(3, '0')}`));
 });
 
 test('needsYou returns only unticked checkbox lines', () => {
@@ -134,9 +135,9 @@ test('reading the board changes nothing on disk', () => {
 });
 
 test('buildState exposes team, null when TEAM_HQ_DIR points nowhere', () => {
-  const s = buildState();
-  assert.ok('team' in s);
-  assert.equal(s.team, null);
+  const state = buildState();
+  assert.ok('team' in state);
+  assert.equal(state.team, null);
 });
 
 test('ticket larger than 8 KB still parses when the front matter is in the head', () => {

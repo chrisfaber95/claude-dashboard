@@ -3,7 +3,7 @@ import { createServer as createHttpsServer } from 'node:https';
 import { rmSync } from 'node:fs';
 import { join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { APP_ROOT, COMMANDS_ENABLED, DATA_DIR, HOST, LAN_MODE, PORT, PROJECTS_ROOT } from './config.ts';
+import { APP_ROOT, canRunCommands, DATA_DIR, HOST, isLanMode, PORT, PROJECTS_ROOT } from './config.ts';
 import { recordFailedSignin } from './features/alerts/alerts.ts';
 import { APPROVAL_TEXT_AUDIT_MAX, createPermissionStore, type PermissionStore } from './features/permissions/permissions.ts';
 import { PC_DEVICE, createAuth, type Auth } from './auth/auth.ts';
@@ -100,7 +100,7 @@ async function handle(context: ServerContext, req: IncomingMessage, res: ServerR
 export function createDashboardServer(options: ServerOptions = {}): Server {
   const auth = options.auth ?? null;
   const tls = options.tls ?? null;
-  const isCommandsEnabled = options.commands ?? COMMANDS_ENABLED;
+  const isCommandsEnabled = options.commands ?? canRunCommands;
   const permissions = options.permissions ?? createPermissionStore();
   // Expiry has no device behind it; answers are audited by the route that takes them.
   permissions.onExpired((request) =>
@@ -167,13 +167,13 @@ if (isMain) {
   let options: ServerOptions = {};
   // The old shared login token is no longer read; remove the leftover secret.
   rmSync(join(DATA_DIR, 'token'), { force: true });
-  if (LAN_MODE) {
+  if (isLanMode) {
     // Failed sign-ins become one needs-attention alert per source address.
     options = { auth: createAuth(createDeviceStore(DATA_DIR), { onFailedLogin: recordFailedSignin }), tls: ensureCert(DATA_DIR) };
     console.log('Sign-in uses per-device tokens; this PC (loopback address) needs none.');
   }
   createDashboardServer(options).listen(PORT, HOST, () => {
-    for (const line of startupLines(LAN_MODE, HOST, PORT, lanAddresses())) console.log(line);
-    console.log(`Commands ${COMMANDS_ENABLED ? 'enabled' : 'disabled'}${LAN_MODE ? ' · login required' : ''}`);
+    for (const line of startupLines(isLanMode, HOST, PORT, lanAddresses())) console.log(line);
+    console.log(`Commands ${canRunCommands ? 'enabled' : 'disabled'}${isLanMode ? ' · login required' : ''}`);
   });
 }
