@@ -3,11 +3,15 @@ import { join } from 'node:path';
 import { DATA_DIR } from '../../config.ts';
 import type { Alert, AlertsInfo, LimitsInfo, SessionInfo, TeamBoard } from '../../../shared/types/index.ts';
 
+/** Usage percentage at which a usage window raises an alert, until the user sets another. */
 export const DEFAULT_THRESHOLD = 80;
 /** At most this many source addresses are remembered; the one that failed longest ago is dropped first. */
 export const MAX_SIGNIN_ADDRESSES = 50;
 const SIGNIN_PREFIX = 'signin:';
-const ADDRESS_MAX = 64;
+const ADDRESS_MAX_CHARS = 64;
+const IPV4_MAPPED_PREFIX = '::ffff:';
+const THRESHOLD_MIN = 1;
+const THRESHOLD_MAX = 100;
 
 const FILE = () => join(DATA_DIR, 'alerts.json');
 
@@ -16,70 +20,84 @@ interface Persisted {
   threshold: number;
 }
 
-function validThreshold(v: unknown): v is number {
-  return typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 100;
-}
-
-let dismissed = new Set<string>();
-let threshold = DEFAULT_THRESHOLD;
-let loaded = false;
-/** First state build that saw a condition, for alerts whose source has no time of its own. */
-const firstSeen = new Map<string, number>();
-
 /** Failed LAN sign-ins per source address. In memory only; holds an address, a count and times, never an attempted token. */
 export interface SigninFailure {
   address: string;
   count: number;
   lastMs: number;
 }
+
+/** What `deriveAlerts` and `buildAlerts` look at. */
+export interface AlertInput {
+  sessions: SessionInfo[];
+  limits: LimitsInfo;
+  team: TeamBoard | null;
+  nowMs: number;
+  /** Failed LAN sign-ins, one entry per source address. */
+  signinFailures?: readonly SigninFailure[];
+}
+
+function isValidThreshold(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= THRESHOLD_MIN && value <= THRESHOLD_MAX;
+}
+
+let dismissed = new Set<string>();
+let threshold = DEFAULT_THRESHOLD;
+let isLoaded = false;
+/** First state build that saw a condition, for alerts whose source has no time of its own. */
+const firstSeen = new Map<string, number>();
 const failures = new Map<string, SigninFailure>();
 
 /** The socket address as people write it: no IPv4-mapped IPv6 prefix, bounded length. */
-function normalizeAddress(a: string): string {
-  return (a.startsWith('::ffff:') && a.includes('.') ? a.slice(7) : a).slice(0, ADDRESS_MAX) || 'unknown';
+function normalizeAddress(address: string): string {
+  const unmapped = address.startsWith(IPV4_MAPPED_PREFIX) && address.includes('.') ? address.slice(IPV4_MAPPED_PREFIX.length) : address;
+  return unmapped.slice(0, ADDRESS_MAX_CHARS) || 'unknown';
 }
 
 /**
  * Count a failed or rate-limited sign-in against its source address (the socket address, never a forwarded header).
  * Matches the `onFailedLogin` hook of `createAuth`. Repeats update the one alert of that address.
  */
-export function recordFailedSignin(address: string, tMs: number): void {
+export function recordFailedSignin(address: string, atMs: number): void {
   const key = normalizeAddress(address);
-  const prev = failures.get(key);
+  const previous = failures.get(key);
   failures.delete(key); // re-insert so Map order is last-failure order
-  if (!prev && failures.size >= MAX_SIGNIN_ADDRESSES) {
+  if (!previous && failures.size >= MAX_SIGNIN_ADDRESSES) {
     const oldest = failures.keys().next().value;
     if (oldest !== undefined) failures.delete(oldest);
   }
-  failures.set(key, { address: key, count: (prev?.count ?? 0) + 1, lastMs: tMs });
+  failures.set(key, { address: key, count: (previous?.count ?? 0) + 1, lastMs: atMs });
 }
 
 function load(): void {
-  if (loaded) return;
-  loaded = true;
+  if (isLoaded) return;
+  isLoaded = true;
   try {
-    const j = JSON.parse(readFileSync(FILE(), 'utf8')) as Partial<Persisted>;
+    const stored = JSON.parse(readFileSync(FILE(), 'utf8')) as Partial<Persisted>;
     // signin alerts live in memory only; a stray signin id in the file is ignored
-    if (Array.isArray(j.dismissed)) dismissed = new Set(j.dismissed.filter((x): x is string => typeof x === 'string' && !x.startsWith(SIGNIN_PREFIX)));
-    if (validThreshold(j.threshold)) threshold = j.threshold;
+    if (Array.isArray(stored.dismissed)) {
+      dismissed = new Set(stored.dismissed.filter((id): id is string => typeof id === 'string' && !id.startsWith(SIGNIN_PREFIX)));
+    }
+    if (isValidThreshold(stored.threshold)) threshold = stored.threshold;
   } catch {
     // missing or corrupt: defaults
   }
 }
 
-/** Write only when something changed (tmp + rename). Holds ids and a number only, nothing secret. */
+/** Write only when something changed (temp file + rename). Holds ids and a number only, nothing secret. */
 function save(): void {
   try {
     mkdirSync(DATA_DIR, { recursive: true });
-    const tmp = `${FILE()}.tmp`;
+    const tempPath = `${FILE()}.tmp`;
     const data: Persisted = { dismissed: [...dismissed].sort(), threshold };
-    writeFileSync(tmp, JSON.stringify(data));
-    renameSync(tmp, FILE());
+    writeFileSync(tempPath, JSON.stringify(data));
+    renameSync(tempPath, FILE());
   } catch {
     // keep the in-memory state; retry on the next change
   }
 }
 
+/** Dismiss an alert; a sign-in alert is cleared so a new failure opens a fresh one. */
 export function dismissAlert(id: string): void {
   load();
   if (id.startsWith(SIGNIN_PREFIX)) {
@@ -93,16 +111,17 @@ export function dismissAlert(id: string): void {
 }
 
 /** Returns false for anything but an integer 1-100. */
-export function setAlertThreshold(n: number): boolean {
+export function setAlertThreshold(value: number): boolean {
   load();
-  if (!validThreshold(n)) return false;
-  if (n !== threshold) {
-    threshold = n;
+  if (!isValidThreshold(value)) return false;
+  if (value !== threshold) {
+    threshold = value;
     save();
   }
   return true;
 }
 
+/** The current usage threshold in percent. */
 export function alertThreshold(): number {
   load();
   return threshold;
@@ -112,91 +131,103 @@ export function alertThreshold(): number {
 export function resetAlertStore(): void {
   dismissed = new Set();
   threshold = DEFAULT_THRESHOLD;
-  loaded = false;
+  isLoaded = false;
   firstSeen.clear();
   failures.clear();
 }
 
-export interface AlertInput {
-  sessions: SessionInfo[];
-  limits: LimitsInfo;
-  team: TeamBoard | null;
-  nowMs: number;
-  /** Failed LAN sign-ins, one entry per source address. */
-  signinFailures?: readonly SigninFailure[];
+const pad2 = (value: number) => String(value).padStart(2, '0');
+const clock = (ms: number) => {
+  const date = new Date(ms);
+  return `${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`;
+};
+
+function sessionAlerts(sessions: SessionInfo[], since: (id: string) => number): Alert[] {
+  return sessions
+    .filter((session) => session.status === 'waiting')
+    .map((session): Alert => {
+      const id = `session:${session.sessionId}`;
+      return { id, kind: 'session', title: session.name, detail: 'Waiting for you', sinceMs: session.updatedAtMs || since(id), resetsAtMs: null };
+    });
 }
 
-const pad2 = (n: number) => String(n).padStart(2, '0');
-const clock = (ms: number) => {
-  const d = new Date(ms);
-  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
-};
+function usageAlerts(limits: LimitsInfo, thresholdPercent: number, since: (id: string) => number): Alert[] {
+  return limits.windows
+    .filter((window) => window.utilization >= thresholdPercent)
+    .map((window): Alert => {
+      const id = `usage:${window.key}`;
+      return {
+        id,
+        kind: 'usage',
+        title: window.label,
+        detail: `${Math.round(window.utilization)}% used`,
+        sinceMs: since(id),
+        resetsAtMs: window.resetsAtMs,
+      };
+    });
+}
+
+function ticketAlerts(team: TeamBoard | null, since: (id: string) => number): Alert[] {
+  return (team?.active.review ?? []).map((ticket): Alert => {
+    const id = `ticket:${ticket.id}`;
+    return { id, kind: 'ticket', title: ticket.id, detail: ticket.title, sinceMs: since(id), resetsAtMs: null };
+  });
+}
+
+function signinAlerts(signinFailures: readonly SigninFailure[]): Alert[] {
+  return signinFailures.map((failure): Alert => ({
+    id: `${SIGNIN_PREFIX}${failure.address}`,
+    kind: 'signin',
+    title: 'Failed sign-in',
+    detail: `${failure.address} · ${failure.count} failed ${failure.count === 1 ? 'attempt' : 'attempts'} · last at ${clock(failure.lastMs)}`,
+    sinceMs: failure.lastMs,
+    resetsAtMs: null,
+  }));
+}
 
 /** Every condition that needs the user right now, one alert per deterministic id. Pure. */
 export function deriveAlerts(
   input: AlertInput,
-  thresholdPct: number,
+  thresholdPercent: number,
   since: (id: string) => number = () => input.nowMs,
 ): Alert[] {
-  const out = new Map<string, Alert>();
-  for (const s of input.sessions) {
-    if (s.status !== 'waiting') continue;
-    const id = `session:${s.sessionId}`;
-    out.set(id, { id, kind: 'session', title: s.name, detail: 'Waiting for you', sinceMs: s.updatedAtMs || since(id), resetsAtMs: null });
+  const byId = new Map<string, Alert>();
+  const alerts = [
+    ...sessionAlerts(input.sessions, since),
+    ...usageAlerts(input.limits, thresholdPercent, since),
+    ...ticketAlerts(input.team, since),
+    ...signinAlerts(input.signinFailures ?? []),
+  ];
+  for (const alert of alerts) byId.set(alert.id, alert);
+  return [...byId.values()];
+}
+
+/** First time a condition was seen, remembered across state builds. */
+function firstSeenAt(id: string, nowMs: number): number {
+  let seenAtMs = firstSeen.get(id);
+  if (seenAtMs === undefined) {
+    seenAtMs = nowMs;
+    firstSeen.set(id, seenAtMs);
   }
-  for (const w of input.limits.windows) {
-    if (!(w.utilization >= thresholdPct)) continue;
-    const id = `usage:${w.key}`;
-    out.set(id, {
-      id,
-      kind: 'usage',
-      title: w.label,
-      detail: `${Math.round(w.utilization)}% used`,
-      sinceMs: since(id),
-      resetsAtMs: w.resetsAtMs,
-    });
-  }
-  for (const t of input.team?.active.review ?? []) {
-    const id = `ticket:${t.id}`;
-    out.set(id, { id, kind: 'ticket', title: t.id, detail: t.title, sinceMs: since(id), resetsAtMs: null });
-  }
-  for (const f of input.signinFailures ?? []) {
-    const id = `${SIGNIN_PREFIX}${f.address}`;
-    out.set(id, {
-      id,
-      kind: 'signin',
-      title: 'Failed sign-in',
-      detail: `${f.address} · ${f.count} failed ${f.count === 1 ? 'attempt' : 'attempts'} · last at ${clock(f.lastMs)}`,
-      sinceMs: f.lastMs,
-      resetsAtMs: null,
-    });
-  }
-  return [...out.values()];
+  return seenAtMs;
 }
 
 /** Derive the alerts for a state build, hide dismissed ones and forget dismissals whose condition is gone. */
 export function buildAlerts(input: AlertInput): AlertsInfo {
   load();
-  const all = deriveAlerts({ ...input, signinFailures: [...failures.values()] }, threshold, (id) => {
-    let t = firstSeen.get(id);
-    if (t === undefined) {
-      t = input.nowMs;
-      firstSeen.set(id, t);
-    }
-    return t;
-  });
-  const active = new Set(all.map((a) => a.id));
-  for (const id of firstSeen.keys()) if (!active.has(id)) firstSeen.delete(id);
+  const all = deriveAlerts({ ...input, signinFailures: [...failures.values()] }, threshold, (id) => firstSeenAt(id, input.nowMs));
+  const activeIds = new Set(all.map((alert) => alert.id));
+  for (const id of firstSeen.keys()) if (!activeIds.has(id)) firstSeen.delete(id);
 
   // Without limit data we can't tell whether a usage condition cleared, so keep those dismissals.
-  const keepUsage = input.limits.source === 'none';
-  let changed = false;
+  const shouldKeepUsage = input.limits.source === 'none';
+  let hasChanged = false;
   for (const id of [...dismissed]) {
-    if (active.has(id) || (keepUsage && id.startsWith('usage:'))) continue;
+    if (activeIds.has(id) || (shouldKeepUsage && id.startsWith('usage:'))) continue;
     dismissed.delete(id);
-    changed = true;
+    hasChanged = true;
   }
-  if (changed) save();
+  if (hasChanged) save();
 
-  return { items: all.filter((a) => !dismissed.has(a.id)), threshold };
+  return { items: all.filter((alert) => !dismissed.has(alert.id)), threshold };
 }

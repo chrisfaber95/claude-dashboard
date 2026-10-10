@@ -15,58 +15,79 @@ import {
   sessionAgg,
   transcriptIndex,
 } from './transcripts.ts';
-import { PERMISSION_MODES, type DashboardState, type ProjectInfo, type SessionInfo } from '../../shared/types/index.ts';
+import {
+  PERMISSION_MODES,
+  type DashboardState,
+  type MessageInfo,
+  type ProjectInfo,
+  type SessionInfo,
+} from '../../shared/types/index.ts';
+
+const DAY_MS = 86_400_000;
+/** The "7 days" window is today plus the six days before it. */
+const WEEK_LOOKBACK_DAYS = 6;
+const MESSAGES_MAX = 200;
+const RECENT_SESSIONS_MAX = 30;
+const SHORT_SESSION_ID_LENGTH = 8;
+const SHORT_BRANCH_LENGTH = 8;
+
+interface BuildStateFeatures {
+  lan?: boolean;
+  commands?: boolean;
+  manageDevices?: boolean;
+}
 
 /** Folders the Claude CLI trusts, from ~/.claude.json (keys look like "n:/Projects/ShopApp"). */
 function trustedPaths(): Set<string> {
   try {
-    const j = JSON.parse(readFileSync(CLAUDE_JSON, 'utf8'));
+    const claudeJson = JSON.parse(readFileSync(CLAUDE_JSON, 'utf8'));
     return new Set(
-      Object.entries(j.projects ?? {})
-        .filter(([, v]) => (v as { hasTrustDialogAccepted?: boolean })?.hasTrustDialogAccepted)
-        .map(([k]) => normPath(k)),
+      Object.entries(claudeJson.projects ?? {})
+        .filter(([, project]) => (project as { hasTrustDialogAccepted?: boolean })?.hasTrustDialogAccepted)
+        .map(([path]) => normPath(path)),
     );
   } catch {
     return new Set();
   }
 }
 
-function pidAlive(pid: number): boolean {
+function isPidAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
-  } catch (e) {
-    return (e as NodeJS.ErrnoException).code === 'EPERM';
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM';
   }
 }
 
+/** The live Claude Code sessions: one JSON file per session under ~/.claude/sessions, with a running pid. */
 export function readSessions(): SessionInfo[] {
   const dir = join(CLAUDE_DIR, 'sessions');
   const out: SessionInfo[] = [];
   let names: string[] = [];
   try {
-    names = readdirSync(dir).filter((n) => n.endsWith('.json'));
+    names = readdirSync(dir).filter((name) => name.endsWith('.json'));
   } catch {
     return out;
   }
-  for (const n of names) {
+  for (const name of names) {
     try {
-      const s = JSON.parse(readFileSync(join(dir, n), 'utf8'));
-      if (!s.pid || !pidAlive(s.pid)) continue;
-      const agg = sessionAgg.get(s.sessionId);
+      const session = JSON.parse(readFileSync(join(dir, name), 'utf8'));
+      if (!session.pid || !isPidAlive(session.pid)) continue;
+      const aggregate = sessionAgg.get(session.sessionId);
       out.push({
-        sessionId: s.sessionId,
-        pid: s.pid,
-        name: s.name ?? String(s.sessionId).slice(0, 8),
-        project: projectOf(s.cwd ?? ''),
-        cwd: s.cwd ?? '',
-        status: s.status ?? 'unknown',
-        entrypoint: s.entrypoint ?? '',
-        kind: s.kind ?? 'interactive',
-        startedAtMs: s.startedAt ?? 0,
-        updatedAtMs: s.updatedAt ?? s.startedAt ?? 0,
-        branch: agg?.branch ?? null,
-        tokens: agg?.tokens ?? emptyTokens(),
+        sessionId: session.sessionId,
+        pid: session.pid,
+        name: session.name ?? String(session.sessionId).slice(0, SHORT_SESSION_ID_LENGTH),
+        project: projectOf(session.cwd ?? ''),
+        cwd: session.cwd ?? '',
+        status: session.status ?? 'unknown',
+        entrypoint: session.entrypoint ?? '',
+        kind: session.kind ?? 'interactive',
+        startedAtMs: session.startedAt ?? 0,
+        updatedAtMs: session.updatedAt ?? session.startedAt ?? 0,
+        branch: aggregate?.branch ?? null,
+        tokens: aggregate?.tokens ?? emptyTokens(),
       });
     } catch {
       // partial write; skip this tick
@@ -75,113 +96,131 @@ export function readSessions(): SessionInfo[] {
   return out.sort((a, b) => a.startedAtMs - b.startedAtMs);
 }
 
-function gitBranch(dir: string): { branch: string | null; worktree: boolean } {
+function gitBranch(dir: string): { branch: string | null; isWorktree: boolean } {
   try {
-    const g = join(dir, '.git');
-    if (!existsSync(g)) return { branch: null, worktree: false };
-    const isFile = statSync(g).isFile();
-    let headPath = join(g, 'HEAD');
+    const gitPath = join(dir, '.git');
+    if (!existsSync(gitPath)) return { branch: null, isWorktree: false };
+    const isFile = statSync(gitPath).isFile();
+    let headPath = join(gitPath, 'HEAD');
     if (isFile) {
-      const ptr = readFileSync(g, 'utf8').match(/gitdir:\s*(.+)/)?.[1]?.trim();
-      if (!ptr) return { branch: null, worktree: true };
-      headPath = join(ptr, 'HEAD');
+      const gitDir = readFileSync(gitPath, 'utf8').match(/gitdir:\s*(.+)/)?.[1]?.trim();
+      if (!gitDir) return { branch: null, isWorktree: true };
+      headPath = join(gitDir, 'HEAD');
     }
     const head = readFileSync(headPath, 'utf8').trim();
-    const m = head.match(/^ref: refs\/heads\/(.+)$/);
-    return { branch: m ? m[1] : head.slice(0, 8), worktree: isFile };
+    const branchMatch = head.match(/^ref: refs\/heads\/(.+)$/);
+    return { branch: branchMatch ? branchMatch[1] : head.slice(0, SHORT_BRANCH_LENGTH), isWorktree: isFile };
   } catch {
-    return { branch: null, worktree: false };
+    return { branch: null, isWorktree: false };
   }
 }
 
-export function buildState(features: { lan?: boolean; commands?: boolean; manageDevices?: boolean } = {}): DashboardState {
-  scanTranscripts();
-  const sessions = readSessions();
-  const now = Date.now();
-  const today = localDay(now);
-  const weekAgo = localDay(now - 6 * 86_400_000);
-
-  const nameById = new Map(sessions.map((s) => [s.sessionId, s.name]));
-  const msgs = messages
-    .filter((m) => m.kind === 'session' || m.direction === 'in')
-    .slice(-200)
-    .map((m) => ({ ...m, sessionName: nameById.get(m.sessionId) ?? m.sessionId.slice(0, 8) }))
-    .reverse();
-
-  const liveIds = new Set(sessions.map((x) => x.sessionId));
-  const recentSessions = [...transcriptIndex.entries()]
-    .map(([sessionId, t]) => ({ sessionId, project: t.project, lastTsMs: t.lastTsMs, live: liveIds.has(sessionId) }))
-    .sort((a, b) => b.lastTsMs - a.lastTsMs)
-    .slice(0, 30);
-
-  const trusted = trustedPaths();
-  const projects: ProjectInfo[] = [];
-  let dirs: string[] = [];
-  try {
-    dirs = readdirSync(PROJECTS_ROOT, { withFileTypes: true })
-      .filter((e) => e.isDirectory() && !e.name.startsWith('.'))
-      .map((e) => e.name);
-  } catch {
-    // projects root unavailable
+/** Tokens of one project: today, the last seven days and all time. */
+function projectTokens(name: string, today: string, weekAgo: string) {
+  let tokensToday = 0;
+  let tokens7d = 0;
+  let tokensTotal = 0;
+  for (const [day, aggregate] of dayAgg) {
+    const tokens = aggregate.byProject[name] ?? 0;
+    tokensTotal += tokens;
+    if (day >= weekAgo) tokens7d += tokens;
+    if (day === today) tokensToday += tokens;
   }
-  for (const name of dirs) {
+  return { tokensToday, tokens7d, tokensTotal };
+}
+
+function lastActiveOf(name: string, path: string): number | null {
+  const known = projectLastActive.get(name);
+  if (known !== undefined) return known;
+  try {
+    return statSync(path).mtimeMs;
+  } catch {
+    return null;
+  }
+}
+
+function projectFolderNames(): string[] {
+  try {
+    return readdirSync(PROJECTS_ROOT, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
+      .map((entry) => entry.name);
+  } catch {
+    return []; // projects root unavailable
+  }
+}
+
+function buildProjects(sessions: SessionInfo[], today: string, weekAgo: string): ProjectInfo[] {
+  const trusted = trustedPaths();
+  const projects = projectFolderNames().map((name): ProjectInfo => {
     const path = join(PROJECTS_ROOT, name);
     const git = gitBranch(path);
-    let today_ = 0;
-    let week = 0;
-    let total = 0;
-    for (const [day, d] of dayAgg) {
-      const v = d.byProject[name] ?? 0;
-      total += v;
-      if (day >= weekAgo) week += v;
-      if (day === today) today_ += v;
-    }
-    let last = projectLastActive.get(name) ?? null;
-    if (last === null) {
-      try {
-        last = statSync(path).mtimeMs;
-      } catch {
-        last = null;
-      }
-    }
-    projects.push({
+    return {
       name,
       path,
       branch: git.branch,
-      isWorktree: git.worktree || /-wt$/i.test(name),
-      lastActiveMs: last,
+      isWorktree: git.isWorktree || /-wt$/i.test(name),
+      lastActiveMs: lastActiveOf(name, path),
       trusted: trusted.has(normPath(path)),
-      liveSessions: sessions.filter((s) => normPath(s.project) === normPath(name)).length,
-      tokensToday: today_,
-      tokens7d: week,
-      tokensTotal: total,
-    });
-  }
-  projects.sort((a, b) => (b.liveSessions - a.liveSessions) || ((b.lastActiveMs ?? 0) - (a.lastActiveMs ?? 0)));
+      liveSessions: sessions.filter((session) => normPath(session.project) === normPath(name)).length,
+      ...projectTokens(name, today, weekAgo),
+    };
+  });
+  return projects.sort((a, b) => (b.liveSessions - a.liveSessions) || ((b.lastActiveMs ?? 0) - (a.lastActiveMs ?? 0)));
+}
 
+function buildMessages(sessions: SessionInfo[]): MessageInfo[] {
+  const nameById = new Map(sessions.map((session) => [session.sessionId, session.name]));
+  return messages
+    .filter((message) => message.kind === 'session' || message.direction === 'in')
+    .slice(-MESSAGES_MAX)
+    .map((message) => ({ ...message, sessionName: nameById.get(message.sessionId) ?? message.sessionId.slice(0, SHORT_SESSION_ID_LENGTH) }))
+    .reverse();
+}
+
+function buildRecentSessions(liveIds: Set<string>) {
+  return [...transcriptIndex.entries()]
+    .map(([sessionId, location]) => ({ sessionId, project: location.project, lastTsMs: location.lastTsMs, live: liveIds.has(sessionId) }))
+    .sort((a, b) => b.lastTsMs - a.lastTsMs)
+    .slice(0, RECENT_SESSIONS_MAX);
+}
+
+function buildUsage() {
   const totals = emptyTokens();
   const days = [...dayAgg.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([day, d]) => {
-      totals.input += d.tokens.input;
-      totals.output += d.tokens.output;
-      totals.cacheRead += d.tokens.cacheRead;
-      totals.cacheWrite += d.tokens.cacheWrite;
-      return { day, byProject: d.byProject, byModel: d.byModel, tokens: d.tokens };
+    .map(([day, aggregate]) => {
+      totals.input += aggregate.tokens.input;
+      totals.output += aggregate.tokens.output;
+      totals.cacheRead += aggregate.tokens.cacheRead;
+      totals.cacheWrite += aggregate.tokens.cacheWrite;
+      return { day, byProject: aggregate.byProject, byModel: aggregate.byModel, tokens: aggregate.tokens };
     });
+  return { days, totals, byModel: { ...modelTotals } };
+}
 
+/** Scan the transcripts and assemble the full dashboard state that is pushed to the browser. */
+export function buildState(features: BuildStateFeatures = {}): DashboardState {
+  scanTranscripts();
+  const sessions = readSessions();
+  const now = Date.now();
+  const liveIds = new Set(sessions.map((session) => session.sessionId));
   const limits = getLimits();
   const team = readTeamBoard();
   return {
     generatedAtMs: now,
-    projects,
+    projects: buildProjects(sessions, localDay(now), localDay(now - WEEK_LOOKBACK_DAYS * DAY_MS)),
     sessions,
     subagents: buildSubagents(liveIds, now),
-    messages: msgs,
-    usage: { days, totals, byModel: { ...modelTotals } },
+    messages: buildMessages(sessions),
+    usage: buildUsage(),
     limits,
-    recentSessions,
-    features: { lan: features.lan ?? LAN_MODE, commands: features.commands ?? COMMANDS_ENABLED, permissionModes: PERMISSION_MODES, manageDevices: features.manageDevices ?? false },
+    recentSessions: buildRecentSessions(liveIds),
+    features: {
+      lan: features.lan ?? LAN_MODE,
+      commands: features.commands ?? COMMANDS_ENABLED,
+      permissionModes: PERMISSION_MODES,
+      manageDevices: features.manageDevices ?? false,
+    },
     team,
     alerts: buildAlerts({ sessions, limits, team, nowMs: now }),
     permissions: [],
