@@ -10,6 +10,8 @@ export type { AuditEntry };
 export const AUDIT_MAX_ENTRIES = 200;
 /** `GET /api/launches` returns this many launches at most. */
 export const LAUNCHES_MAX = 50;
+/** `GET /api/approvals` returns this many entries at most. */
+export const APPROVALS_MAX = 50;
 /** At most this much of the end of the file is read. */
 export const AUDIT_MAX_BYTES = 1024 * 1024;
 const FIELD_MAX_CHARS = 200;
@@ -19,6 +21,9 @@ const DEVICE_MAX_CHARS = 80;
 const DEVICE_ID_MAX_CHARS = 64;
 const TARGET_MAX_CHARS = 120;
 const GOAL_MAX_CHARS = 500;
+const TOOL_MAX_CHARS = 100;
+const REQUEST_TEXT_MAX_CHARS = 500;
+const OUTCOME_MAX_CHARS = 20;
 const TARGET_FIELDS = ['project', 'session', 'mode'] as const;
 
 const ID_LIKE = /^(?:pc|[0-9a-f]{12})$/;
@@ -53,6 +58,12 @@ export function toAuditEntry(raw: unknown): AuditEntry | null {
   if (prompt !== undefined) entry.prompt = prompt;
   const goal = stringField(fields.goal, GOAL_MAX_CHARS);
   if (goal !== undefined) entry.goal = goal;
+  const tool = stringField(fields.tool, TOOL_MAX_CHARS);
+  if (tool !== undefined) entry.tool = tool;
+  const text = stringField(fields.text, REQUEST_TEXT_MAX_CHARS);
+  if (text !== undefined) entry.text = text;
+  const outcome = stringField(fields.outcome, OUTCOME_MAX_CHARS);
+  if (outcome !== undefined) entry.outcome = outcome;
   const { notesLength } = fields;
   if (typeof notesLength === 'number' && Number.isSafeInteger(notesLength) && notesLength >= 0) entry.notesLength = notesLength;
   return entry;

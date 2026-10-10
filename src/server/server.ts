@@ -5,10 +5,10 @@ import { join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { APP_ROOT, COMMANDS_ENABLED, DATA_DIR, HOST, LAN_MODE, PORT, PROJECTS_ROOT } from './config.ts';
 import { recordFailedSignin } from './features/alerts/alerts.ts';
-import { createPermissionStore, type PermissionStore } from './features/permissions/permissions.ts';
+import { APPROVAL_TEXT_AUDIT_MAX, createPermissionStore, type PermissionStore } from './features/permissions/permissions.ts';
 import { PC_DEVICE, createAuth, type Auth } from './auth/auth.ts';
 import { createDeviceStore } from './auth/devices.ts';
-import { CommandError } from './claude/claude-cli.ts';
+import { CommandError, audit } from './claude/claude-cli.ts';
 import { buildState } from './transcripts/state.ts';
 import { ensureCert, lanAddresses } from './auth/tls.ts';
 import type { Actor, AuthedCall, RequestCall, RouteHandler, ServerContext } from './http/context.ts';
@@ -18,6 +18,7 @@ import { handleCommandRoutes } from './http/routes-commands.ts';
 import { handleDeviceRoutes } from './http/routes-devices.ts';
 import { handleLoginRoutes, handleLogout } from './http/routes-login.ts';
 import { handlePermissionHook } from './http/routes-permission-hook.ts';
+import { handlePermissionRoutes } from './http/routes-permissions.ts';
 import { handleSessionRoutes } from './http/routes-sessions.ts';
 import { handleSettingsRoutes } from './http/routes-settings.ts';
 import { handleStateRoutes } from './http/routes-state.ts';
@@ -34,6 +35,7 @@ const API_ROUTES: RouteHandler[] = [
   handleDeviceRoutes,
   handleSettingsRoutes,
   handleCommandRoutes,
+  handlePermissionRoutes,
 ];
 
 /** Options for the dashboard server; tests inject their own. */
@@ -97,6 +99,10 @@ export function createDashboardServer(options: ServerOptions = {}): Server {
   const tls = options.tls ?? null;
   const isCommandsEnabled = options.commands ?? COMMANDS_ENABLED;
   const permissions = options.permissions ?? createPermissionStore();
+  // Expiry has no device behind it; answers are audited by the route that takes them.
+  permissions.onExpired((request) =>
+    audit({ action: 'approval', outcome: 'expired', id: request.id, session: request.sessionId, tool: request.tool, text: request.text.slice(0, APPROVAL_TEXT_AUDIT_MAX) }),
+  );
   const streams = createLiveStreams(auth);
   let settingsFile: string | undefined;
   const context: ServerContext = {

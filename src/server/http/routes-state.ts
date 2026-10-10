@@ -1,6 +1,6 @@
 import { CommandError } from '../claude/claude-cli.ts';
 import { PC_DEVICE } from '../auth/auth.ts';
-import { LAUNCHES_MAX, readAudit } from '../features/audit-log/audit-log.ts';
+import { APPROVALS_MAX, LAUNCHES_MAX, readAudit } from '../features/audit-log/audit-log.ts';
 import type { AuthedCall, RouteHandler, ServerContext } from './context.ts';
 import { SECURITY_HEADERS } from './guards.ts';
 import { withManageDevices } from './live-streams.ts';
@@ -28,6 +28,15 @@ async function sendLaunches(call: AuthedCall): Promise<void> {
   }
 }
 
+/** The latest approvals (allow, deny, expired), newest first, with the same access as /api/audit. */
+async function sendApprovals(call: AuthedCall): Promise<void> {
+  try {
+    send(call.res, 200, { approvals: await readAudit(undefined, { action: 'approval', limit: APPROVALS_MAX }) });
+  } catch {
+    throw new CommandError(500, 'could not read the approval log');
+  }
+}
+
 function openEventStream(context: ServerContext, call: AuthedCall): void {
   const { req, res, who } = call;
   res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive', ...SECURITY_HEADERS });
@@ -36,7 +45,7 @@ function openEventStream(context: ServerContext, call: AuthedCall): void {
   req.on('close', () => context.streams.remove(res));
 }
 
-/** The dashboard state, the audit log, the launch history and the live event stream. */
+/** The dashboard state, the audit log, the launch and approval history and the live event stream. */
 export const handleStateRoutes: RouteHandler = async (context, call) => {
   const { url, method, res, who } = call;
   if (url.pathname === '/api/state') {
@@ -49,6 +58,10 @@ export const handleStateRoutes: RouteHandler = async (context, call) => {
   }
   if (url.pathname === '/api/launches' && method === 'GET') {
     await sendLaunches(call);
+    return true;
+  }
+  if (url.pathname === '/api/approvals' && method === 'GET') {
+    await sendApprovals(call);
     return true;
   }
   if (url.pathname === '/api/events') {

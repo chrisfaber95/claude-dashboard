@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { APP_ROOT, DATA_DIR } from '../../config.ts';
 import type { PermissionRequestInfo } from '../../../shared/types/index.ts';
@@ -12,6 +12,11 @@ const HOOK_TIMEOUT_SECONDS = 10 * 60;
 export const TEXT_MAX = 4000;
 const EXPIRED_KEEP_MS = 10 * MINUTE_MS;
 const EXPIRED_KEEP_MAX = 20;
+/** Answered or expired ids remembered so a late second answer is "already answered" (409), not "unknown" (404). */
+const SETTLED_IDS_KEEP_MAX = 500;
+/** Longest request text written to the audit log. */
+export const APPROVAL_TEXT_AUDIT_MAX = 500;
+const HOOK_SCRIPT_NAME = 'permission-hook.mjs';
 const PENDING_MAX = 50;
 const SECRET_BYTES = 32;
 const OWNER_ONLY_FILE_MODE = 0o600;
@@ -43,6 +48,12 @@ export function requestText(tool: string, input: unknown): string {
   return text.length > TEXT_MAX ? `${text.slice(0, TEXT_MAX)}…` : text;
 }
 
+/** What `PermissionStore.answer` did with one answer. */
+export type AnswerResult =
+  | { outcome: 'answered'; request: PermissionRequestInfo }
+  | { outcome: 'settled' }
+  | { outcome: 'unknown' };
+
 /** The operations the HTTP layer needs from the permission hook bridge. */
 export interface PermissionStore {
   /** True when `provided` is the hook secret (created on first use, kept in the data folder, never sent to a browser). */
@@ -51,13 +62,15 @@ export interface PermissionStore {
   secretPath(): string;
   /** Holds a request until it is answered, expires or `abandon` is called. Resolves with the outcome. */
   request(sessionId: string, tool: string, text: string): { id: string; outcome: Promise<Decision> } | null;
-  /** Answers a pending request; false when it is unknown or already settled. */
-  answer(id: string, decision: 'allow' | 'deny'): boolean;
+  /** Answers a pending request once; an id that was already answered or expired is told apart from an unknown one. */
+  answer(id: string, decision: 'allow' | 'deny'): AnswerResult;
+  /** Calls `listener` for every request that expired (no answer in time, or the hook went away). */
+  onExpired(listener: (request: PermissionRequestInfo) => void): void;
   /** The hook went away (killed, timed out) before an answer: the request shows as expired. */
   abandon(id: string): void;
   /** Pending requests plus recently expired ones. */
   list(): PermissionRequestInfo[];
-  /** Writes the `--settings` file for dashboard-started sessions and returns its path. */
+  /** Copies the hook script and writes the `--settings` file into the data folder; returns the settings path. */
   writeSettings(dashboardUrl: string): string;
 }
 
@@ -104,18 +117,29 @@ function createSecretFile(dataDir: string) {
 function createRequestBook(waitMs: number) {
   const pending = new Map<string, PendingEntry>();
   const expired: PermissionRequestInfo[] = [];
+  const settledIds = new Set<string>();
+  const expiredListeners: ((request: PermissionRequestInfo) => void)[] = [];
 
-  function finish(id: string, decision: Decision): boolean {
+  function rememberSettled(id: string): void {
+    settledIds.add(id);
+    // A Set iterates in insertion order, so the first value is the oldest.
+    if (settledIds.size > SETTLED_IDS_KEEP_MAX) settledIds.delete(settledIds.values().next().value as string);
+  }
+
+  function finish(id: string, decision: Decision): PermissionRequestInfo | null {
     const entry = pending.get(id);
-    if (!entry) return false;
+    if (!entry) return null;
     pending.delete(id);
     clearTimeout(entry.timer);
+    rememberSettled(id);
     if (decision === 'expired') {
-      expired.unshift({ ...entry.info, status: 'expired' });
+      const expiredInfo: PermissionRequestInfo = { ...entry.info, status: 'expired' };
+      expired.unshift(expiredInfo);
       expired.length = Math.min(expired.length, EXPIRED_KEEP_MAX);
+      for (const listener of expiredListeners) listener(expiredInfo);
     }
     entry.settle(decision);
-    return true;
+    return entry.info;
   }
 
   return {
@@ -129,7 +153,12 @@ function createRequestBook(waitMs: number) {
       pending.set(id, { info: { id, sessionId, tool, text, createdMs: Date.now(), status: 'pending' }, settle, timer });
       return { id, outcome };
     },
-    answer: (id: string, decision: 'allow' | 'deny') => finish(id, decision),
+    answer(id: string, decision: 'allow' | 'deny'): AnswerResult {
+      const request = finish(id, decision);
+      if (request) return { outcome: 'answered', request };
+      return { outcome: settledIds.has(id) ? 'settled' : 'unknown' };
+    },
+    onExpired: (listener: (request: PermissionRequestInfo) => void) => void expiredListeners.push(listener),
     abandon: (id: string) => void finish(id, 'expired'),
     list(): PermissionRequestInfo[] {
       const now = Date.now();
@@ -144,8 +173,20 @@ function quoteArgument(value: string): string {
   return `"${value.replace(/\\/g, '/')}"`;
 }
 
+/**
+ * The hook runs from a copy in the data folder, rewritten at every server start, so a session that edits the repo's
+ * `scripts/` cannot change the hook that guards it.
+ */
+function copyHookScript(dataDir: string): string {
+  const copyPath = join(dataDir, HOOK_SCRIPT_NAME);
+  const tempPath = `${copyPath}.tmp`;
+  copyFileSync(join(APP_ROOT, 'scripts', HOOK_SCRIPT_NAME), tempPath);
+  renameSync(tempPath, copyPath);
+  return copyPath;
+}
+
 function writeHookSettings(dataDir: string, secretPath: string, dashboardUrl: string): string {
-  const script = join(APP_ROOT, 'scripts', 'permission-hook.mjs');
+  const script = copyHookScript(dataDir);
   const command = `${quoteArgument(process.execPath)} ${quoteArgument(script)} --url ${quoteArgument(dashboardUrl)} --secret-file ${quoteArgument(secretPath)}`;
   const settings = { hooks: { PermissionRequest: [{ hooks: [{ type: 'command', command, timeout: HOOK_TIMEOUT_SECONDS }] }] } };
   const file = join(dataDir, 'permission-hook-settings.json');

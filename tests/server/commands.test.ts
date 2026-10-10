@@ -480,25 +480,93 @@ const hookPost = (path: string, body: object, headers: Record<string, string> = 
   return raw(port, { method: 'POST', path, body: JSON.stringify(body), headers: { Host: host, Origin: `http://${host}`, 'X-Dashboard': '1', 'Content-Type': 'application/json', ...headers } });
 };
 
-test('the hook endpoint needs the secret, holds the request and returns the answer', async () => {
-  const secret = readFileSync(join(fx.dataDir, 'hook-secret'), 'utf8').trim();
+/** Submits a request through the hook endpoint and returns the id once it shows as pending in the state. */
+async function holdRequest(secret: string, text: string) {
+  const held = hookPost('/hook/permission', { sessionId: SID, tool: 'Bash', toolInput: { command: text } }, { 'X-Hook-Secret': secret });
+  for (let i = 0; i < 50; i++) {
+    await new Promise((r) => setTimeout(r, 20));
+    const found = JSON.parse((await get('/api/state')).body).permissions.find((p: { text: string }) => p.text === text.slice(0, 4000));
+    if (found) return { id: found.id as string, held };
+  }
+  throw new Error('request never became pending');
+}
+const readSecret = () => readFileSync(join(fx.dataDir, 'hook-secret'), 'utf8').trim();
+const answer = (id: string, body: object, p = port) => {
+  const host = `127.0.0.1:${p}`;
+  return raw(p, { method: 'POST', path: `/api/permissions/${id}`, body: JSON.stringify(body), headers: { Host: host, Origin: `http://${host}`, 'X-Dashboard': '1', 'Content-Type': 'application/json' } });
+};
+
+test('the hook endpoint needs the secret, holds the request and cannot answer it', async () => {
+  const secret = readSecret();
   const req = { sessionId: SID, tool: 'Bash', toolInput: { command: 'touch x.txt' } };
   assert.equal((await hookPost('/hook/permission', req)).status, 403);
   assert.equal((await hookPost('/hook/permission', req, { 'X-Hook-Secret': 'wrong' })).status, 403);
-  const held = hookPost('/hook/permission', req, { 'X-Hook-Secret': secret });
-  let id = '';
-  for (let i = 0; i < 50 && !id; i++) {
-    await new Promise((r) => setTimeout(r, 20));
-    const l = JSON.parse((await raw(port, { path: '/hook/permission', headers: { Host: `127.0.0.1:${port}`, 'X-Hook-Secret': secret } })).body).requests;
-    id = l[0]?.id ?? '';
-  }
-  assert.ok(id);
+  const { id, held } = await holdRequest(secret, 'touch x.txt');
   const st = JSON.parse((await get('/api/state')).body);
-  assert.deepEqual(st.permissions.map((p: { tool: string; text: string; sessionId: string; status: string }) => [p.tool, p.text, p.sessionId, p.status]), [['Bash', 'touch x.txt', SID, 'pending']]);
   assert.ok(!JSON.stringify(st).includes(secret));
-  assert.equal((await hookPost('/hook/permission/answer', { id, decision: 'deny' })).status, 403);
-  assert.equal((await hookPost('/hook/permission/answer', { id, decision: 'maybe' }, { 'X-Hook-Secret': secret })).status, 400);
-  assert.equal((await hookPost('/hook/permission/answer', { id, decision: 'deny' }, { 'X-Hook-Secret': secret })).status, 200);
+  // No self-approval: the secret opens no answer route, and the old answer and list routes are gone.
+  const old = await hookPost('/hook/permission/answer', { id, decision: 'allow' }, { 'X-Hook-Secret': secret });
+  assert.notEqual(old.status, 200);
+  assert.equal((await raw(port, { path: '/hook/permission', headers: { Host: `127.0.0.1:${port}`, 'X-Hook-Secret': secret } })).status, 405);
+  assert.ok(JSON.parse((await get('/api/state')).body).permissions.some((p: { id: string }) => p.id === id), 'still pending');
+  assert.equal((await answer(id, { decision: 'deny' })).status, 200);
   assert.equal(JSON.parse((await held).body).decision, 'deny');
-  assert.equal((await hookPost('/hook/permission/answer', { id, decision: 'allow' }, { 'X-Hook-Secret': secret })).status, 404);
+});
+
+test('POST /api/permissions/:id answers once, audits it and lists it in /api/approvals', async () => {
+  const secret = readSecret();
+  const { id, held } = await holdRequest(secret, 'echo ' + 'y'.repeat(700));
+  assert.equal((await answer(id, { decision: 'always' })).status, 400);
+  assert.equal((await answer(id, { decision: 'bypass' })).status, 400);
+  assert.ok(JSON.parse((await get('/api/state')).body).permissions.some((p: { id: string }) => p.id === id), 'still pending after refusals');
+  assert.equal((await answer(id, { decision: 'allow' })).status, 200);
+  assert.equal(JSON.parse((await held).body).decision, 'allow');
+  const again = await answer(id, { decision: 'deny' });
+  assert.equal(again.status, 409);
+  assert.equal(JSON.parse(again.body).error, 'permission request already answered or expired');
+  assert.equal((await answer('00000000-0000-4000-8000-000000000000', { decision: 'allow' })).status, 404);
+  assert.equal((await answer('not-an-id', { decision: 'allow' })).status, 404);
+
+  const { approvals } = JSON.parse((await get('/api/approvals')).body);
+  assert.deepEqual([approvals[0].action, approvals[0].outcome, approvals[0].session, approvals[0].tool], ['approval', 'allow', SID, 'Bash']);
+  assert.equal(approvals[0].text.length, 500);
+  assert.ok(approvals[0].ts && approvals[0].device);
+  assert.ok(!JSON.stringify(approvals).includes(secret));
+});
+
+test('answering needs the same guards and enabled commands; a refused answer leaves the request pending', async () => {
+  const secret = readSecret();
+  const { id, held } = await holdRequest(secret, 'rm -rf guarded');
+  const host = `127.0.0.1:${port}`;
+  const send = (headers: Record<string, string>) =>
+    raw(port, { method: 'POST', path: `/api/permissions/${id}`, body: JSON.stringify({ decision: 'allow' }), headers: { Host: host, 'Content-Type': 'application/json', ...headers } });
+  assert.equal((await send({ Origin: 'http://evil.example', 'X-Dashboard': '1' })).status, 403);
+  assert.equal((await send({ Origin: `http://${host}` })).status, 403);
+  assert.equal((await send({ Origin: `http://${host}`, 'X-Dashboard': '1', 'Sec-Fetch-Site': 'cross-site' })).status, 403);
+  assert.equal((await answer(id, { decision: 'allow' }, offPort)).status, 404);
+  assert.ok(JSON.parse((await get('/api/state')).body).permissions.some((p: { id: string }) => p.id === id));
+  assert.equal((await answer(id, { decision: 'deny' })).status, 200);
+  await held;
+});
+
+test('an unanswered request is audited as expired', async () => {
+  const { createPermissionStore } = await import('../../src/server/features/permissions/permissions.ts');
+  const shortLived = createDashboardServer({ publicDir, commands: true, permissions: createPermissionStore({ dataDir: fx.dataDir, waitMs: 60 }) });
+  await new Promise<void>((r) => shortLived.listen(0, '127.0.0.1', r));
+  const shortPort = (shortLived.address() as AddressInfo).port;
+  try {
+    const host = `127.0.0.1:${shortPort}`;
+    const reply = await raw(shortPort, {
+      method: 'POST',
+      path: '/hook/permission',
+      body: JSON.stringify({ sessionId: SID, tool: 'Write', toolInput: { file_path: 'a' } }),
+      headers: { Host: host, Origin: `http://${host}`, 'X-Dashboard': '1', 'X-Hook-Secret': readSecret(), 'Content-Type': 'application/json' },
+    });
+    assert.equal(JSON.parse(reply.body).decision, 'expired');
+    const { approvals } = JSON.parse((await get('/api/approvals', shortPort)).body);
+    assert.deepEqual([approvals[0].outcome, approvals[0].tool, approvals[0].session, approvals[0].device], ['expired', 'Write', SID, undefined]);
+  } finally {
+    shortLived.closeAllConnections();
+    shortLived.close();
+  }
 });
