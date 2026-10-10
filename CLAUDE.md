@@ -8,12 +8,12 @@ Web dashboard for Claude Code activity: the projects in `N:\Projects`, live sess
 
 - `npm start`: build the client, then serve on http://127.0.0.1:4777 (no login)
 - `npm run start:lan`: same, but on all interfaces over HTTPS with a token login (`--lan` flag)
-- `npm run dev`: watch mode: rebuild HTML on change, esbuild watch for `app.ts` and `login.ts`, sass watch for styles, server restarts on `src/server/` or `src/shared/` changes (client changes don't restart); refresh browser tab manually
+- `npm run dev`: watch mode: rebuild HTML on change, esbuild watch for the client entry points, sass watch for styles, server restarts on `src/server/` or `src/shared/` changes (client changes don't restart); refresh browser tab manually
 - `npm run dev:lan`: same, but server listens on all interfaces over HTTPS with login (`--lan` flag)
 - `npm test`: `node:test` suites in `tests/`
 - `npm run typecheck`: `tsc --noEmit` over `src` and `tests`
 - `npm run lint`: ESLint readability rules of `docs/code-style.md` over `src` and `tests` (`eslint.config.js`; `LEGACY_FILES` lists files exempt for now and may only shrink)
-- `npm run build`: esbuild `src/client/app.ts` + `login.ts` + `boot.ts` → `public/`, sass `style.scss` → `public/style.css`, copy `index.html` + `login.html` + `src/client/fonts` → `public/fonts` + `src/client/root` → `public/root` (via `scripts/copy-assets.mjs`)
+- `npm run build`: esbuild `src/client/app/app.ts` + `features/login/login.view.ts` + `features/pair/pair.view.ts` + `app/boot.ts` → `public/{app,login,pair,boot}.js`, sass `style.scss` → `public/style.css`, copy `index.html` + `login.html` + `src/client/fonts` → `public/fonts` + `src/client/skins/root` → `public/root` (via `scripts/copy-assets.mjs`)
 
 Run `npm run typecheck`, `npm run lint` and `npm test` after every change, except changes that only touch documentation (Markdown, agent/skill/parameter files, comments).
 
@@ -82,7 +82,7 @@ Also see `.claude/skills/` for 24 reusable skills.
 
 ### Frontend and TypeScript delegation (mandatory)
 
-- **Frontend:** delegate every change in `src/client/` (`.ts`, `.scss`, `index.html`, `login.html`) to the `frontend-developer` agent, including new files such as `building.ts`. The client is vanilla TypeScript and SCSS with no framework (no React, Vue or Angular), so ignore the agent's framework wording. In the delegation prompt, include the "UI conventions" from `docs/architecture.md`, the `esc()` and no-inline-script rules from "Rules", `docs/code-style.md`, and which `src/shared/types/` changes are involved. Trivial one-line fixes may be done directly.
+- **Frontend:** delegate every change in `src/client/` (`.ts`, `.scss`, `index.html`, `login.html`) to the `frontend-developer` agent, including new files such as `features/building/building.view.ts`. The client is vanilla TypeScript and SCSS with no framework (no React, Vue or Angular), so ignore the agent's framework wording. In the delegation prompt, include the "UI conventions" from `docs/architecture.md`, the `esc()` and no-inline-script rules from "Rules", `docs/code-style.md`, and which `src/shared/types/` changes are involved. Trivial one-line fixes may be done directly.
 - **TypeScript:** delegate to `typescript-pro` whenever `src/shared/types/` is added to or changed, a new `.ts` module is created, or API, transcript or config boundaries get new types, not only when asked for "type-system work". Honour the "TypeScript constraints" above and include `docs/code-style.md` in the delegation prompt.
 - When both apply (a client feature with new shared types), run `typescript-pro` for the types first, then `frontend-developer` for the UI.
 

@@ -1368,10 +1368,10 @@ $hair: (#2b2118, #6b4423, #c9a24b, #a33b2a, #555555);
   }
 }
 
-// ---- skins: one partial each (src/client/_skin-<name>.scss), scoped to :root[data-skin='<name>'].
+// ---- skins: one partial each (src/client/skins/_<name>.scss), scoped to :root[data-skin='<name>'].
 // Loaded last so they win ties. Add the next skin with another load-css line. ----
-@include meta.load-css('skin-copilot');
-@include meta.load-css('skin-root');
+@include meta.load-css('skins/copilot');
+@include meta.load-css('skins/root');
 
 .team {
   &[hidden] {

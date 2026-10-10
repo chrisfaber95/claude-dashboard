@@ -70,7 +70,7 @@ responsibility per module, magic numbers, comments, and the folder map (`tests/c
 
 ## Examples
 
-Names and nested ternary (`fmt` in `src/client/app.ts`):
+Names and nested ternary (`fmt` in `src/client/app/app.ts`):
 
 ```ts
 // Before
@@ -91,7 +91,7 @@ function formatTokenCount(tokenCount: number): string {
 }
 ```
 
-Single-letter parameter (`total` in `src/client/app.ts`):
+Single-letter parameter (`total` in `src/client/app/app.ts`):
 
 ```ts
 // Before
