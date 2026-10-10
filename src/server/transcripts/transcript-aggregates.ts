@@ -1,6 +1,7 @@
 import { PROJECTS_ROOT, emptyTokens, localDay, normPath } from '../config.ts';
 import { contentText, handbackBody, peerName, peerOrigin, snippet } from './transcript-view.ts';
 import type { LimitHit, MessageInfo, TokenCounts } from '../../shared/types/index.ts';
+import type { TranscriptLine } from './transcript-line.ts';
 
 /** Tokens per local day, split by project and model. */
 export interface DayAgg {
@@ -110,8 +111,8 @@ function sessionAggFor(context: UsageContext): SessionAgg {
 }
 
 /** True once per streamed message: duplicates share message id + request id. */
-function isFirstSighting(line: any): boolean {
-  const key = `${line.message.id ?? ''}:${line.requestId ?? ''}`;
+function isFirstSighting(messageId: string | undefined, requestId: string | undefined): boolean {
+  const key = `${messageId ?? ''}:${requestId ?? ''}`;
   if (key === EMPTY_MESSAGE_KEY) return true;
   if (seenMessageIds.has(key)) return false;
   seenMessageIds.add(key);
@@ -122,19 +123,14 @@ function isFirstSighting(line: any): boolean {
  * Count the token usage of an assistant line into the day, model and session aggregates.
  * Returns the token total that was counted, or null when the line carries none (or was a duplicate).
  */
-export function recordUsage(line: any, tsMs: number, context: UsageContext): number | null {
-  const usage = line.message?.usage;
-  if (!usage || line.type !== 'assistant' || Number.isNaN(tsMs)) return null;
-  if (!isFirstSighting(line)) return null;
-  const model: string = line.message.model ?? 'unknown';
+export function recordUsage(line: TranscriptLine, tsMs: number, context: UsageContext): number | null {
+  const message = line.message;
+  const tokens = message?.usage;
+  if (!message || !tokens || line.type !== 'assistant' || Number.isNaN(tsMs)) return null;
+  if (!isFirstSighting(message.id, line.requestId)) return null;
+  const model = message.model ?? 'unknown';
   if (model === SYNTHETIC_MODEL) return null;
 
-  const tokens: TokenCounts = {
-    input: usage.input_tokens ?? 0,
-    output: usage.output_tokens ?? 0,
-    cacheRead: usage.cache_read_input_tokens ?? 0,
-    cacheWrite: usage.cache_creation_input_tokens ?? 0,
-  };
   const total = tokens.input + tokens.output + tokens.cacheRead + tokens.cacheWrite;
 
   const day = dayAggFor(localDay(tsMs));
@@ -155,13 +151,13 @@ export function recordUsage(line: any, tsMs: number, context: UsageContext): num
 }
 
 /** Note a rate-limit rejection of a line, if it is one. */
-export function recordLimitHit(line: any, tsMs: number, project: string): void {
+export function recordLimitHit(line: TranscriptLine, tsMs: number, project: string): void {
   const quota = line.quotaLimits;
   if (!quota || quota.status !== 'rejected' || Number.isNaN(tsMs)) return;
   limitHits.push({
     tsMs,
-    type: String(quota.rateLimitType ?? 'unknown'),
-    resetsAtMs: quota.resetsAt ? Number(quota.resetsAt) * MS_PER_SECOND : null,
+    type: quota.rateLimitType ?? 'unknown',
+    resetsAtMs: quota.resetsAtSeconds ? quota.resetsAtSeconds * MS_PER_SECOND : null,
     project,
   });
 }
@@ -172,10 +168,10 @@ export function indexTranscript(sessionId: string, location: TranscriptLocation)
   if (!previous || location.lastTsMs >= previous.lastTsMs) transcriptIndex.set(sessionId, location);
 }
 
-function recordIncomingPeerMessage(line: any, tsMs: number, sessionId: string): void {
+function recordIncomingPeerMessage(line: TranscriptLine, tsMs: number, sessionId: string): void {
   const peer = peerOrigin(line);
   if (!peer) return;
-  const body = String(peer.body ?? contentText(line.message?.content));
+  const body = peer.body ?? contentText(line.message?.content);
   const isSubagent = body.startsWith('[Subagent hand-back]') || Boolean(peer.senderTaskId);
   messages.push({
     tsMs,
@@ -188,10 +184,11 @@ function recordIncomingPeerMessage(line: any, tsMs: number, sessionId: string): 
   });
 }
 
-function recordOutgoingMessages(line: any, tsMs: number, sessionId: string): void {
-  if (line.type !== 'assistant' || !Array.isArray(line.message?.content)) return;
-  for (const part of line.message.content) {
-    if (part?.type !== 'tool_use' || part.name !== 'SendMessage') continue;
+function recordOutgoingMessages(line: TranscriptLine, tsMs: number, sessionId: string): void {
+  const content = line.message?.content;
+  if (line.type !== 'assistant' || !Array.isArray(content)) return;
+  for (const part of content) {
+    if (part.type !== 'tool_use' || part.name !== 'SendMessage') continue;
     const body = part.input?.message;
     messages.push({
       tsMs,
@@ -207,7 +204,7 @@ function recordOutgoingMessages(line: any, tsMs: number, sessionId: string): voi
 }
 
 /** Collect the peer messages a main-transcript line received or sent. */
-export function recordMessages(line: any, tsMs: number, sessionId: string): void {
+export function recordMessages(line: TranscriptLine,tsMs: number, sessionId: string): void {
   recordIncomingPeerMessage(line, tsMs, sessionId);
   recordOutgoingMessages(line, tsMs, sessionId);
 }

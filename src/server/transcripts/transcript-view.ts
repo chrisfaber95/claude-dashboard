@@ -1,5 +1,7 @@
 import { open, stat } from 'node:fs/promises';
 import type { TranscriptEntry, TranscriptPage } from '../../shared/types/index.ts';
+import { isRecord, parseTranscriptLine } from './transcript-line.ts';
+import type { ContentBlock, MessageOrigin, TranscriptLine } from './transcript-line.ts';
 
 const RESULT_MAX_CHARS = 2048;
 const TEXT_MAX_CHARS = 20_000;
@@ -30,10 +32,11 @@ function clip(text: string, max: number): string {
 function textOf(content: unknown): string {
   if (typeof content === 'string') return content;
   if (!Array.isArray(content)) return '';
-  return content
-    .filter((part) => part && typeof part === 'object' && (part as { type?: string }).type === 'text')
-    .map((part) => String((part as { text: unknown }).text))
-    .join('\n');
+  const texts: string[] = [];
+  for (const part of content) {
+    if (isRecord(part) && part.type === 'text' && typeof part.text === 'string') texts.push(part.text);
+  }
+  return texts.join('\n');
 }
 
 /** Collapse whitespace and cut a text to `max` characters, marking the cut with an ellipsis. */
@@ -46,9 +49,7 @@ export function snippet(text: string, max = SNIPPET_MAX_CHARS): string {
 export function contentText(content: unknown): string {
   if (typeof content === 'string') return content;
   if (!Array.isArray(content)) return '';
-  return content
-    .map((part) => (part && typeof part === 'object' && 'text' in part ? String((part as { text: unknown }).text) : ''))
-    .join(' ');
+  return content.map((part) => (isRecord(part) && 'text' in part ? String(part.text) : '')).join(' ');
 }
 
 /** The report inside a "[Subagent hand-back]" body, without the harness preamble. */
@@ -64,14 +65,14 @@ export function toolSummary(name: string, input: Record<string, unknown> | undef
   return `${name}: ${text.replace(/\s+/g, ' ').slice(0, max)}`;
 }
 
-function originOf(line: any): any {
+function originOf(line: TranscriptLine): MessageOrigin | undefined {
   if (line.type === 'user') return line.origin;
   if (line.type === 'attachment' && line.attachment?.type === 'queued_command') return line.attachment.origin;
   return undefined;
 }
 
 /** The peer origin of a line: on the user line itself, or (newer Claude Code) on a queued_command attachment. */
-export function peerOrigin(line: any): any {
+export function peerOrigin(line: TranscriptLine): MessageOrigin | undefined {
   const origin = originOf(line);
   return origin?.kind === 'peer' ? origin : undefined;
 }
@@ -80,20 +81,19 @@ export function peerOrigin(line: any): any {
  * Who sent a peer message: the session or subagent name, else `from`. Sessions on this PC send from a
  * local pipe address (`uds:\\.\pipe\...`), which means nothing to a reader, so that becomes 'unknown'.
  */
-export function peerName(peer: any): string {
-  if (peer.name) return String(peer.name);
-  const from = String(peer.from ?? '');
+export function peerName(peer: MessageOrigin): string {
+  if (peer.name) return peer.name;
+  const from = peer.from ?? '';
   return from && !from.startsWith('uds:') ? from : 'unknown';
 }
 
-function userEntries(line: any, base: EntryBase): TranscriptEntry[] {
+function userEntries(line: TranscriptLine, base: EntryBase): TranscriptEntry[] {
   const out: TranscriptEntry[] = [];
   const content = line.message?.content;
   if (Array.isArray(content)) {
     for (const part of content) {
-      if (part?.type !== 'tool_result') continue;
-      const text = typeof part.content === 'string' ? part.content : textOf(part.content);
-      out.push({ ...base, role: 'result', text: clip(text, RESULT_MAX_CHARS), isError: Boolean(part.is_error) });
+      if (part.type !== 'tool_result') continue;
+      out.push({ ...base, role: 'result', text: clip(textOf(part.content), RESULT_MAX_CHARS), isError: part.isError });
     }
   }
   const text = textOf(content).trim();
@@ -101,27 +101,28 @@ function userEntries(line: any, base: EntryBase): TranscriptEntry[] {
   return out;
 }
 
-function assistantEntries(content: any[], base: EntryBase): TranscriptEntry[] {
+function assistantEntries(content: ContentBlock[], base: EntryBase): TranscriptEntry[] {
   const out: TranscriptEntry[] = [];
   for (const part of content) {
-    if (part?.type === 'text' && String(part.text).trim()) {
-      out.push({ ...base, role: 'assistant', text: clip(String(part.text), TEXT_MAX_CHARS) });
-    } else if (part?.type === 'tool_use') {
-      out.push({ ...base, role: 'tool', text: toolSummary(String(part.name), part.input) });
+    if (part.type === 'text' && part.text?.trim()) {
+      out.push({ ...base, role: 'assistant', text: clip(part.text, TEXT_MAX_CHARS) });
+    } else if (part.type === 'tool_use' && part.name) {
+      out.push({ ...base, role: 'tool', text: toolSummary(part.name, part.input) });
     }
   }
   return out;
 }
 
-function entriesOfLine(line: any, base: EntryBase): TranscriptEntry[] {
+function entriesOfLine(line: TranscriptLine, base: EntryBase): TranscriptEntry[] {
   // Subagent hand-backs in attachment form stay out: their report also comes back as the Agent tool result.
   const peer = peerOrigin(line);
   if (peer && (line.type === 'user' || !peer.senderTaskId)) {
-    const text = clip(String(peer.body ?? textOf(line.message?.content)), TEXT_MAX_CHARS);
+    const text = clip(peer.body ?? textOf(line.message?.content), TEXT_MAX_CHARS);
     return [{ ...base, role: 'peer', from: peerName(peer), text }];
   }
   if (line.type === 'user') return userEntries(line, base);
-  if (line.type === 'assistant' && Array.isArray(line.message?.content)) return assistantEntries(line.message.content, base);
+  const content = line.message?.content;
+  if (line.type === 'assistant' && Array.isArray(content)) return assistantEntries(content, base);
   return [];
 }
 
@@ -134,14 +135,9 @@ export function parseEntries(lines: string[], sidechain = false): TranscriptEntr
   const out: TranscriptEntry[] = [];
   for (const raw of lines) {
     if (!raw) continue;
-    let line: any;
-    try {
-      line = JSON.parse(raw);
-    } catch {
-      continue;
-    }
-    if (line.isMeta || (line.isSidechain && !sidechain)) continue;
-    const base = { uuid: String(line.uuid ?? ''), tsMs: line.timestamp ? Date.parse(line.timestamp) : 0 };
+    const line = parseTranscriptLine(raw);
+    if (!line || line.isMeta || (line.isSidechain && !sidechain)) continue;
+    const base = { uuid: line.uuid ?? '', tsMs: line.timestamp ? Date.parse(line.timestamp) : 0 };
     out.push(...entriesOfLine(line, base));
   }
   return out;
@@ -165,7 +161,8 @@ async function loadEntries(path: string, maxBytes: number, sidechain: boolean): 
   if (start > 0) lines.shift(); // first line is partial
   const value = { key, entries: parseEntries(lines, sidechain), truncated: start > 0 };
   cache.set(path, value);
-  if (cache.size > CACHE_MAX_FILES) cache.delete(cache.keys().next().value!);
+  const oldestPath = cache.keys().next().value;
+  if (cache.size > CACHE_MAX_FILES && oldestPath !== undefined) cache.delete(oldestPath);
   return value;
 }
 
