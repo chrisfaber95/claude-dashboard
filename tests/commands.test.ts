@@ -40,8 +40,14 @@ after(() => {
 });
 beforeEach(() => rmSync(cliLog, { force: true }));
 
-const calls = () =>
+const rawCalls = () =>
   existsSync(cliLog) ? readFileSync(cliLog, 'utf8').trim().split('\n').map((l) => JSON.parse(l) as { args: string[]; cwd: string }) : [];
+/** Calls without the dashboard's own `--settings <file>` pair, which has its own test. */
+const calls = () =>
+  rawCalls().map((c) => {
+    const i = c.args.indexOf('--settings');
+    return i < 0 ? c : { ...c, args: c.args.filter((_, j) => j !== i && j !== i + 1) };
+  });
 
 function post(path: string, body: object, p = port) {
   const host = `127.0.0.1:${p}`;
@@ -449,4 +455,50 @@ test('two concurrent follow-ups to one session: one succeeds, the other gets 409
   } finally {
     delete process.env.FAKE_CLAUDE_RESUME_DELAY_MS;
   }
+});
+
+test('start and follow-up add --settings with only a PermissionRequest hook; other CLI calls are unchanged', async () => {
+  await post('/api/commands', { project: 'Alpha', prompt: 'go', permissionMode: 'plan' });
+  await post(`/api/sessions/${SID}/message`, { prompt: 'more', permissionMode: 'plan' });
+  await post(`/api/sessions/${SID}/stop`, {});
+  const [start, resume, stop] = rawCalls();
+  for (const c of [start, resume]) {
+    const i = c.args.indexOf('--settings');
+    assert.equal(c.args[0], '--bg');
+    assert.equal(i, 1);
+    const settings = JSON.parse(readFileSync(c.args[i + 1], 'utf8'));
+    assert.deepEqual(Object.keys(settings), ['hooks']);
+    assert.deepEqual(Object.keys(settings.hooks), ['PermissionRequest']);
+    assert.match(settings.hooks.PermissionRequest[0].hooks[0].command, /permission-hook\.mjs/);
+    assert.ok(!JSON.stringify(settings).includes(readFileSync(join(fx.dataDir, 'hook-secret'), 'utf8').trim()), 'secret not in settings');
+  }
+  assert.ok(!stop.args.includes('--settings'));
+});
+
+const hookPost = (path: string, body: object, headers: Record<string, string> = {}) => {
+  const host = `127.0.0.1:${port}`;
+  return raw(port, { method: 'POST', path, body: JSON.stringify(body), headers: { Host: host, Origin: `http://${host}`, 'X-Dashboard': '1', 'Content-Type': 'application/json', ...headers } });
+};
+
+test('the hook endpoint needs the secret, holds the request and returns the answer', async () => {
+  const secret = readFileSync(join(fx.dataDir, 'hook-secret'), 'utf8').trim();
+  const req = { sessionId: SID, tool: 'Bash', toolInput: { command: 'touch x.txt' } };
+  assert.equal((await hookPost('/hook/permission', req)).status, 403);
+  assert.equal((await hookPost('/hook/permission', req, { 'X-Hook-Secret': 'wrong' })).status, 403);
+  const held = hookPost('/hook/permission', req, { 'X-Hook-Secret': secret });
+  let id = '';
+  for (let i = 0; i < 50 && !id; i++) {
+    await new Promise((r) => setTimeout(r, 20));
+    const l = JSON.parse((await raw(port, { path: '/hook/permission', headers: { Host: `127.0.0.1:${port}`, 'X-Hook-Secret': secret } })).body).requests;
+    id = l[0]?.id ?? '';
+  }
+  assert.ok(id);
+  const st = JSON.parse((await get('/api/state')).body);
+  assert.deepEqual(st.permissions.map((p: { tool: string; text: string; sessionId: string; status: string }) => [p.tool, p.text, p.sessionId, p.status]), [['Bash', 'touch x.txt', SID, 'pending']]);
+  assert.ok(!JSON.stringify(st).includes(secret));
+  assert.equal((await hookPost('/hook/permission/answer', { id, decision: 'deny' })).status, 403);
+  assert.equal((await hookPost('/hook/permission/answer', { id, decision: 'maybe' }, { 'X-Hook-Secret': secret })).status, 400);
+  assert.equal((await hookPost('/hook/permission/answer', { id, decision: 'deny' }, { 'X-Hook-Secret': secret })).status, 200);
+  assert.equal(JSON.parse((await held).body).decision, 'deny');
+  assert.equal((await hookPost('/hook/permission/answer', { id, decision: 'allow' }, { 'X-Hook-Secret': secret })).status, 404);
 });
