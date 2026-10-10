@@ -16,3 +16,11 @@ test('every LEGACY_FILES entry still exists, so the list can only shrink', () =>
   const missing = LEGACY_FILES.filter((file) => !existsSync(file));
   assert.deepEqual(missing, []);
 });
+
+test('a .vue file with a forbidden name and v-html fails lint', async () => {
+  const eslint = new ESLint({ ignore: false });
+  const [result] = await eslint.lintFiles(['tests/lint-fixtures/bad-names.vue']);
+  const ruleIds = result.messages.map((message) => message.ruleId);
+  assert.ok(ruleIds.includes('id-denylist'));
+  assert.ok(ruleIds.includes('vue/no-v-html'));
+});
