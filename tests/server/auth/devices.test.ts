@@ -112,3 +112,41 @@ test('a stored device id of pc is ignored: pc is reserved for the loopback exemp
   writeFileSync(join(dir, 'devices.json'), JSON.stringify({ devices: [{ id: 'pc', name: 'sneaky', sha256: hash, createdMs: 1, lastSeenMs: null }, { id: 'ok', name: 'fine', sha256: hash, createdMs: 1, lastSeenMs: null }] }));
   assert.deepEqual(createDeviceStore(dir).list().map((device) => device.id), ['ok']);
 });
+
+test('one bad entry is dropped and the good ones are kept', () => {
+  const dir = join(fx.root, 'one-bad');
+  mkdirSync(dir, { recursive: true });
+  const hash = 'b'.repeat(64);
+  const good = { id: 'good', name: 'Tablet', sha256: hash, createdMs: 1, lastSeenMs: 5 };
+  const devices = [
+    { ...good, id: 7 },
+    { ...good, id: 'bad-name', name: null },
+    { ...good, id: 'bad-hash', sha256: 'xyz' },
+    { ...good, id: 'bad-created', createdMs: '1' },
+    { ...good, id: 'bad-seen', lastSeenMs: 'yesterday' },
+    { id: 'missing-fields', name: 'x' },
+    null,
+    'text',
+    good,
+  ];
+  writeFileSync(join(dir, 'devices.json'), JSON.stringify({ devices }));
+  assert.deepEqual(createDeviceStore(dir).list().map((device) => device.id), ['good']);
+});
+
+test('a missing, corrupt or wrongly shaped file is an empty store', () => {
+  const dir = join(fx.root, 'empty-store');
+  mkdirSync(dir, { recursive: true });
+  assert.equal(createDeviceStore(dir).list().length, 0, 'missing file');
+  for (const content of ['{not json', 'null', '[]', '{"devices":{"id":"x"}}', '{}']) {
+    writeFileSync(join(dir, 'devices.json'), content);
+    assert.equal(createDeviceStore(dir).list().length, 0, content);
+  }
+});
+
+test('a duplicate device id keeps only the first entry', () => {
+  const dir = join(fx.root, 'duplicate-id');
+  mkdirSync(dir, { recursive: true });
+  const device = { id: 'same', name: 'First', sha256: 'c'.repeat(64), createdMs: 1, lastSeenMs: null };
+  writeFileSync(join(dir, 'devices.json'), JSON.stringify({ devices: [device, { ...device, name: 'Second' }] }));
+  assert.deepEqual(createDeviceStore(dir).list().map((listed) => listed.name), ['First']);
+});
