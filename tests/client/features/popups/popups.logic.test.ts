@@ -7,13 +7,13 @@ import { POPUPS, backdropCloses, openPopup, escapeClosesPopup, stillOpen, toggle
 test('the button set and order are fixed', () => {
   assert.deepEqual(
     POPUPS.map((popup) => popup.id),
-    ['projects', 'comms', 'team', 'usage', 'chat', 'run', 'devices', 'audit'],
+    ['projects', 'comms', 'team', 'usage', 'chat', 'run', 'devices', 'audit', 'approvals'],
   );
 });
 
 test('buttons of hidden sections are left out, order kept', () => {
   const hidden = new Set(['team', 'run', 'devices']);
-  assert.deepEqual(visiblePopups((id) => hidden.has(id)), ['projects', 'comms', 'usage', 'chat', 'audit']);
+  assert.deepEqual(visiblePopups((id) => hidden.has(id)), ['projects', 'comms', 'usage', 'chat', 'audit', 'approvals']);
 });
 
 test('opening replaces the open popup; the same button closes it', () => {

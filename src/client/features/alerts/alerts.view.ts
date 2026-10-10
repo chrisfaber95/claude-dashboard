@@ -1,5 +1,6 @@
 import type { Alert, DashboardState } from '../../../shared/types/index.ts';
 import { badgeCount, createAlertTracker } from './alerts.logic.ts';
+import { pendingCount, permissionItemsHtml } from '../permissions/permissions.view.ts';
 import { patchHtml } from '../../app/patch.ts';
 import { elementById } from '../../shared/dom.ts';
 import { api } from '../../shared/api.ts';
@@ -40,17 +41,19 @@ export function renderAlerts(state: DashboardState): void {
   const seen = new Set<string>();
   const items = info.items.filter((item) => !seen.has(item.id) && seen.add(item.id));
 
-  const badgeTotal = badgeCount(items);
+  const pendingTotal = pendingCount(state);
+  const badgeTotal = badgeCount(items) + pendingTotal;
   const badge = elementById('alert-badge');
   badge.hidden = badgeTotal === 0;
   badge.textContent = badgeTotal ? String(badgeTotal) : '';
 
-  elementById('alerts').classList.toggle('has-alerts', items.length > 0);
+  const total = items.length + pendingTotal;
+  elementById('alerts').classList.toggle('has-alerts', total > 0);
   const count = elementById('alerts-count');
-  count.hidden = items.length === 0;
-  count.textContent = items.length ? String(items.length) : '';
+  count.hidden = total === 0;
+  count.textContent = total ? String(total) : '';
 
-  const html = items.length ? items.map(row).join('') : '<li class="empty">Nothing needs attention.</li>';
+  const html = total ? permissionItemsHtml(state, 'alerts') + items.map(row).join('') : '<li class="empty">Nothing needs attention.</li>';
   patchHtml(elementById('alerts-list'), html);
 
   // Form: never overwrite what the user is typing.

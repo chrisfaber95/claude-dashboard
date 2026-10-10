@@ -10,6 +10,7 @@ import { initAudit, renderAudit } from '../features/audit/audit.view.ts';
 import { initDevices, renderDevices } from '../features/devices/devices.view.ts';
 import { renderLimits } from '../features/limits/limits.view.ts';
 import { renderMessages } from '../features/messages/messages.view.ts';
+import { initPermissions, renderApprovals, updateApprovals } from '../features/permissions/permissions.view.ts';
 import { draws, initPopups, updatePopups } from '../features/popups/popups.view.ts';
 import type { PopupId } from '../features/popups/popups.logic.ts';
 import { renderProjects } from '../features/projects/projects.view.ts';
@@ -41,6 +42,7 @@ function render(state: DashboardState): void {
     ['team', () => renderTeam(state, draws('team'))],
     ['devices', () => renderDevices(state)],
     ['audit', () => renderAudit(state)],
+    ['approvals', () => updateApprovals(state)],
     ['projects', () => draws('projects') && renderProjects(state)],
     ['sessions', () => renderSessions(state)],
     ['messages', () => draws('comms') && renderMessages(state)],
@@ -70,6 +72,7 @@ function drawPopup(id: PopupId): void {
   else if (id === 'comms') renderMessages(latestState);
   else if (id === 'team') renderTeam(latestState);
   else if (id === 'usage') renderUsage(latestState);
+  else if (id === 'approvals') renderApprovals();
 }
 
 initTooltip();
@@ -81,6 +84,11 @@ initSummarySetting();
 initChat();
 initDevices();
 initAudit();
+initPermissions(() => {
+  if (!latestState) return;
+  renderSessions(latestState);
+  renderAlerts(latestState);
+});
 initBuilding();
 initCore();
 
