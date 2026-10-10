@@ -452,3 +452,20 @@ test('a sweep also ends the sessions of a device that vanished from the store, a
   assert.deepEqual(calls, [second.id], "later listeners still run");
   assert.equal(auth.identify(reqWith(`dash_sid=${sid2}`)), null);
 });
+
+test('isLocalPeer: all of 127.0.0.0/8, own interface addresses and a missing peer are local; a LAN phone is not', async () => {
+  const { isLocalPeer } = await import('../../../src/server/auth/loopback.ts');
+  const { networkInterfaces } = await import('node:os');
+  const peer = (addr?: string) => ({ headers: {}, socket: { remoteAddress: addr } }) as unknown as IncomingMessage;
+  for (const addr of ['127.0.0.1', '127.0.0.2', '::1', '::ffff:127.0.0.1', '::ffff:127.9.9.9', undefined]) {
+    assert.equal(isLocalPeer(peer(addr)), true, String(addr));
+  }
+  const own = Object.values(networkInterfaces()).flat().find((entry) => entry?.family === 'IPv4' && !entry.internal)?.address;
+  if (own) {
+    assert.equal(isLocalPeer(peer(own)), true, 'own LAN address');
+    assert.equal(isLocalPeer(peer(`::ffff:${own}`)), true, 'mapped own LAN address');
+  }
+  assert.equal(isLocalPeer(peer('203.0.113.7')), false);
+  assert.equal(isLocalPeer(peer('::ffff:203.0.113.7')), false);
+  assert.equal(isLocalPeer(peer('1270.0.0.1')), false);
+});

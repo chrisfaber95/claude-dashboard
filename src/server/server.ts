@@ -7,6 +7,7 @@ import { APP_ROOT, COMMANDS_ENABLED, DATA_DIR, HOST, LAN_MODE, PORT, PROJECTS_RO
 import { recordFailedSignin } from './features/alerts/alerts.ts';
 import { APPROVAL_TEXT_AUDIT_MAX, createPermissionStore, type PermissionStore } from './features/permissions/permissions.ts';
 import { PC_DEVICE, createAuth, type Auth } from './auth/auth.ts';
+import { isLocalPeer } from './auth/loopback.ts';
 import { createDeviceStore } from './auth/devices.ts';
 import { CommandError, audit } from './claude/claude-cli.ts';
 import { buildState } from './transcripts/state.ts';
@@ -48,6 +49,8 @@ export interface ServerOptions {
   projectsRoot?: string;
   /** Permission-prompt store (tests inject one). */
   permissions?: PermissionStore;
+  /** Whether a request's socket peer is this PC (tests replace it: every test client connects from loopback). */
+  isLocalPeer?: (req: IncomingMessage) => boolean;
 }
 
 /** Who is acting, for the audit log. Without a login (localhost mode) the caller is this PC. */
@@ -113,6 +116,7 @@ export function createDashboardServer(options: ServerOptions = {}): Server {
     areCommandsEnabled: isCommandsEnabled,
     projectsRoot: options.projectsRoot ?? PROJECTS_ROOT,
     permissions,
+    isLocalPeer: options.isLocalPeer ?? isLocalPeer,
     streams,
     buildDashboardState: () => ({ ...buildState({ lan: Boolean(auth), commands: isCommandsEnabled }), permissions: permissions.list() }),
     getSettingsFile: () => settingsFile,

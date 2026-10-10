@@ -16,6 +16,8 @@ export interface ServerContext {
   protocol: string;
   isTlsEnabled: boolean;
   areCommandsEnabled: boolean;
+  /** The socket peer is this PC (loopback or one of its own addresses). */
+  isLocalPeer: (req: IncomingMessage) => boolean;
   projectsRoot: string;
   permissions: PermissionStore;
   streams: LiveStreams;
