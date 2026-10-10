@@ -70,6 +70,32 @@ test('CLAUDE_BIN without args gives an empty prefix', () => {
   assert.deepEqual(resolveClaudeBin(), { bin: 'some-bin', prefix: [] });
 });
 
+const INVALID_BIN_ARGS = ['not json {', '"script.mjs"', '{"a":1}', 'null', '[1, 2]', '["ok", null]', '[["nested"]]'];
+
+for (const invalid of INVALID_BIN_ARGS) {
+  test(`an invalid CLAUDE_BIN_ARGS is refused with a fixed error: ${invalid}`, async () => {
+    process.env.CLAUDE_BIN = process.execPath;
+    process.env.CLAUDE_BIN_ARGS = invalid;
+    assert.throws(() => resolveClaudeBin(), (entry: unknown) => {
+      assert.ok(entry instanceof claudeCli.CommandError);
+      assert.equal(entry.status, 500);
+      assert.equal(entry.message, 'CLAUDE_BIN_ARGS must be a JSON array of strings');
+      return true;
+    });
+    await assert.rejects(startTask(temporaryDirectory, 'x', 'plan'), (entry: unknown) => {
+      assert.ok(entry instanceof claudeCli.CommandError);
+      assert.equal(entry.message, 'CLAUDE_BIN_ARGS must be a JSON array of strings');
+      return true;
+    });
+  });
+}
+
+test('an empty CLAUDE_BIN_ARGS array is a valid empty prefix', () => {
+  process.env.CLAUDE_BIN = 'some-bin';
+  process.env.CLAUDE_BIN_ARGS = '[]';
+  assert.deepEqual(resolveClaudeBin(), { bin: 'some-bin', prefix: [] });
+});
+
 test('finds the binary in the second PATH dir', () => {
   const a = dir('a');
   const b = dir('b');

@@ -1,6 +1,7 @@
 import { open, stat } from 'node:fs/promises';
 import type { SessionSummary, SummaryMode, TokenCounts } from '../../shared/types/index.ts';
 import { summarizeWithModel } from './claude-cli.ts';
+import { parseTranscriptLine } from '../transcripts/transcript-line.ts';
 import { parseEntries, VIEW_BYTES_MAX } from '../transcripts/transcript-view.ts';
 
 const TOOLS_MAX = 5;
@@ -41,8 +42,8 @@ export function redactForModel(text: string): string {
 }
 
 /** Tool name plus a short target only: tool inputs can hold secrets or long text. */
-function toolAction(name: string, input: any): string {
-  if (input && typeof input === 'object') {
+function toolAction(name: string, input: Record<string, unknown> | undefined): string {
+  if (input) {
     if (typeof input.command === 'string') return `${name}: ${cut(redact(input.command), TARGET_MAX)}`;
     const target = input.file_path ?? input.notebook_path ?? input.path ?? input.pattern ?? input.url;
     if (typeof target === 'string') return `${name} ${cut(redact(target), TARGET_MAX)}`;
@@ -79,30 +80,26 @@ export async function recapSession(path: string, live?: LiveInfo, maxBytes = VIE
   let lastMs = 0;
   for (const raw of lines) {
     if (!raw) continue;
-    let parsed: any;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      continue;
-    }
-    if (parsed.isMeta || parsed.isSidechain) continue;
-    const ms = parsed.timestamp ? Date.parse(parsed.timestamp) : 0;
+    const line = parseTranscriptLine(raw);
+    if (!line || line.isMeta || line.isSidechain) continue;
+    const ms = line.timestamp ? Date.parse(line.timestamp) : 0;
     if (ms) {
       if (!firstMs) firstMs = ms;
       lastMs = Math.max(lastMs, ms);
     }
-    if (parsed.type !== 'assistant' || !parsed.message) continue;
-    const usage = parsed.message.usage;
-    const key = `${parsed.message.id ?? ''}:${parsed.requestId ?? ''}`;
-    if (usage && typeof usage === 'object' && !(key !== ':' && seen.has(key))) {
+    const message = line.message;
+    if (line.type !== 'assistant' || !message) continue;
+    const usage = message.usage;
+    const key = `${message.id ?? ''}:${line.requestId ?? ''}`;
+    if (usage && !(key !== ':' && seen.has(key))) {
       seen.add(key);
-      tokens.input += Number(usage.input_tokens) || 0;
-      tokens.output += Number(usage.output_tokens) || 0;
-      tokens.cacheRead += Number(usage.cache_read_input_tokens) || 0;
-      tokens.cacheWrite += Number(usage.cache_creation_input_tokens) || 0;
+      tokens.input += usage.input;
+      tokens.output += usage.output;
+      tokens.cacheRead += usage.cacheRead;
+      tokens.cacheWrite += usage.cacheWrite;
     }
-    if (Array.isArray(parsed.message.content)) {
-      for (const block of parsed.message.content) if (block?.type === 'tool_use') actions.push(toolAction(String(block.name), block.input));
+    if (Array.isArray(message.content)) {
+      for (const block of message.content) if (block.type === 'tool_use') actions.push(toolAction(String(block.name), block.input));
     }
   }
   const lastReply = parseEntries(lines).filter((entry) => entry.role === 'assistant').pop()?.text ?? '';

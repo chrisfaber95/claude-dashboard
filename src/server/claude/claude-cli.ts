@@ -23,6 +23,7 @@ export class CommandError extends Error {
 }
 
 const BIN_NAME = process.platform === 'win32' ? 'claude.exe' : 'claude';
+const BIN_ARGS_ERROR = 'CLAUDE_BIN_ARGS must be a JSON array of strings';
 
 /**
  * Windows PATH entries must start with a drive letter: drive-less `\dir` resolves against a different
@@ -51,13 +52,25 @@ function claudeOnPath(): string | null {
   return null;
 }
 
+/** The `CLAUDE_BIN_ARGS` prefix: a JSON array of strings, else a fixed 500 CommandError (the parse error is never quoted). */
+function parseBinArgs(rawArgs: string): string[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawArgs);
+  } catch {
+    throw new CommandError(500, BIN_ARGS_ERROR);
+  }
+  if (!Array.isArray(parsed) || !parsed.every((entry): entry is string => typeof entry === 'string')) throw new CommandError(500, BIN_ARGS_ERROR);
+  return parsed;
+}
+
 /**
  * `CLAUDE_BIN` (+ optional JSON `CLAUDE_BIN_ARGS` prefix, used by tests), else `claude` on `PATH`,
- * else the newest VS Code extension binary.
+ * else the newest VS Code extension binary. Throws a 500 CommandError for an invalid `CLAUDE_BIN_ARGS`.
  */
 export function resolveClaudeBin(): { bin: string; prefix: string[] } | null {
   if (process.env.CLAUDE_BIN) {
-    const prefix = process.env.CLAUDE_BIN_ARGS ? (JSON.parse(process.env.CLAUDE_BIN_ARGS) as string[]) : [];
+    const prefix = process.env.CLAUDE_BIN_ARGS ? parseBinArgs(process.env.CLAUDE_BIN_ARGS) : [];
     return { bin: process.env.CLAUDE_BIN, prefix };
   }
   const onPath = claudeOnPath();
@@ -110,7 +123,12 @@ function exitCodeOf(error: Error | null): number {
 }
 
 function run(args: string[], cwd: string, input?: string, timeout = TIMEOUT_MS): Promise<{ code: number; output: string }> {
-  const resolved = resolveClaudeBin();
+  let resolved: ReturnType<typeof resolveClaudeBin>;
+  try {
+    resolved = resolveClaudeBin();
+  } catch (error) {
+    return Promise.reject(error);
+  }
   if (!resolved) return Promise.reject(new CommandError(500, 'Claude CLI not found (set CLAUDE_BIN)'));
   if (running >= MAX_CONCURRENT) return Promise.reject(new CommandError(429, 'too many commands running, try again shortly'));
   running++;
