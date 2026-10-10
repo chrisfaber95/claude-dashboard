@@ -25,6 +25,7 @@ src/
     transcripts/         scanner/aggregates, state, transcript-view
     features/            alerts, audit-log, team, limits, settings, launch, permissions, ...
   shared/types/          one file per domain + index.ts
+  shared/guards.ts       type guards for parsed JSON (isRecord), used by server and client
 ```
 
 A `.ts` file under `src/client` or `src/server` lives in one of these folders. The only loose server files are the

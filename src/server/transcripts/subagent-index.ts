@@ -2,7 +2,7 @@ import { readFileSync, statSync } from 'node:fs';
 import { contentText, handbackBody, peerOrigin, snippet, toolSummary } from './transcript-view.ts';
 import { sessionAgg } from './transcript-aggregates.ts';
 import type { SubagentInfo } from '../../shared/types/index.ts';
-import { isRecord } from './transcript-line.ts';
+import { isRecord } from '../../shared/guards.ts';
 import type { TranscriptLine } from './transcript-line.ts';
 
 /** What the dashboard knows about one subagent transcript. */

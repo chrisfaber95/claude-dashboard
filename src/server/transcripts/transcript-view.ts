@@ -1,6 +1,7 @@
 import { open, stat } from 'node:fs/promises';
 import type { TranscriptEntry, TranscriptPage } from '../../shared/types/index.ts';
-import { isRecord, parseTranscriptLine } from './transcript-line.ts';
+import { isRecord } from '../../shared/guards.ts';
+import { parseTranscriptLine } from './transcript-line.ts';
 import type { ContentBlock, MessageOrigin, TranscriptLine } from './transcript-line.ts';
 
 const RESULT_MAX_CHARS = 2048;
