@@ -2,7 +2,7 @@ import type { CommandResult, DashboardState, SessionSummary } from '../../../sha
 import { answer, parseIntent } from './chat.logic.ts';
 import { createChatState } from './chat-state.logic.ts';
 import { openTranscript } from '../controls/controls.view.ts';
-import { $ } from '../../shared/dom.ts';
+import { elementById } from '../../shared/dom.ts';
 import { api } from '../../shared/api.ts';
 
 // The chat may only send a message to a session, dismiss an alert and read a session summary (plus open a transcript).
@@ -27,7 +27,7 @@ function line(role: 'user' | 'bot', text: string): HTMLElement {
 }
 
 function log(): HTMLElement {
-  return $('chat-log');
+  return elementById('chat-log');
 }
 
 /** Appends entries added since the last call and trims the DOM to the bounded history. */
@@ -38,7 +38,7 @@ function syncLog(): void {
     if (e.id <= rendered) continue;
     const el = line(e.role, e.text);
     el.dataset['id'] = String(e.id);
-    box.insertBefore(el, $('chat-confirm'));
+    box.insertBefore(el, elementById('chat-confirm'));
     rendered = e.id;
   }
   const first = chat.history[0]?.id ?? 0;
@@ -50,10 +50,10 @@ function syncLog(): void {
 
 function showConfirm(): void {
   const p = chat.pending;
-  const box = $('chat-confirm');
+  const box = elementById('chat-confirm');
   box.hidden = !p;
-  $('chat-confirm-name').textContent = p ? p.name : '';
-  $('chat-confirm-text').textContent = p ? p.text : '';
+  elementById('chat-confirm-name').textContent = p ? p.name : '';
+  elementById('chat-confirm-text').textContent = p ? p.text : '';
   if (p) log().scrollTop = log().scrollHeight;
 }
 
@@ -143,16 +143,16 @@ async function handle(text: string): Promise<void> {
 
 /** Builds nothing: the markup is static in index.html. Wires the form once. */
 export function initChat(): void {
-  const input = $<HTMLInputElement>('chat-input');
-  $('chat-form').addEventListener('submit', (e) => {
+  const input = elementById<HTMLInputElement>('chat-input');
+  elementById('chat-form').addEventListener('submit', (e) => {
     e.preventDefault();
     const text = input.value.trim();
     if (!text || busy) return;
     input.value = '';
     void handle(text);
   });
-  $('chat-confirm-yes').addEventListener('click', () => void sendMessage());
-  $('chat-confirm-no').addEventListener('click', () => {
+  elementById('chat-confirm-yes').addEventListener('click', () => void sendMessage());
+  elementById('chat-confirm-no').addEventListener('click', () => {
     chat.cancel();
     showConfirm();
     bot('Cancelled. Nothing was sent.');

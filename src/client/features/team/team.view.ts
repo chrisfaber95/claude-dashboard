@@ -1,7 +1,7 @@
 import type { DashboardState, TeamTicket } from '../../../shared/types/index.ts';
 import { TEAM_COLUMNS } from '../../../shared/types/index.ts';
 import { forgetHtml, patchHtml } from '../../app/patch.ts';
-import { $ } from '../../shared/dom.ts';
+import { elementById } from '../../shared/dom.ts';
 import { esc } from '../../shared/escape.ts';
 
 function ticketList(title: string, items: TeamTicket[]): string {
@@ -12,7 +12,7 @@ function ticketList(title: string, items: TeamTicket[]): string {
 
 /** Read-only team board summary. Hidden when the server sends no board; patches only what changed. */
 export function renderTeam(s: DashboardState, draw = true): void {
-  const el = $('team');
+  const el = elementById('team');
   const t = s.team ?? null;
   if (!t) {
     if (!el.hidden) {
