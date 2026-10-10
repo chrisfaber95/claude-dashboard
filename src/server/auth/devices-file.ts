@@ -11,18 +11,22 @@ export interface StoredDevice extends DeviceInfo {
 const FILE_MODE = 0o600;
 const SHA256_HEX_RE = /^[0-9a-f]{64}$/;
 
-function isStored(candidate: unknown): candidate is StoredDevice {
-  const device = candidate as Partial<StoredDevice> | null;
-  return (
-    !!device &&
-    typeof device.id === 'string' &&
-    device.id !== 'pc' && // reserved for the loopback exemption
-    typeof device.name === 'string' &&
-    typeof device.sha256 === 'string' &&
-    SHA256_HEX_RE.test(device.sha256) &&
-    typeof device.createdMs === 'number' &&
-    (device.lastSeenMs === null || typeof device.lastSeenMs === 'number')
-  );
+function isRecord(value: unknown): value is object {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Check one parsed entry field by field; undefined when any field is missing or has the wrong type. */
+function toStoredDevice(entry: unknown): StoredDevice | undefined {
+  if (!isRecord(entry)) return undefined;
+  if (!('id' in entry) || typeof entry.id !== 'string') return undefined;
+  if (entry.id === 'pc') return undefined; // reserved for the loopback exemption
+  if (!('name' in entry) || typeof entry.name !== 'string') return undefined;
+  if (!('sha256' in entry) || typeof entry.sha256 !== 'string' || !SHA256_HEX_RE.test(entry.sha256)) return undefined;
+  if (!('createdMs' in entry) || typeof entry.createdMs !== 'number') return undefined;
+  if (!('lastSeenMs' in entry)) return undefined;
+  const { lastSeenMs } = entry;
+  if (lastSeenMs !== null && typeof lastSeenMs !== 'number') return undefined;
+  return { id: entry.id, name: entry.name, sha256: entry.sha256, createdMs: entry.createdMs, lastSeenMs };
 }
 
 /** The devices file inside a data folder. */
@@ -33,8 +37,17 @@ export function devicesFilePath(dataDir: string): string {
 /** The valid devices of the file; an empty list when it is missing or corrupt. */
 export function loadDevices(file: string): StoredDevice[] {
   try {
-    const parsed = JSON.parse(readFileSync(file, 'utf8')) as { devices?: unknown };
-    if (Array.isArray(parsed.devices)) return parsed.devices.filter(isStored);
+    const parsed: unknown = JSON.parse(readFileSync(file, 'utf8'));
+    if (!isRecord(parsed) || !('devices' in parsed) || !Array.isArray(parsed.devices)) return [];
+    const entries: unknown[] = parsed.devices;
+    const seenIds = new Set<string>();
+    return entries.flatMap((entry) => {
+      const device = toStoredDevice(entry);
+      // a duplicate id would survive revoke(), which removes only the first match
+      if (!device || seenIds.has(device.id)) return [];
+      seenIds.add(device.id);
+      return [device];
+    });
   } catch {
     // missing or corrupt: empty store
   }
