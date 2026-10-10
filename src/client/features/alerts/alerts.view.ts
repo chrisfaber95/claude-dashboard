@@ -1,7 +1,7 @@
 import type { Alert, DashboardState } from '../../../shared/types/index.ts';
 import { badgeCount, createAlertTracker } from './alerts.logic.ts';
 import { patchHtml } from '../../app/patch.ts';
-import { $ } from '../../shared/dom.ts';
+import { elementById } from '../../shared/dom.ts';
 import { api } from '../../shared/api.ts';
 import { esc } from '../../shared/escape.ts';
 import { timeSpan } from '../../shared/time.ts';
@@ -18,7 +18,7 @@ function row(a: Alert): string {
 }
 
 function toast(a: Alert): void {
-  const box = $('toasts');
+  const box = elementById('toasts');
   const el = document.createElement('div');
   el.className = 'alert-toast';
   const t = document.createElement('strong');
@@ -39,28 +39,28 @@ export function renderAlerts(s: DashboardState): void {
   const items = info.items.filter((a) => !seen.has(a.id) && seen.add(a.id));
 
   const n = badgeCount(items);
-  const badge = $('alert-badge');
+  const badge = elementById('alert-badge');
   badge.hidden = n === 0;
   badge.textContent = n ? String(n) : '';
 
-  $('alerts').classList.toggle('has-alerts', items.length > 0);
-  const count = $('alerts-count');
+  elementById('alerts').classList.toggle('has-alerts', items.length > 0);
+  const count = elementById('alerts-count');
   count.hidden = items.length === 0;
   count.textContent = items.length ? String(items.length) : '';
 
   const html = items.length ? items.map(row).join('') : '<li class="empty">Nothing needs attention.</li>';
-  patchHtml($('alerts-list'), html);
+  patchHtml(elementById('alerts-list'), html);
 
   // Form: never overwrite what the user is typing.
-  const input = $<HTMLInputElement>('alerts-threshold');
+  const input = elementById<HTMLInputElement>('alerts-threshold');
   if (document.activeElement !== input) input.value = String(info.threshold);
 
   for (const a of tracker.update(items)) toast(a);
 }
 
 export function initAlerts(): void {
-  const status = $('alerts-status');
-  $('alerts-list').addEventListener('click', (e) => {
+  const status = elementById('alerts-status');
+  elementById('alerts-list').addEventListener('click', (e) => {
     const b = (e.target as Element).closest<HTMLButtonElement>('[data-dismiss]');
     if (!b) return;
     b.disabled = true;
@@ -70,9 +70,9 @@ export function initAlerts(): void {
       status.textContent = 'Could not dismiss the alert.';
     });
   });
-  $('alerts-form').addEventListener('submit', (e) => {
+  elementById('alerts-form').addEventListener('submit', (e) => {
     e.preventDefault();
-    const v = Number($<HTMLInputElement>('alerts-threshold').value);
+    const v = Number(elementById<HTMLInputElement>('alerts-threshold').value);
     if (!Number.isInteger(v) || v < 1 || v > 100) {
       status.textContent = 'Enter a whole number from 1 to 100.';
       return;

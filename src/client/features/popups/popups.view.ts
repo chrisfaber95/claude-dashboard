@@ -1,6 +1,6 @@
 import { POPUPS, drawsSection, openPopup, backdropCloses, escapeClosesPopup, stillOpen, toggled, visiblePopups } from './popups.logic.ts';
 import type { PopupId } from './popups.logic.ts';
-import { $ } from '../../shared/dom.ts';
+import { elementById } from '../../shared/dom.ts';
 
 // The popup sections stay in the DOM; only the open one is rendered on a state push, and opening one renders it from
 // the latest state at once. An open popup keeps its typed input, focus and selection while it updates.
@@ -12,13 +12,13 @@ let onOpen: (id: PopupId) => void = () => {};
 /** Whether the section `id` should be rendered on this push. */
 export const draws = (id: string): boolean => drawsSection(id, current);
 
-const wrap = (id: PopupId) => $(`popup-${id}`);
+const wrap = (id: PopupId) => elementById(`popup-${id}`);
 const button = (id: PopupId) => document.querySelector<HTMLButtonElement>(`[data-popup="${id}"]`)!;
-const sectionHidden = (id: PopupId) => $(id === 'audit' ? 'audit' : id).hidden;
+const sectionHidden = (id: PopupId) => elementById(id === 'audit' ? 'audit' : id).hidden;
 
 function show(id: PopupId | null) {
   for (const p of POPUPS) wrap(p.id).hidden = p.id !== id;
-  $('popups').hidden = id === null;
+  elementById('popups').hidden = id === null;
   for (const p of POPUPS) button(p.id).setAttribute('aria-expanded', String(p.id === id));
   current = id;
 }
@@ -26,7 +26,7 @@ function show(id: PopupId | null) {
 function open(id: PopupId, from: HTMLElement) {
   opener = from;
   openPopup(id, show, onOpen);
-  if (id === 'audit') $<HTMLDetailsElement>('audit').open = true; // its toggle handler loads the list
+  if (id === 'audit') elementById<HTMLDetailsElement>('audit').open = true; // its toggle handler loads the list
   wrap(id).querySelector<HTMLElement>('[data-popup-close]')?.focus();
 }
 
@@ -47,7 +47,7 @@ export function updatePopups(): void {
 
 export function initPopups(render: (id: PopupId) => void): void {
   onOpen = render;
-  const bar = $('popup-bar');
+  const bar = elementById('popup-bar');
   for (const p of POPUPS) {
     const b = document.createElement('button');
     b.type = 'button';
@@ -65,15 +65,15 @@ export function initPopups(render: (id: PopupId) => void): void {
     if (next) open(next, b);
     else close();
   });
-  $('popups').addEventListener('click', (e) => {
-    if (backdropCloses(e.target, $('popups')) || (e.target as Element).closest('[data-popup-close]')) close();
+  elementById('popups').addEventListener('click', (e) => {
+    if (backdropCloses(e.target, elementById('popups')) || (e.target as Element).closest('[data-popup-close]')) close();
   });
   // Capture phase and registered before the building dialog and drawer: they are still open when this runs,
   // so Esc closes them first and the popup only on the next press.
   document.addEventListener(
     'keydown',
     (e) => {
-      if (escapeClosesPopup(e.key, current, !$('building').hidden || !$('drawer').hidden)) close();
+      if (escapeClosesPopup(e.key, current, !elementById('building').hidden || !elementById('drawer').hidden)) close();
     },
     true,
   );

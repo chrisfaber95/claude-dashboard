@@ -1,7 +1,7 @@
 import type { DashboardState, DeviceInfo, PairingInfo } from '../../../shared/types/index.ts';
 import { cleanName, createdLabel, lastSeenLabel, sortDevices } from './devices.logic.ts';
 import { qrShape } from './qr.logic.ts';
-import { $ } from '../../shared/dom.ts';
+import { elementById } from '../../shared/dom.ts';
 import { api, ApiError } from '../../shared/api.ts';
 import { esc } from '../../shared/escape.ts';
 
@@ -29,13 +29,13 @@ function errText(err: unknown): string {
 }
 
 function setStatus(text: string): void {
-  $('devices-status').textContent = text;
+  elementById('devices-status').textContent = text;
 }
 
 /** Remove the one-time token from the DOM; nothing else holds it. */
 function clearToken(): void {
-  $('devices-token-value').textContent = '';
-  $('devices-token').hidden = true;
+  elementById('devices-token-value').textContent = '';
+  elementById('devices-token').hidden = true;
 }
 
 /** The pairing links live only in memory while the QR is shown; never in the DOM as text, storage or the console. */
@@ -51,19 +51,19 @@ function clearQr(): void {
   qrLinks = [];
   qrId = '';
   qrName = '';
-  $('devices-qr-draw').replaceChildren();
-  $('devices-qr-addr').replaceChildren();
-  $('devices-qr-addr').hidden = true;
-  $('devices-qr-name').textContent = '';
-  $('devices-qr-expiry').textContent = '';
-  $('devices-qr-note').textContent = '';
-  $('devices-qr').hidden = true;
+  elementById('devices-qr-draw').replaceChildren();
+  elementById('devices-qr-addr').replaceChildren();
+  elementById('devices-qr-addr').hidden = true;
+  elementById('devices-qr-name').textContent = '';
+  elementById('devices-qr-expiry').textContent = '';
+  elementById('devices-qr-note').textContent = '';
+  elementById('devices-qr').hidden = true;
 }
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 function drawQr(link: string): void {
-  const draw = $('devices-qr-draw');
+  const draw = elementById('devices-qr-draw');
   let shape;
   try {
     shape = qrShape(link);
@@ -91,9 +91,9 @@ function showQr(id: string, name: string, info: PairingInfo): void {
   qrName = name;
   const lan = info.urls.length > 0;
   qrLinks = lan ? [...info.urls] : [location.origin + info.path];
-  $('devices-qr-name').textContent = name;
-  $('devices-qr-note').textContent = lan ? '' : 'No LAN address was found. The phone cannot reach this link unless it is opened from a LAN address.';
-  const sel = $<HTMLSelectElement>('devices-qr-addr');
+  elementById('devices-qr-name').textContent = name;
+  elementById('devices-qr-note').textContent = lan ? '' : 'No LAN address was found. The phone cannot reach this link unless it is opened from a LAN address.';
+  const sel = elementById<HTMLSelectElement>('devices-qr-addr');
   if (qrLinks.length > 1) {
     qrLinks.forEach((u, i) => {
       let label = `Address ${i + 1}`;
@@ -109,8 +109,8 @@ function showQr(id: string, name: string, info: PairingInfo): void {
     });
     sel.hidden = false;
   }
-  $('devices-qr-expiry').textContent = `Expires at ${new Date(info.expiresMs).toLocaleTimeString()}`;
-  $('devices-qr').hidden = false;
+  elementById('devices-qr-expiry').textContent = `Expires at ${new Date(info.expiresMs).toLocaleTimeString()}`;
+  elementById('devices-qr').hidden = false;
   drawQr(qrLinks[0] ?? '');
   qrTimer = setTimeout(() => {
     clearQr();
@@ -120,7 +120,7 @@ function showQr(id: string, name: string, info: PairingInfo): void {
 
 function setBusy(on: boolean): void {
   busy = on;
-  for (const b of $('devices').querySelectorAll<HTMLButtonElement>('button')) {
+  for (const b of elementById('devices').querySelectorAll<HTMLButtonElement>('button')) {
     if (b.id === 'devices-token-dismiss' || b.id === 'devices-qr-close') continue;
     b.disabled = on;
   }
@@ -147,7 +147,7 @@ async function refresh(): Promise<void> {
     const html = devices.length ? sortDevices(devices).map((d) => row(d, now)).join('') : '<li class="empty">No devices yet.</li>';
     if (html !== listHtml) {
       listHtml = html;
-      $('devices-list').innerHTML = html;
+      elementById('devices-list').innerHTML = html;
       if (busy) setBusy(true);
     }
   } catch (err) {
@@ -164,7 +164,7 @@ async function refresh(): Promise<void> {
 
 /** Show the panel only for the PC; re-fetch the list on show and at most every 30 s while shown. */
 export function renderDevices(s: DashboardState): void {
-  const panel = $('devices');
+  const panel = elementById('devices');
   const show = s.features?.manageDevices === true;
   if (!show) {
     visible = false;
@@ -172,7 +172,7 @@ export function renderDevices(s: DashboardState): void {
     clearToken();
     clearQr();
     listHtml = '';
-    $('devices-list').innerHTML = '';
+    elementById('devices-list').innerHTML = '';
     setStatus('');
     return;
   }
@@ -184,7 +184,7 @@ export function renderDevices(s: DashboardState): void {
 
 async function copyToken(): Promise<void> {
   try {
-    await navigator.clipboard.writeText($('devices-token-value').textContent ?? '');
+    await navigator.clipboard.writeText(elementById('devices-token-value').textContent ?? '');
     setStatus('Copied.');
   } catch {
     setStatus('Could not copy. Select the token and copy it by hand.');
@@ -192,9 +192,9 @@ async function copyToken(): Promise<void> {
 }
 
 export function initDevices(): void {
-  const input = $<HTMLInputElement>('devices-name');
+  const input = elementById<HTMLInputElement>('devices-name');
 
-  $('devices-form').addEventListener('submit', (e) => {
+  elementById('devices-form').addEventListener('submit', (e) => {
     e.preventDefault();
     if (busy) return;
     const name = cleanName(input.value);
@@ -214,8 +214,8 @@ export function initDevices(): void {
           return;
         }
         clearQr();
-        $('devices-token-value').textContent = res.token;
-        $('devices-token').hidden = false;
+        elementById('devices-token-value').textContent = res.token;
+        elementById('devices-token').hidden = false;
         input.value = '';
         setStatus('Device added. Copy the token now; it is shown only once.');
         setBusy(false);
@@ -228,23 +228,23 @@ export function initDevices(): void {
     );
   });
 
-  $('devices-token-copy').addEventListener('click', () => void copyToken());
-  $('devices-token-dismiss').addEventListener('click', () => {
+  elementById('devices-token-copy').addEventListener('click', () => void copyToken());
+  elementById('devices-token-dismiss').addEventListener('click', () => {
     clearToken();
     setStatus('');
   });
 
-  $('devices-qr-close').addEventListener('click', () => {
+  elementById('devices-qr-close').addEventListener('click', () => {
     clearQr();
     setStatus('');
   });
-  $<HTMLSelectElement>('devices-qr-addr').addEventListener('change', (e) => {
+  elementById<HTMLSelectElement>('devices-qr-addr').addEventListener('change', (e) => {
     const i = Number((e.target as HTMLSelectElement).value);
     const link = qrLinks[i];
     if (link !== undefined) drawQr(link);
   });
 
-  $('devices-list').addEventListener('click', (e) => {
+  elementById('devices-list').addEventListener('click', (e) => {
     const target = e.target as Element;
     const q = target.closest<HTMLButtonElement>('[data-qr]');
     if (q) {

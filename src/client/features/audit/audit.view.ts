@@ -1,7 +1,7 @@
 import type { AuditEntry, DashboardState } from '../../../shared/types/index.ts';
 import { ALL_DEVICES, auditQuery, mergeDeviceOptions, rowOf } from './audit.logic.ts';
 import type { DeviceOption } from './audit.logic.ts';
-import { $ } from '../../shared/dom.ts';
+import { elementById } from '../../shared/dom.ts';
 import { api, ApiError } from '../../shared/api.ts';
 import { esc } from '../../shared/escape.ts';
 
@@ -19,7 +19,7 @@ function errText(err: unknown): string {
 }
 
 function setStatus(text: string): void {
-  $('audit-status').textContent = text;
+  elementById('audit-status').textContent = text;
 }
 
 function rowHtml(e: AuditEntry): string {
@@ -43,8 +43,8 @@ function syncOptions(select: HTMLSelectElement, entries: readonly AuditEntry[]):
 }
 
 async function load(): Promise<void> {
-  const select = $<HTMLSelectElement>('audit-device');
-  const refresh = $<HTMLButtonElement>('audit-refresh');
+  const select = elementById<HTMLSelectElement>('audit-device');
+  const refresh = elementById<HTMLButtonElement>('audit-refresh');
   const mine = ++seq;
   refresh.disabled = true;
   setStatus('Loading...');
@@ -55,14 +55,14 @@ async function load(): Promise<void> {
     const html = entries.length ? entries.map(rowHtml).join('') : '<li class="empty">No activity yet.</li>';
     if (html !== listHtml) {
       listHtml = html;
-      $('audit-list').innerHTML = html;
+      elementById('audit-list').innerHTML = html;
     }
     setStatus('');
   } catch (err) {
     if (mine === seq) {
       // Don't leave rows from another filter on screen next to an error.
       listHtml = '';
-      $('audit-list').innerHTML = '';
+      elementById('audit-list').innerHTML = '';
       setStatus(errText(err));
     }
   } finally {
@@ -74,10 +74,10 @@ async function load(): Promise<void> {
 export function renderAudit(_s: DashboardState): void {}
 
 export function initAudit(): void {
-  const panel = $<HTMLDetailsElement>('audit');
+  const panel = elementById<HTMLDetailsElement>('audit');
   panel.addEventListener('toggle', () => {
     if (panel.open) void load();
   });
-  $('audit-device').addEventListener('change', () => void load());
-  $('audit-refresh').addEventListener('click', () => void load());
+  elementById('audit-device').addEventListener('change', () => void load());
+  elementById('audit-refresh').addEventListener('click', () => void load());
 }

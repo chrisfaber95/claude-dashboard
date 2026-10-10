@@ -3,7 +3,7 @@
 import type { DashboardState } from '../../../shared/types/index.ts';
 import { CORE_LABEL, coreHeadlineParts, coreSummary } from './mood.logic.ts';
 import type { CoreMood } from './mood.logic.ts';
-import { $ } from '../../shared/dom.ts';
+import { elementById } from '../../shared/dom.ts';
 
 const BARS = 41;
 
@@ -24,7 +24,7 @@ function el(tag: string, cls: string, text?: string): HTMLElement {
 }
 
 export function initCore(): void {
-  root = $('core');
+  root = elementById('core');
   if (root.childElementCount > 0) return;
 
   const title = el('h2', 'sr-only', 'Assistant status');

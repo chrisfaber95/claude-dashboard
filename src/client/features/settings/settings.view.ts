@@ -1,12 +1,12 @@
 import type { SummarySetting } from '../../../shared/types/index.ts';
 import { SUMMARY_MODES } from '../../../shared/types/index.ts';
-import { $ } from '../../shared/dom.ts';
+import { elementById } from '../../shared/dom.ts';
 import { api } from '../../shared/api.ts';
 
 /** Session summary mode (recap or model) next to the chat. Status texts are fixed strings. */
 export function initSummarySetting(): void {
-  const select = $<HTMLSelectElement>('summary-mode');
-  const status = $('summary-status');
+  const select = elementById<HTMLSelectElement>('summary-mode');
+  const status = elementById('summary-status');
   let current = select.value;
 
   api<SummarySetting>('/api/settings/summary').then(
@@ -42,6 +42,6 @@ let commandsOn = true;
 /** Called on every state push: with commands off, `model` still saves but summaries fall back to the recap. */
 export function updateSummaryNote(commands: boolean): void {
   commandsOn = commands;
-  const select = $<HTMLSelectElement>('summary-mode');
-  $('summary-note').hidden = commandsOn || select.value !== 'model';
+  const select = elementById<HTMLSelectElement>('summary-mode');
+  elementById('summary-note').hidden = commandsOn || select.value !== 'model';
 }
