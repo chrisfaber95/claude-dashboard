@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DATA_DIR } from '../../config.ts';
+import { isRecord } from '../json/json-guards.ts';
 import type { Alert, AlertsInfo, LimitsInfo, SessionInfo, TeamBoard } from '../../../shared/types/index.ts';
 
 /** Usage percentage at which a usage window raises an alert, until the user sets another. */
@@ -73,7 +74,8 @@ function load(): void {
   if (isLoaded) return;
   isLoaded = true;
   try {
-    const stored = JSON.parse(readFileSync(FILE(), 'utf8')) as Partial<Persisted>;
+    const stored: unknown = JSON.parse(readFileSync(FILE(), 'utf8'));
+    if (!isRecord(stored)) return;
     // signin alerts live in memory only; a stray signin id in the file is ignored
     if (Array.isArray(stored.dismissed)) {
       dismissed = new Set(stored.dismissed.filter((id): id is string => typeof id === 'string' && !id.startsWith(SIGNIN_PREFIX)));

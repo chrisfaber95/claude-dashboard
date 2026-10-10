@@ -1,6 +1,7 @@
 import { open } from 'node:fs/promises';
 import { join } from 'node:path';
 import { DATA_DIR } from '../../config.ts';
+import { isRecord } from '../json/json-guards.ts';
 import type { AuditEntry } from '../../../shared/types/index.ts';
 
 // The only fields that ever leave `commands.log` through the API (never `ip`, ids of targets, names, codes).
@@ -34,8 +35,8 @@ function stringField(value: unknown, max = FIELD_MAX_CHARS): string | undefined 
 
 /** One parsed log line reduced to the allowlisted fields, or null when it is not an entry. */
 export function toAuditEntry(raw: unknown): AuditEntry | null {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
-  const fields = raw as Record<string, unknown>;
+  if (!isRecord(raw)) return null;
+  const fields = raw;
   const ts = stringField(fields.ts, TIMESTAMP_MAX_CHARS);
   const action = stringField(fields.action, ACTION_MAX_CHARS);
   if (!ts || !action) return null;
@@ -106,7 +107,7 @@ export async function readAudit(deviceId?: string, filter?: AuditFilter): Promis
   try {
     handle = await open(join(DATA_DIR, 'commands.log'), 'r');
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    if (isRecord(error) && error.code === 'ENOENT') return [];
     throw error;
   }
   try {

@@ -103,3 +103,51 @@ test('never surfaces raw credential or network errors', async () => {
   await limitsModule.pollLive();
   assert.equal(limitsModule.getLimits().error, 'usage API unreachable');
 });
+
+test('toWindows skips values of the wrong type instead of throwing', () => {
+  for (const unexpected of [undefined, 'text', 42, [], [{ utilization: 1 }]]) {
+    assert.deepEqual(limitsModule.toWindows(unexpected), []);
+  }
+  const mixed = { five_hour: 'high', seven_day: { utilization: '58' }, seven_day_sonnet: { utilization: 3, resets_at: 7 } };
+  assert.deepEqual(
+    limitsModule.toWindows(mixed).map((item) => [item.key, item.resetsAtMs]),
+    [['seven_day_sonnet', null]],
+  );
+});
+
+test('a cache file of an unexpected shape behaves like a missing one', () => {
+  rmSync(fx.claudeJson, { force: true });
+  const missing = limitsModule.getLimits();
+  const unexpectedFiles = ['null', '[]', '"text"', '{"cachedUsageUtilization":"x"}', '{"cachedUsageUtilization":[]}', '{"cachedUsageUtilization":null}'];
+  for (const content of unexpectedFiles) {
+    writeFileSync(fx.claudeJson, content);
+    assert.deepEqual(limitsModule.getLimits(), missing, content);
+  }
+  const farFuture = 8.64e15;
+  writeFileSync(fx.claudeJson, JSON.stringify({ cachedUsageUtilization: { fetchedAtMs: farFuture, utilization: { seven_day: { utilization: 5 } } } }));
+  const cached = limitsModule.getLimits();
+  assert.equal(cached.source, 'cache');
+  assert.equal(cached.windows[0].utilization, 5);
+});
+
+test('a credentials file or response of an unexpected shape never reaches fetch and gives a fixed message', async () => {
+  let fetchCalls = 0;
+  globalThis.fetch = (async () => {
+    fetchCalls += 1;
+    return new Response('[]', { status: 200 });
+  }) as unknown as typeof fetch;
+  const credentialsPath = join(fx.claudeDir, '.credentials.json');
+  for (const content of ['null', '[]', '"sk-ant-FAKE"', '{"claudeAiOauth":null}', '{"claudeAiOauth":{"accessToken":5}}']) {
+    writeFileSync(credentialsPath, content);
+    await limitsModule.pollLive();
+    assert.equal(limitsModule.getLimits().error, 'no OAuth access token available', content);
+  }
+  assert.equal(fetchCalls, 0);
+
+  writeFileSync(credentialsPath, JSON.stringify({ claudeAiOauth: { accessToken: FAKE_TOKEN } }));
+  for (const body of ['[]', 'null', '"text"', 'not json']) {
+    globalThis.fetch = (async () => new Response(body, { status: 200 })) as unknown as typeof fetch;
+    await limitsModule.pollLive();
+    assert.equal(limitsModule.getLimits().error, 'unexpected usage API response shape', body);
+  }
+});
