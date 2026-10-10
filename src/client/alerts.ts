@@ -1,4 +1,4 @@
-import type { Alert, DashboardState } from '../shared/types.ts';
+import type { Alert, DashboardState } from '../shared/types/index.ts';
 import { badgeCount, createAlertTracker } from './alerts-logic.ts';
 import { patchHtml } from './patch.ts';
 import { $, api, esc, timeSpan } from './util.ts';

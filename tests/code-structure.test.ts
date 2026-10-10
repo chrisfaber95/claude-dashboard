@@ -29,14 +29,11 @@ const MISPLACED_ALLOWLIST = new Set([
   'client/launch-logic.ts', 'client/login.ts', 'client/mood.ts', 'client/pair.ts', 'client/patch.ts',
   'client/popups-logic.ts', 'client/popups.ts', 'client/qr.ts', 'client/root-scene.ts', 'client/settings.ts',
   'client/skin.ts', 'client/team.ts', 'client/util.ts',
-  'server/alerts.ts', 'server/audit-log.ts', 'server/auth.ts', 'server/claude-cli.ts', 'server/devices.ts',
-  'server/launch.ts', 'server/limits.ts', 'server/session-summary.ts', 'server/settings.ts', 'server/state.ts',
-  'server/team.ts', 'server/tls.ts', 'server/transcript-view.ts', 'server/transcripts.ts',
 ]);
 
 /** Today's files over the cap. This list may only shrink: split a file and remove its line; never add one. */
 const OVERSIZED_ALLOWLIST = new Set([
-  'client/app.ts', 'client/building.ts', 'client/controls.ts', 'server/server.ts', 'server/transcripts.ts',
+  'client/app.ts', 'client/building.ts', 'client/controls.ts', 'server/server.ts', 'server/transcripts/transcripts.ts',
 ]);
 
 /** Every .ts file under src/, as a path relative to src/ with forward slashes. */

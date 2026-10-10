@@ -1,4 +1,4 @@
-import type { AuditEntry, DashboardState } from '../shared/types.ts';
+import type { AuditEntry, DashboardState } from '../shared/types/index.ts';
 import { ALL_DEVICES, auditQuery, mergeDeviceOptions, rowOf } from './audit-logic.ts';
 import type { DeviceOption } from './audit-logic.ts';
 import { $, api, ApiError, esc } from './util.ts';

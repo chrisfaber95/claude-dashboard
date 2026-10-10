@@ -1,5 +1,5 @@
 // Pure audit-view logic (no DOM): testable with node --test.
-import type { AuditEntry } from '../shared/types.ts';
+import type { AuditEntry } from '../shared/types/index.ts';
 
 /** The "All devices" choice has this value; every other option's value is a device id. */
 export const ALL_DEVICES = '';

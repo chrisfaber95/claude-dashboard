@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Alert, DashboardState, SessionInfo } from '../src/shared/types.ts';
+import type { Alert, DashboardState, SessionInfo } from '../src/shared/types/index.ts';
 import { answer, fmtTokens, HELP_TEXT, parseIntent } from '../src/client/chat-logic.ts';
 
 const NOW = new Date(2026, 9, 9, 12, 0, 0).getTime();

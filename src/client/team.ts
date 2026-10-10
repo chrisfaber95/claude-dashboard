@@ -1,5 +1,5 @@
-import type { DashboardState, TeamTicket } from '../shared/types.ts';
-import { TEAM_COLUMNS } from '../shared/types.ts';
+import type { DashboardState, TeamTicket } from '../shared/types/index.ts';
+import { TEAM_COLUMNS } from '../shared/types/index.ts';
 import { forgetHtml, patchHtml } from './patch.ts';
 import { $, esc } from './util.ts';
 

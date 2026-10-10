@@ -1,5 +1,5 @@
-import type { SummarySetting } from '../shared/types.ts';
-import { SUMMARY_MODES } from '../shared/types.ts';
+import type { SummarySetting } from '../shared/types/index.ts';
+import { SUMMARY_MODES } from '../shared/types/index.ts';
 import { $, api } from './util.ts';
 
 /** Session summary mode (recap or model) next to the chat. Status texts are fixed strings. */

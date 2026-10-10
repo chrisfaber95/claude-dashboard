@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { AuditEntry } from '../src/shared/types.ts';
+import type { AuditEntry } from '../src/shared/types/index.ts';
 import { actionLabel, auditQuery, mergeDeviceOptions, rowOf, timeLabel } from '../src/client/audit-logic.ts';
 
 const e = (o: Partial<AuditEntry>): AuditEntry => ({ ts: '2026-10-09T10:00:00.000Z', action: 'start', ...o });

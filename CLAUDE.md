@@ -82,8 +82,8 @@ Also see `.claude/skills/` for 24 reusable skills.
 
 ### Frontend and TypeScript delegation (mandatory)
 
-- **Frontend:** delegate every change in `src/client/` (`.ts`, `.scss`, `index.html`, `login.html`) to the `frontend-developer` agent, including new files such as `building.ts`. The client is vanilla TypeScript and SCSS with no framework (no React, Vue or Angular), so ignore the agent's framework wording. In the delegation prompt, include the "UI conventions" from `docs/architecture.md`, the `esc()` and no-inline-script rules from "Rules", `docs/code-style.md`, and which `src/shared/types.ts` changes are involved. Trivial one-line fixes may be done directly.
-- **TypeScript:** delegate to `typescript-pro` whenever `src/shared/types.ts` is added to or changed, a new `.ts` module is created, or API, transcript or config boundaries get new types, not only when asked for "type-system work". Honour the "TypeScript constraints" above and include `docs/code-style.md` in the delegation prompt.
+- **Frontend:** delegate every change in `src/client/` (`.ts`, `.scss`, `index.html`, `login.html`) to the `frontend-developer` agent, including new files such as `building.ts`. The client is vanilla TypeScript and SCSS with no framework (no React, Vue or Angular), so ignore the agent's framework wording. In the delegation prompt, include the "UI conventions" from `docs/architecture.md`, the `esc()` and no-inline-script rules from "Rules", `docs/code-style.md`, and which `src/shared/types/` changes are involved. Trivial one-line fixes may be done directly.
+- **TypeScript:** delegate to `typescript-pro` whenever `src/shared/types/` is added to or changed, a new `.ts` module is created, or API, transcript or config boundaries get new types, not only when asked for "type-system work". Honour the "TypeScript constraints" above and include `docs/code-style.md` in the delegation prompt.
 - When both apply (a client feature with new shared types), run `typescript-pro` for the types first, then `frontend-developer` for the UI.
 
 <!-- project-setup:start -->

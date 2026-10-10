@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { AuditEntry } from '../src/shared/types.ts';
+import type { AuditEntry } from '../src/shared/types/index.ts';
 import { timeLabel } from '../src/client/audit-logic.ts';
 import { fieldsAfterLaunch, launchBody, launchRow, launchState, truncate } from '../src/client/launch-logic.ts';
 

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { UsageDay } from '../src/shared/types.ts';
+import type { UsageDay } from '../src/shared/types/index.ts';
 import { POPUPS, backdropCloses, openPopup, escapeClosesPopup, stillOpen, toggled, tokensToday, visiblePopups } from '../src/client/popups-logic.ts';
 
 test('the button set and order are fixed', () => {

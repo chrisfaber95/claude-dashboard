@@ -1,6 +1,6 @@
 // Live "core" strip for the Co-pilot and Root skins. The markup is built once; updates only toggle a class and
 // change text when it differs, so the 2 s state pushes never restart the CSS animations.
-import type { DashboardState } from '../shared/types.ts';
+import type { DashboardState } from '../shared/types/index.ts';
 import { CORE_LABEL, coreHeadlineParts, coreSummary } from './mood.ts';
 import type { CoreMood } from './mood.ts';
 import { $ } from './util.ts';

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Alert } from '../src/shared/types.ts';
+import type { Alert } from '../src/shared/types/index.ts';
 import { badgeCount, createAlertTracker } from '../src/client/alerts-logic.ts';
 
 const alert = (id: string): Alert => ({ id, kind: 'session', title: id, detail: '', sinceMs: 0, resetsAtMs: null });

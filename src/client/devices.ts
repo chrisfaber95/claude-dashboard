@@ -1,4 +1,4 @@
-import type { DashboardState, DeviceInfo, PairingInfo } from '../shared/types.ts';
+import type { DashboardState, DeviceInfo, PairingInfo } from '../shared/types/index.ts';
 import { cleanName, createdLabel, lastSeenLabel, sortDevices } from './devices-logic.ts';
 import { qrShape } from './qr.ts';
 import { $, api, ApiError, esc } from './util.ts';

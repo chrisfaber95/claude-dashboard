@@ -1,5 +1,5 @@
 // Pure device-list logic (no DOM): testable with node --test.
-import type { DeviceInfo } from '../shared/types.ts';
+import type { DeviceInfo } from '../shared/types/index.ts';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
