@@ -1,13 +1,20 @@
 // Pure status logic (no DOM): shared by the building popup and the Co-pilot core, and testable with node --test.
 import type { DashboardState, SessionInfo } from '../../../shared/types/index.ts';
 
+/** Mood of one session as the building popup shows it. */
 export type SessionMood = 'busy' | 'waiting' | 'idle';
 
-export const moodOf = (s: Pick<SessionInfo, 'status'>): SessionMood =>
-  s.status === 'busy' ? 'busy' : s.status === 'waiting' ? 'waiting' : 'idle';
+/** Map a session status to its mood; anything unknown is idle. */
+export function moodOf(session: Pick<SessionInfo, 'status'>): SessionMood {
+  if (session.status === 'busy') return 'busy';
+  if (session.status === 'waiting') return 'waiting';
+  return 'idle';
+}
 
+/** Overall mood of the core strip. */
 export type CoreMood = 'standby' | 'working' | 'waiting';
 
+/** Counts and mood that drive the core strip. */
 export interface CoreSummary {
   mood: CoreMood;
   busy: number;
@@ -17,29 +24,38 @@ export interface CoreSummary {
   waitingName: string | null;
 }
 
+/** Pill text per core mood. */
 export const CORE_LABEL: Record<CoreMood, string> = { standby: 'Standby', working: 'Working', waiting: 'Needs you' };
 
-export function coreSummary(s: Pick<DashboardState, 'sessions' | 'subagents'>): CoreSummary {
-  const sessions = s.sessions ?? [];
-  const subagents = s.subagents ?? []; // older servers do not send subagents
+function pickCoreMood(waiting: number, busy: number, subagentsWorking: number): CoreMood {
+  if (waiting > 0) return 'waiting';
+  if (busy > 0 || subagentsWorking > 0) return 'working';
+  return 'standby';
+}
+
+/** Count busy and waiting sessions and working subagents, and derive the core mood. */
+export function coreSummary(state: Pick<DashboardState, 'sessions' | 'subagents'>): CoreSummary {
+  const sessions = state.sessions ?? [];
+  const subagents = state.subagents ?? []; // older servers do not send subagents
   let busy = 0;
   let waiting = 0;
   let waitingName: string | null = null;
-  for (const x of sessions) {
-    const m = moodOf(x);
-    if (m === 'busy') busy++;
-    else if (m === 'waiting') {
+  for (const session of sessions) {
+    const mood = moodOf(session);
+    if (mood === 'busy') busy++;
+    else if (mood === 'waiting') {
       waiting++;
-      waitingName ??= x.name;
+      waitingName ??= session.name;
     }
   }
-  const subagentsWorking = subagents.filter((a) => a.state === 'working').length;
-  const mood: CoreMood = waiting > 0 ? 'waiting' : busy > 0 || subagentsWorking > 0 ? 'working' : 'standby';
+  const subagentsWorking = subagents.filter((subagent) => subagent.state === 'working').length;
+  const mood = pickCoreMood(waiting, busy, subagentsWorking);
   return { mood, busy, waiting, subagentsWorking, waitingName };
 }
 
-const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
+const plural = (count: number, one: string, many: string): string => `${count} ${count === 1 ? one : many}`;
 
+/** Headline split into a lead and an accent clause. */
 export interface HeadlineParts {
   /** Main text; may end in a separator. */
   lead: string;
@@ -47,21 +63,23 @@ export interface HeadlineParts {
   accent: string;
 }
 
-export function coreHeadlineParts(c: CoreSummary): HeadlineParts {
-  if (c.mood === 'standby') return { lead: 'All quiet. ', accent: 'Nothing running.' };
-  if (c.mood === 'waiting') {
-    const head = `${c.waitingName ?? 'A session'} is waiting for you`;
-    return c.busy > 0 ? { lead: `${head} · `, accent: `${c.busy} more working` } : { lead: head, accent: '' };
+/** Build the core headline as lead plus accent text. */
+export function coreHeadlineParts(summary: CoreSummary): HeadlineParts {
+  if (summary.mood === 'standby') return { lead: 'All quiet. ', accent: 'Nothing running.' };
+  if (summary.mood === 'waiting') {
+    const head = `${summary.waitingName ?? 'A session'} is waiting for you`;
+    return summary.busy > 0 ? { lead: `${head} · `, accent: `${summary.busy} more working` } : { lead: head, accent: '' };
   }
-  if (c.busy > 0 && c.subagentsWorking > 0) {
-    return { lead: `${plural(c.busy, 'session', 'sessions')} working · `, accent: plural(c.subagentsWorking, 'subagent', 'subagents') };
+  if (summary.busy > 0 && summary.subagentsWorking > 0) {
+    return { lead: `${plural(summary.busy, 'session', 'sessions')} working · `, accent: plural(summary.subagentsWorking, 'subagent', 'subagents') };
   }
-  if (c.busy > 0) return { lead: `${plural(c.busy, 'session', 'sessions')} working`, accent: '' };
-  if (c.subagentsWorking > 0) return { lead: `${plural(c.subagentsWorking, 'subagent', 'subagents')} working`, accent: '' };
+  if (summary.busy > 0) return { lead: `${plural(summary.busy, 'session', 'sessions')} working`, accent: '' };
+  if (summary.subagentsWorking > 0) return { lead: `${plural(summary.subagentsWorking, 'subagent', 'subagents')} working`, accent: '' };
   return { lead: '', accent: '' };
 }
 
-export function coreHeadline(c: CoreSummary): string {
-  const p = coreHeadlineParts(c);
-  return p.lead + p.accent;
+/** The core headline as one plain string. */
+export function coreHeadline(summary: CoreSummary): string {
+  const parts = coreHeadlineParts(summary);
+  return parts.lead + parts.accent;
 }

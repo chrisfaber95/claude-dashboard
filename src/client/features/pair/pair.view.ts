@@ -21,15 +21,15 @@ if (form && go && form.dataset.state !== 'ok') {
     go.disabled = true;
     if (err) err.textContent = '';
     try {
-      const r = await fetch('/pair', {
+      const response = await fetch('/pair', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ c: code }),
         credentials: 'same-origin',
       });
       // Navigate from here (not a redirect ending a navigation started in another app), so the Strict cookie is sent.
-      if (r.ok) location.replace('/');
-      else if (r.status === 429) fail('Too many attempts. Wait a minute and try again.');
+      if (response.ok) location.replace('/');
+      else if (response.status === 429) fail('Too many attempts. Wait a minute and try again.');
       else fail('This QR code was already used or has expired. Ask for a new one.');
     } catch {
       fail('Could not reach the dashboard. Try again.');

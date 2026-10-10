@@ -4,6 +4,7 @@ import qrcode from 'qrcode-generator';
 /** Quiet zone around the code, in modules (the QR standard asks for 4). */
 export const QR_MARGIN = 4;
 
+/** Geometry of one QR code drawing. */
 export interface QrShape {
   /** Width and height of the drawing in modules, margin included. */
   size: number;
@@ -19,12 +20,12 @@ export function qrShape(text: string): QrShape {
   const qr = qrcode(0, 'M');
   qr.addData(text);
   qr.make();
-  const n = qr.getModuleCount();
-  let d = '';
-  for (let row = 0; row < n; row++) {
-    for (let col = 0; col < n; col++) {
-      if (qr.isDark(row, col)) d += `M${col + QR_MARGIN} ${row + QR_MARGIN}h1v1h-1z`;
+  const moduleCount = qr.getModuleCount();
+  let pathData = '';
+  for (let row = 0; row < moduleCount; row++) {
+    for (let col = 0; col < moduleCount; col++) {
+      if (qr.isDark(row, col)) pathData += `M${col + QR_MARGIN} ${row + QR_MARGIN}h1v1h-1z`;
     }
   }
-  return { size: n + 2 * QR_MARGIN, d };
+  return { size: moduleCount + 2 * QR_MARGIN, d: pathData };
 }

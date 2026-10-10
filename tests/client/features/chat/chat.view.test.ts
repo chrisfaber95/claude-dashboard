@@ -15,7 +15,7 @@ test('the chat never uses the command, start or stop endpoints', () => {
 
 test('the only API paths in the chat are the session message, session summary and alert dismiss endpoints', () => {
   const allowed = new Set<string>([
-    '`/api/sessions/${encodeURIComponent(p.sessionId)}/message`',
+    '`/api/sessions/${encodeURIComponent(pending.sessionId)}/message`',
     '`/api/sessions/${encodeURIComponent(sessionId)}/summary`',
     "'/api/alerts/dismiss'",
   ]);

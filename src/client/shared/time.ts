@@ -1,46 +1,62 @@
 import { esc } from './escape.ts';
 
-export function ago(ms: number | null): string {
-  if (!ms) return '—';
-  const s = Math.max(0, (Date.now() - ms) / 1000);
-  if (s < 60) return 'just now';
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  return `${Math.floor(s / 86400)}d ago`;
+const MS_PER_SECOND = 1000;
+const SECONDS_PER_MINUTE = 60;
+const SECONDS_PER_HOUR = 3600;
+const SECONDS_PER_DAY = 86400;
+
+/** Hours within the day and minutes within the hour of a span in seconds, plus whole days. */
+function splitSpan(seconds: number): { days: number; hours: number; minutes: number } {
+  return {
+    days: Math.floor(seconds / SECONDS_PER_DAY),
+    hours: Math.floor((seconds % SECONDS_PER_DAY) / SECONDS_PER_HOUR),
+    minutes: Math.floor((seconds % SECONDS_PER_HOUR) / SECONDS_PER_MINUTE),
+  };
 }
 
-export function until(ms: number | null): string {
-  if (!ms) return 'no reset scheduled';
-  const s = (ms - Date.now()) / 1000;
-  if (s <= 0) return 'resetting now';
-  const d = Math.floor(s / 86400);
-  const h = Math.floor((s % 86400) / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  return `resets in ${d ? `${d}d ` : ''}${h || d ? `${h}h ` : ''}${m}m`;
+/** "3m ago" style text for a past timestamp; a dash when there is none. */
+export function ago(timestampMs: number | null): string {
+  if (!timestampMs) return '—';
+  const seconds = Math.max(0, (Date.now() - timestampMs) / MS_PER_SECOND);
+  if (seconds < SECONDS_PER_MINUTE) return 'just now';
+  if (seconds < SECONDS_PER_HOUR) return `${Math.floor(seconds / SECONDS_PER_MINUTE)}m ago`;
+  if (seconds < SECONDS_PER_DAY) return `${Math.floor(seconds / SECONDS_PER_HOUR)}h ago`;
+  return `${Math.floor(seconds / SECONDS_PER_DAY)}d ago`;
 }
 
-export function uptime(ms: number | null): string {
-  const s = (Date.now() - (ms ?? Date.now())) / 1000;
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  return h ? `${h}h ${m}m` : `${m}m`;
+/** "resets in 2h 5m" style text for a future timestamp. */
+export function until(timestampMs: number | null): string {
+  if (!timestampMs) return 'no reset scheduled';
+  const seconds = (timestampMs - Date.now()) / MS_PER_SECOND;
+  if (seconds <= 0) return 'resetting now';
+  const { days, hours, minutes } = splitSpan(seconds);
+  return `resets in ${days ? `${days}d ` : ''}${hours || days ? `${hours}h ` : ''}${minutes}m`;
 }
 
+/** "1h 5m" style text for the time since a start timestamp. */
+export function uptime(startedAtMs: number | null): string {
+  const seconds = (Date.now() - (startedAtMs ?? Date.now())) / MS_PER_SECOND;
+  const hours = Math.floor(seconds / SECONDS_PER_HOUR);
+  const minutes = Math.floor((seconds % SECONDS_PER_HOUR) / SECONDS_PER_MINUTE);
+  return hours ? `${hours}h ${minutes}m` : `${minutes}m`;
+}
+
+/** Which relative text a `timeSpan` shows: time since, time until or uptime. */
 export type TimeKind = 'ago' | 'until' | 'up';
 
-const TIME_FORMAT: Record<TimeKind, (ms: number | null) => string> = { ago, until, up: uptime };
+const TIME_FORMAT: Record<TimeKind, (timestampMs: number | null) => string> = { ago, until, up: uptime };
 
 /** A relative time whose text `tickTimes()` keeps current between pushes. */
-export function timeSpan(kind: TimeKind, ms: number | null): string {
-  return `<span data-time="${kind}" data-ms="${ms ?? ''}">${esc(TIME_FORMAT[kind](ms))}</span>`;
+export function timeSpan(kind: TimeKind, timestampMs: number | null): string {
+  return `<span data-time="${kind}" data-ms="${timestampMs ?? ''}">${esc(TIME_FORMAT[kind](timestampMs))}</span>`;
 }
 
 /** Rewrite the text of every `timeSpan`, only where it changed. */
 export function tickTimes(root: ParentNode = document): void {
-  for (const e of root.querySelectorAll<HTMLElement>('[data-time]')) {
-    const kind = e.dataset['time'] as TimeKind;
-    const raw = e.dataset['ms'] ?? '';
+  for (const element of root.querySelectorAll<HTMLElement>('[data-time]')) {
+    const kind = element.dataset['time'] as TimeKind;
+    const raw = element.dataset['ms'] ?? '';
     const text = TIME_FORMAT[kind]?.(raw === '' ? null : Number(raw));
-    if (text !== undefined && e.textContent !== text) e.textContent = text;
+    if (text !== undefined && element.textContent !== text) element.textContent = text;
   }
 }
