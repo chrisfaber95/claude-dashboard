@@ -1,3 +1,4 @@
+// Root skin SVG artwork must pass the svg-guard checker.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -21,17 +22,17 @@ function listRootFiles(): string[] {
 
 test('Root artwork folder holds at least one .svg and nothing else', () => {
   const files = listRootFiles();
-  assert.ok(files.some((f) => extname(f).toLowerCase() === '.svg'), 'no .svg files in src/client/skins/root');
-  const others = files.filter((f) => extname(f).toLowerCase() !== '.svg');
+  assert.ok(files.some((file) => extname(file).toLowerCase() === '.svg'), 'no .svg files in src/client/skins/root');
+  const others = files.filter((file) => extname(file).toLowerCase() !== '.svg');
   assert.deepEqual(others, [], `unexpected non-svg entries in src/client/skins/root: ${others.join(', ')}`);
 });
 
 test('every Root SVG passes the build checker', () => {
-  const files = listRootFiles().filter((f) => extname(f).toLowerCase() === '.svg');
+  const files = listRootFiles().filter((file) => extname(file).toLowerCase() === '.svg');
   assert.ok(files.length > 0, 'no .svg files in src/client/skins/root');
-  for (const f of files) {
-    const src = readFileSync(join(ROOT_DIR, f), 'utf8');
-    assert.deepEqual(checkSvg(src), [], `${f}: unsafe content`);
+  for (const file of files) {
+    const src = readFileSync(join(ROOT_DIR, file), 'utf8');
+    assert.deepEqual(checkSvg(src), [], `${file}: unsafe content`);
   }
 });
 
@@ -89,7 +90,7 @@ for (const [label, svg, expected] of REJECTED) {
   test(`checkSvg rejects: ${label}`, () => {
     const problems = checkSvg(svg);
     for (const re of expected) {
-      assert.ok(problems.some((p) => re.test(p)), `expected ${re} in ${JSON.stringify(problems)} for ${svg}`);
+      assert.ok(problems.some((problem) => re.test(problem)), `expected ${re} in ${JSON.stringify(problems)} for ${svg}`);
     }
   });
 }

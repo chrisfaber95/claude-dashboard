@@ -1,3 +1,4 @@
+// Core mood and headline text derived from live sessions and subagents.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { SessionInfo, SubagentInfo } from '../../../../src/shared/types/index.ts';
@@ -6,13 +7,13 @@ import type { CoreSummary } from '../../../../src/client/features/core/mood.logi
 
 const session = (status: string, name = 'S'): SessionInfo => ({ status, name }) as unknown as SessionInfo;
 const sub = (state: 'working' | 'done'): SubagentInfo => ({ state }) as unknown as SubagentInfo;
-const summary = (p: Partial<CoreSummary>): CoreSummary => ({
+const summary = (overrides: Partial<CoreSummary>): CoreSummary => ({
   mood: 'standby',
   busy: 0,
   waiting: 0,
   subagentsWorking: 0,
   waitingName: null,
-  ...p,
+  ...overrides,
 });
 
 test('moodOf maps busy, waiting and everything else to idle', () => {
@@ -27,14 +28,14 @@ test('coreSummary is standby with nothing running', () => {
 });
 
 test('coreSummary tolerates missing subagents', () => {
-  const c = coreSummary({ sessions: [session('busy')], subagents: undefined as unknown as SubagentInfo[] });
-  assert.equal(c.mood, 'working');
-  assert.equal(c.subagentsWorking, 0);
+  const core = coreSummary({ sessions: [session('busy')], subagents: undefined as unknown as SubagentInfo[] });
+  assert.equal(core.mood, 'working');
+  assert.equal(core.subagentsWorking, 0);
 });
 
 test('coreSummary is working for a busy session', () => {
-  const c = coreSummary({ sessions: [session('busy'), session('idle')], subagents: [] });
-  assert.deepEqual(c, summary({ mood: 'working', busy: 1 }));
+  const core = coreSummary({ sessions: [session('busy'), session('idle')], subagents: [] });
+  assert.deepEqual(core, summary({ mood: 'working', busy: 1 }));
 });
 
 test('coreSummary is working for a working subagent only; done alone stays standby', () => {
@@ -43,11 +44,11 @@ test('coreSummary is working for a working subagent only; done alone stays stand
 });
 
 test('coreSummary: waiting beats busy and names the first waiting session', () => {
-  const c = coreSummary({
+  const core = coreSummary({
     sessions: [session('busy', 'A'), session('waiting', 'B'), session('waiting', 'C'), session('busy', 'D')],
     subagents: [sub('working')],
   });
-  assert.deepEqual(c, { mood: 'waiting', busy: 2, waiting: 2, subagentsWorking: 1, waitingName: 'B' });
+  assert.deepEqual(core, { mood: 'waiting', busy: 2, waiting: 2, subagentsWorking: 1, waitingName: 'B' });
 });
 
 test('CORE_LABEL values', () => {
@@ -84,22 +85,22 @@ const CASES: Array<[string, CoreSummary, string, string]> = [
   ['waiting without a name, with busy', summary({ mood: 'waiting', waiting: 1, busy: 1 }), 'A session is waiting for you · ', '1 more working'],
 ];
 
-for (const [label, c, lead, accent] of CASES) {
+for (const [label, coreSummaryCase, lead, accent] of CASES) {
   test(`coreHeadlineParts: ${label}`, () => {
-    assert.deepEqual(coreHeadlineParts(c), { lead, accent });
-    assert.equal(coreHeadline(c), lead + accent);
+    assert.deepEqual(coreHeadlineParts(coreSummaryCase), { lead, accent });
+    assert.equal(coreHeadline(coreSummaryCase), lead + accent);
   });
 }
 
 test('coreHeadlineParts: a waiting session name with ". " or " · " stays whole in lead', () => {
   for (const name of ['Fix v1. Release', 'a · b', 'x. y · z']) {
     for (const busy of [0, 2]) {
-      const c = summary({ mood: 'waiting', waiting: 1, busy, waitingName: name });
-      const p = coreHeadlineParts(c);
-      assert.ok(p.lead.startsWith(`${name} is waiting for you`), `${name}: lead ${JSON.stringify(p.lead)}`);
-      assert.equal(p.accent, busy ? '2 more working' : '');
-      assert.ok(!p.accent.includes(name) && !name.split(/ · |\. /).some((part) => part.length > 2 && p.accent.includes(part)));
-      assert.equal(coreHeadline(c), p.lead + p.accent);
+      const waitingSummary = summary({ mood: 'waiting', waiting: 1, busy, waitingName: name });
+      const parts = coreHeadlineParts(waitingSummary);
+      assert.ok(parts.lead.startsWith(`${name} is waiting for you`), `${name}: lead ${JSON.stringify(parts.lead)}`);
+      assert.equal(parts.accent, busy ? '2 more working' : '');
+      assert.ok(!parts.accent.includes(name) && !name.split(/ · |\. /).some((part) => part.length > 2 && parts.accent.includes(part)));
+      assert.equal(coreHeadline(waitingSummary), parts.lead + parts.accent);
     }
   }
 });

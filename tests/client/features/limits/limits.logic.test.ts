@@ -1,3 +1,4 @@
+// Limit percentages: clamping, warning levels and the highest utilization.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {

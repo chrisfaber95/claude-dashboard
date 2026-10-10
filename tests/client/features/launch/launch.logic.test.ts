@@ -1,10 +1,11 @@
+// Launch form body, field clearing and launch history rows.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { AuditEntry } from '../../../../src/shared/types/index.ts';
 import { timeLabel } from '../../../../src/client/features/audit/audit.logic.ts';
 import { fieldsAfterLaunch, launchBody, launchRow, launchState, truncate } from '../../../../src/client/features/launch/launch.logic.ts';
 
-const e = (o: Partial<AuditEntry>): AuditEntry => ({ ts: '2026-10-09T10:00:00.000Z', action: 'start', ...o });
+const entry = (overrides: Partial<AuditEntry>): AuditEntry => ({ ts: '2026-10-09T10:00:00.000Z', action: 'start', ...overrides });
 
 test('launchBody trims goal and notes and keeps the permissionMode key', () => {
   assert.deepEqual(launchBody('Alpha', '  fix it \n', '\n notes ', 'plan'), { project: 'Alpha', goal: 'fix it', notes: 'notes', permissionMode: 'plan' });
@@ -23,7 +24,7 @@ test('truncate collapses whitespace and cuts with an ellipsis', () => {
 });
 
 test('launchRow formats time, project, goal, device and session', () => {
-  const row = launchRow(e({ device: 'Phone', deviceId: 'x', project: 'Alpha', goal: 'do it', session: 'abcd1234', ok: true }));
+  const row = launchRow(entry({ device: 'Phone', deviceId: 'x', project: 'Alpha', goal: 'do it', session: 'abcd1234', ok: true }));
   assert.equal(row.time, timeLabel('2026-10-09T10:00:00.000Z'));
   assert.equal(row.project, 'Alpha');
   assert.equal(row.goal, 'do it');
@@ -33,12 +34,12 @@ test('launchRow formats time, project, goal, device and session', () => {
 });
 
 test('launchRow falls back to the device id, the prompt, and drops the session of a failed start', () => {
-  const row = launchRow(e({ deviceId: 'pc', prompt: 'old', session: 'abcd1234', ok: false }));
+  const row = launchRow(entry({ deviceId: 'pc', prompt: 'old', session: 'abcd1234', ok: false }));
   assert.equal(row.device, 'pc');
   assert.equal(row.goal, 'old');
   assert.equal(row.session, '');
   assert.equal(row.ok, false);
-  assert.equal(launchRow(e({})).device, 'unknown');
+  assert.equal(launchRow(entry({})).device, 'unknown');
 });
 
 test('launchState: running only for a successful launch with a live session', () => {

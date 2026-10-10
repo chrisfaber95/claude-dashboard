@@ -1,3 +1,4 @@
+// Message graph: nodes, edges and layout of the messages between sessions.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { MessageInfo } from '../../../../src/shared/types/index.ts';
