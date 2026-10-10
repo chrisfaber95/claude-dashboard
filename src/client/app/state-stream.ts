@@ -1,24 +1,32 @@
 import type { DashboardState } from '../../shared/types/index.ts';
 import { elementById } from '../shared/dom.ts';
 import { api } from '../shared/api.ts';
+import { isDashboardState, setDashboardState } from './dashboard-state.ts';
 
-/** Follow `/api/events`: hand every pushed state to `onState`, show the connection status and report an unreadable push. */
+/** Parse one push; undefined when it is not valid JSON or not a dashboard state. */
+function readStatePush(data: string): DashboardState | undefined {
+  try {
+    const parsed: unknown = JSON.parse(data);
+    return isDashboardState(parsed) ? parsed : undefined;
+  } catch (error) {
+    console.error('bad state push', error);
+    return undefined;
+  }
+}
+
+/** Follow `/api/events`: store every pushed state and hand it to `onState`, show the connection status and report an unreadable push. */
 export function connectStateStream(onState: (state: DashboardState) => void, onBadPush: () => void): void {
   const connection = elementById('conn');
   const stream = new EventSource('/api/events');
   stream.onmessage = (message) => {
     connection.textContent = 'live';
     connection.classList.add('is-live');
-    let state: DashboardState;
-    try {
-      const parsed: unknown = JSON.parse(message.data);
-      if (typeof parsed !== 'object' || !parsed) throw new Error('state is not an object');
-      state = parsed as DashboardState;
-    } catch (error) {
-      console.error('bad state push', error);
+    const state = readStatePush(message.data);
+    if (!state) {
       onBadPush();
       return;
     }
+    setDashboardState(state);
     onState(state);
   };
   stream.onerror = () => {
