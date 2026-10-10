@@ -20,6 +20,8 @@
   },
   "include": [
     "src",
-    "tests"
+    "tests",
+    "src/**/*.vue",
+    "tests/**/*.vue"
   ]
 }

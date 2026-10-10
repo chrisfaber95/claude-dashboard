@@ -14,9 +14,9 @@ src/
   client/
     app/                 boot.ts, app.ts (shell: wires features together), patch.ts
     features/<feature>/  <feature>.view.ts (DOM), <feature>.logic.ts (pure), _<feature>.scss
-    skins/               skin.ts, _copilot.scss, _root.scss, root-scene.ts, root/ (svg)
+    skins/               skin.ts, _copilot.scss, _root.scss, root-scene.ts, root/ (svg), fonts/
     shared/              dom helpers, formatting, api client, esc()
-    style.scss, *.html, fonts/
+    style.scss, *.html
   server/
     main.ts or server.ts (entry), config.ts
     http/                request guards, static files, routes per feature
@@ -51,9 +51,22 @@ existing one.
 - Exported functions and types get a one-line doc comment.
 - Other comments explain *why*, never what.
 
+## Vue single-file components (decision 0007)
+
+- A `.vue` file sits next to its `<feature>.logic.ts` in the feature folder. `<script setup lang="ts">`, Composition
+  API only (no Options API, no Pinia).
+- Markup is normal indented HTML. `<template src="./<name>.html">` is allowed, but `vue-tsc` does **not**
+  type-check external templates (T-050 probed it), so a template that binds more than trivial values stays inline
+  until the lead decides otherwise.
+- No `v-html`, ever (`vue/no-v-html` is an error): Vue escapes text and attributes, which replaces `esc()`.
+- Typing: no `any`, no `as` (except `as const`), no non-null `!` in new or changed code. Values from outside the
+  program (JSON, network, `~/.claude`, `dataset`, `event.target`) arrive as `unknown` and are narrowed by a type
+  guard; DOM elements by `instanceof`; constant data uses `satisfies`. Exported functions declare their return type.
+- Component tests use Vitest + `@vue/test-utils` (`*.component.spec.ts` under `tests/client/`).
+
 ## What a cleanup may not change
 
-API routes, JSON field names in `src/shared/types`, `public/` output file names, storage file formats, and every rule
+API routes, JSON field names in `src/shared/types`, `public/` file names that the server serves before login (`login.js`, `pair.js`, `style.css`), storage file formats, and every rule
 in `CLAUDE.md` (request checks, `claude-cli.ts` as the only command runner, `esc()`). Cleanups preserve behaviour.
 Moves use `git mv` in their own PR with only import edits, so `git log --follow` keeps working.
 
@@ -62,7 +75,7 @@ Moves use `git mv` in their own PR with only import edits, so `git log --follow`
 `npm run lint` (`eslint.config.js`, run in CI) enforces, as errors: `id-length` (min 2, except `i`, `j`, `a`, `b`,
 `_`), `id-denylist` (`fmt`, `st`, `rec`, `sid`, `msg`, `buf`, `el`, `cls`, `tmp`, `cfg`), `naming-convention`
 (camelCase, PascalCase types, UPPER_CASE constants, booleans prefixed `is`/`has`/`should`/`can`),
-`no-nested-ternary`, `max-lines` 300, `max-lines-per-function` 50 (not in `tests/`) and `max-depth` 4.
+`no-nested-ternary`, `max-lines` 300, `max-lines-per-function` 50 (not in `tests/`) and `max-depth` 4, in `.ts` and `.vue` files (the latter through `eslint-plugin-vue`'s essential rules and `vue/no-v-html`).
 
 `LEGACY_FILES` in `eslint.config.js` is empty: every file passes. Never add a file to it; a new or moved file must
 pass. Left to review: other abbreviations, verb-first function names, plural collections, units in names, one

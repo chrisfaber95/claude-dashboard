@@ -5,7 +5,7 @@ import { checkSvg } from './svg-guard.mjs';
 // Static skin assets (the CSP only allows same-origin fonts and images). Everything copied to public/ is served,
 // so each folder has an extension allowlist, symlinks are skipped and SVGs must pass the allowlist check.
 const ASSETS = [
-  { from: 'src/client/fonts', to: 'public/fonts', allowed: new Set(['.woff2', '.txt']) },
+  { from: 'src/client/skins/fonts', to: 'public/fonts', allowed: new Set(['.woff2', '.txt']) },
   { from: 'src/client/skins/root', to: 'public/root', allowed: new Set(['.svg']) },
 ];
 
@@ -22,9 +22,8 @@ function filesIn(dir) {
   return out;
 }
 
-/** Copies the self-hosted skin assets (fonts, Root skin artwork) into public/. Throws if an SVG fails the check. */
-export function copyAssets() {
-  // Check every SVG before touching public/, so a bad file fails the build without leaving a half-copied folder.
+/** Throws if any SVG that would be copied fails the allowlist check. Touches nothing. */
+export function checkAssets() {
   const problems = [];
   for (const { from } of ASSETS) {
     if (!existsSync(from) || lstatSync(from).isSymbolicLink()) continue;
@@ -35,6 +34,12 @@ export function copyAssets() {
     }
   }
   if (problems.length) throw new Error(problems.join('\n'));
+}
+
+/** Copies the self-hosted skin assets (fonts, Root skin artwork) into public/. Throws if an SVG fails the check. */
+export function copyAssets() {
+  // Check every SVG before touching public/, so a bad file fails the build without leaving a half-copied folder.
+  checkAssets();
 
   for (const { from, to, allowed } of ASSETS) {
     // Start clean so a file deleted from src/ is not served from a stale copy.

@@ -16,7 +16,7 @@ async function inProject(body: (dir: string, outside: string, copyAssets: () => 
   const outside = mkdtempSync(join(tmpdir(), 'copy-assets-outside-'));
   const prev = process.cwd();
   try {
-    mkdirSync(join(dir, 'src/client/fonts'), { recursive: true });
+    mkdirSync(join(dir, 'src/client/skins/fonts'), { recursive: true });
     mkdirSync(join(dir, 'src/client/skins/root'), { recursive: true });
     process.chdir(dir);
     const { copyAssets } = (await import(scriptUrl)) as { copyAssets: () => void };
@@ -30,9 +30,9 @@ async function inProject(body: (dir: string, outside: string, copyAssets: () => 
 
 test('copyAssets copies only allowlisted extensions and skips symlinks and junctions', async () => {
   await inProject((dir, outside, copyAssets) => {
-    writeFileSync(join(dir, 'src/client/fonts/a.woff2'), 'font');
-    writeFileSync(join(dir, 'src/client/fonts/LICENSE.txt'), 'license');
-    writeFileSync(join(dir, 'src/client/fonts/evil.js'), 'alert(1)');
+    writeFileSync(join(dir, 'src/client/skins/fonts/a.woff2'), 'font');
+    writeFileSync(join(dir, 'src/client/skins/fonts/LICENSE.txt'), 'license');
+    writeFileSync(join(dir, 'src/client/skins/fonts/evil.js'), 'alert(1)');
     writeFileSync(join(dir, 'src/client/skins/root/x.svg'), VALID_SVG);
     writeFileSync(join(dir, 'src/client/skins/root/y.html'), '<script>alert(1)</script>');
 

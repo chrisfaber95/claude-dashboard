@@ -1,4 +1,6 @@
 import tseslint from 'typescript-eslint';
+import pluginVue from 'eslint-plugin-vue';
+import vueParser from 'vue-eslint-parser';
 
 // Readability rules of docs/code-style.md. Formatting is not checked here.
 
@@ -46,8 +48,24 @@ export default tseslint.config(
     plugins: { '@typescript-eslint': tseslint.plugin },
     rules: readabilityRules,
   },
+  // Vue single-file components: the essential Vue rules (formatting is not checked) plus the same readability rules (decision 0007).
+  ...pluginVue.configs['flat/essential'],
   {
-    files: ['tests/**/*.ts'],
+    files: ['src/**/*.vue', 'tests/**/*.vue'],
+    languageOptions: {
+      parser: vueParser,
+      parserOptions: {
+        parser: tseslint.parser,
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+        extraFileExtensions: ['.vue'],
+      },
+    },
+    plugins: { '@typescript-eslint': tseslint.plugin },
+    rules: { ...readabilityRules, 'vue/no-v-html': 'error' },
+  },
+  {
+    files: ['tests/**/*.ts', 'tests/**/*.vue'],
     rules: { 'max-lines-per-function': 'off' },
   },
   ...(LEGACY_FILES.length === 0

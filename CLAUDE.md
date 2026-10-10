@@ -8,12 +8,12 @@ Web dashboard for Claude Code activity: the projects in `N:\Projects`, live sess
 
 - `npm start`: build the client, then serve on http://127.0.0.1:4777 (no login)
 - `npm run start:lan`: same, but on all interfaces over HTTPS with a token login (`--lan` flag)
-- `npm run dev`: watch mode: rebuild HTML on change, esbuild watch for the client entry points, sass watch for styles, server restarts on `src/server/` or `src/shared/` changes (client changes don't restart); refresh browser tab manually
+- `npm run dev`: Vite build in watch mode (`vite.config.ts`: rebuilds pages, scripts, styles and skin assets on change), server restarts on `src/server/` or `src/shared/` changes (client changes don't restart); refresh browser tab manually
 - `npm run dev:lan`: same, but server listens on all interfaces over HTTPS with login (`--lan` flag)
 - `npm test`: both runners, in order: `npm run test:node` (`node:test` suites, `tests/**/*.test.ts`), then `npm run test:component` (Vitest + `@vue/test-utils` + `happy-dom`, `tests/client/**/*.component.spec.ts`, config `vitest.config.ts`); fails if either fails
-- `npm run typecheck`: `tsc --noEmit` over `src` and `tests`
+- `npm run typecheck`: `vue-tsc --noEmit` over `src` and `tests`, `.vue` files included (a `<template src>` file is not type-checked; inline `<template>` blocks are)
 - `npm run lint`: ESLint readability rules of `docs/code-style.md` over `src` and `tests` (`eslint.config.js`; `LEGACY_FILES` lists files exempt for now and may only shrink)
-- `npm run build`: esbuild `src/client/app/app.ts` + `features/login/login.view.ts` + `features/pair/pair.view.ts` + `app/boot.ts` → `public/{app,login,pair,boot}.js`, sass `style.scss` → `public/style.css`, copy `index.html` + `login.html` + `src/client/fonts` → `public/fonts` + `src/client/skins/root` → `public/root` (via `scripts/copy-assets.mjs`)
+- `npm run build`: `vite build` (`vite.config.ts`): the pages `index.html`, `login.html` and `pair.html` from `src/client/` with their TypeScript entry points and `style.scss` → `public/` (minified; the app bundle is `public/assets/index-<hash>.js`, `login.js`, `pair.js` and `style.css` keep their names because the server serves them before login), the classic pre-paint `boot.js` as its own build, then `src/client/skins/fonts` → `public/fonts` + `src/client/skins/root` → `public/root` (via `scripts/copy-assets.mjs`, which checks every SVG first)
 
 Run `npm run typecheck`, `npm run lint` and `npm test` after every change, except changes that only touch documentation (Markdown, agent/skill/parameter files, comments).
 
@@ -88,7 +88,7 @@ Also see `.claude/skills/` for 24 reusable skills.
 
 ### Frontend and TypeScript delegation (mandatory)
 
-- **Frontend:** delegate every change in `src/client/` (`.ts`, `.scss`, `index.html`, `login.html`) to the `frontend-developer` agent, including new files such as `features/building/building.view.ts`. The client is vanilla TypeScript and SCSS with no framework (no React, Vue or Angular), so ignore the agent's framework wording. In the delegation prompt, include the "UI conventions" from `docs/architecture.md`, the `esc()` and no-inline-script rules from "Rules", `docs/code-style.md`, and which `src/shared/types/` changes are involved. Trivial one-line fixes may be done directly.
+- **Frontend:** delegate every change in `src/client/` (`.ts`, `.scss`, `index.html`, `login.html`) to the `frontend-developer` agent, including new files such as `features/building/building.view.ts`. The client is TypeScript and SCSS moving to Vue 3 with Vite (decision 0007; no panel is migrated yet), not React or Angular, so ignore the agent's other framework wording. In the delegation prompt, include the "UI conventions" from `docs/architecture.md`, the `esc()` and no-inline-script rules from "Rules", `docs/code-style.md`, and which `src/shared/types/` changes are involved. Trivial one-line fixes may be done directly.
 - **TypeScript:** delegate to `typescript-pro` whenever `src/shared/types/` is added to or changed, a new `.ts` module is created, or API, transcript or config boundaries get new types, not only when asked for "type-system work". Honour the "TypeScript constraints" above and include `docs/code-style.md` in the delegation prompt.
 - When both apply (a client feature with new shared types), run `typescript-pro` for the types first, then `frontend-developer` for the UI.
 

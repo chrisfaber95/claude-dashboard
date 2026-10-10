@@ -4,10 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:js": "esbuild app=src/client/app/app.ts login=src/client/features/login/login.view.ts pair=src/client/features/pair/pair.view.ts boot=src/client/app/boot.ts --bundle --outdir=public --target=es2022 --sourcemap",
-    "build:css": "sass --no-source-map src/client/style.scss public/style.css",
-    "build:html": "node scripts/copy-html.mjs",
-    "build": "npm run build:js && npm run build:css && npm run build:html",
+    "build": "vite build",
     "start": "npm run build && node src/server/server.ts",
     "start:lan": "npm run build && node src/server/server.ts --lan",
     "dev": "node scripts/dev.mjs",
@@ -15,21 +12,25 @@
     "test": "npm run test:node && npm run test:component",
     "test:node": "node --test \"tests/**/*.test.ts\"",
     "test:component": "vitest run",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "vue-tsc --noEmit",
     "lint": "eslint src tests"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^24.0.0",
+    "@vitejs/plugin-vue": "^6.0.10",
     "@vue/test-utils": "^2.5.1",
-    "esbuild": "^0.25.0",
     "eslint": "^10.12.0",
+    "eslint-plugin-vue": "^10.11.1",
     "happy-dom": "^20.14.6",
     "qrcode-generator": "^2.0.4",
     "sass": "^1.89.0",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.1",
-    "vitest": "^3.2.7",
-    "vue": "^3.5.43"
+    "vite": "^8.3.4",
+    "vitest": "^5.0.3",
+    "vue": "^3.5.43",
+    "vue-eslint-parser": "^10.4.1",
+    "vue-tsc": "^3.3.13"
   }
 }
