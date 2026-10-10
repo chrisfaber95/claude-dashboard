@@ -1,15 +1,10 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
 import type { DeviceInfo } from '../../shared/types/index.ts';
+import { devicesFilePath, loadDevices, saveDevices, type StoredDevice } from './devices-file.ts';
 
 export type { DeviceInfo };
 
-interface StoredDevice extends DeviceInfo {
-  /** Hex sha256 of the token. The token itself is never stored. */
-  sha256: string;
-}
-
+/** The named, revocable device tokens that may sign in. */
 export interface DeviceStore {
   /**
    * Returns the token once; only its hash is kept. Throws 'invalid device name', 'too many devices' or
@@ -34,63 +29,48 @@ export const MAX_DEVICES = 100;
 export const NAME_MAX = 40;
 const TOUCH_WRITE_MS = 60_000;
 const TOKEN_MAX = 256;
+const TOKEN_BYTES = 32;
+const DEVICE_ID_BYTES = 6;
+/** Control, line-separator and bidi-override characters would let a name spoof or break the device list. */
+const UNSAFE_NAME_RE = /[\p{C}\u2028\u2029\u202a-\u202e\u2066-\u2069]/u;
 
 const hashOf = (token: string) => createHash('sha256').update(token).digest();
 
-function isStored(d: unknown): d is StoredDevice {
-  const x = d as Partial<StoredDevice> | null;
-  return (
-    !!x &&
-    typeof x.id === 'string' &&
-    x.id !== 'pc' && // reserved for the loopback exemption
-    typeof x.name === 'string' &&
-    typeof x.sha256 === 'string' &&
-    /^[0-9a-f]{64}$/.test(x.sha256) &&
-    typeof x.createdMs === 'number' &&
-    (x.lastSeenMs === null || typeof x.lastSeenMs === 'number')
-  );
+const publicOf = (device: StoredDevice): DeviceInfo => ({
+  id: device.id,
+  name: device.name,
+  createdMs: device.createdMs,
+  lastSeenMs: device.lastSeenMs,
+});
+
+/** The trimmed name, or throws 'invalid device name'. */
+function cleanName(name: unknown): string {
+  const clean = typeof name === 'string' ? name.trim() : '';
+  if (!clean || clean.length > NAME_MAX || UNSAFE_NAME_RE.test(clean)) throw new Error('invalid device name');
+  return clean;
 }
 
-const publicOf = (d: StoredDevice): DeviceInfo => ({ id: d.id, name: d.name, createdMs: d.createdMs, lastSeenMs: d.lastSeenMs });
+/** The device whose hash equals the token's. Compares against every device so the time doesn't reveal which matched. */
+function findByToken(devices: StoredDevice[], token: string): StoredDevice | null {
+  const tokenHash = hashOf(token);
+  let found: StoredDevice | null = null;
+  for (const device of devices) if (timingSafeEqual(tokenHash, Buffer.from(device.sha256, 'hex'))) found = device;
+  return found;
+}
 
 /** Named, revocable device tokens in `<dataDir>/devices.json` (holds token hashes: never serve or commit it). */
 export function createDeviceStore(dataDir: string, now: () => number = Date.now): DeviceStore {
-  const file = join(dataDir, 'devices.json');
-  let devices: StoredDevice[] = [];
-  try {
-    const j = JSON.parse(readFileSync(file, 'utf8')) as { devices?: unknown };
-    if (Array.isArray(j.devices)) devices = j.devices.filter(isStored);
-  } catch {
-    // missing or corrupt: empty store
-  }
-  const lastWrite = new Map<string, number>();
-
-  /** False when the file could not be written. */
-  function save(): boolean {
-    try {
-      mkdirSync(dataDir, { recursive: true });
-      const tmp = `${file}.tmp`;
-      writeFileSync(tmp, JSON.stringify({ devices }), { mode: 0o600 });
-      renameSync(tmp, file);
-      return true;
-    } catch {
-      // keep the in-memory state; the next change retries
-      try {
-        rmSync(`${file}.tmp`, { force: true });
-      } catch {
-        // best effort
-      }
-      return false;
-    }
-  }
+  const file = devicesFilePath(dataDir);
+  const devices = loadDevices(file);
+  const lastWriteMs = new Map<string, number>();
+  const save = () => saveDevices(dataDir, file, devices);
 
   return {
     create(name) {
-      const clean = typeof name === 'string' ? name.trim() : '';
-      if (!clean || clean.length > NAME_MAX || /[\p{C}\u2028\u2029\u202a-\u202e\u2066-\u2069]/u.test(clean)) throw new Error('invalid device name');
+      const clean = cleanName(name);
       if (devices.length >= MAX_DEVICES) throw new Error('too many devices');
-      const token = randomBytes(32).toString('base64url');
-      const id = randomBytes(6).toString('hex');
+      const token = randomBytes(TOKEN_BYTES).toString('base64url');
+      const id = randomBytes(DEVICE_ID_BYTES).toString('hex');
       devices.push({ id, name: clean, sha256: hashOf(token).toString('hex'), createdMs: now(), lastSeenMs: null });
       if (!save()) {
         devices.pop();
@@ -100,29 +80,26 @@ export function createDeviceStore(dataDir: string, now: () => number = Date.now)
     },
     list: () => devices.map(publicOf),
     revoke(id) {
-      const i = devices.findIndex((d) => d.id === id);
-      if (i < 0) return { found: false, persisted: true };
-      devices.splice(i, 1);
-      lastWrite.delete(id);
+      const index = devices.findIndex((device) => device.id === id);
+      if (index < 0) return { found: false, persisted: true };
+      devices.splice(index, 1);
+      lastWriteMs.delete(id);
       return { found: true, persisted: save() };
     },
-    has: (id) => devices.some((d) => d.id === id),
+    has: (id) => devices.some((device) => device.id === id),
     verify(token) {
       if (typeof token !== 'string' || token.length === 0 || token.length > TOKEN_MAX) return null;
-      const h = hashOf(token);
-      let found: StoredDevice | null = null;
-      // Compare against every device so the time taken doesn't reveal which one matched.
-      for (const d of devices) if (timingSafeEqual(h, Buffer.from(d.sha256, 'hex'))) found = d;
+      const found = findByToken(devices, token);
       return found ? publicOf(found) : null;
     },
     touch(id) {
-      const d = devices.find((x) => x.id === id);
-      if (!d) return;
-      const t = now();
-      d.lastSeenMs = t;
-      const w = lastWrite.get(id);
-      if (w === undefined || t - w >= TOUCH_WRITE_MS) {
-        lastWrite.set(id, t);
+      const device = devices.find((candidate) => candidate.id === id);
+      if (!device) return;
+      const timeMs = now();
+      device.lastSeenMs = timeMs;
+      const previousWriteMs = lastWriteMs.get(id);
+      if (previousWriteMs === undefined || timeMs - previousWriteMs >= TOUCH_WRITE_MS) {
+        lastWriteMs.set(id, timeMs);
         save();
       }
     },

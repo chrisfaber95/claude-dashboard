@@ -13,6 +13,7 @@ let running = 0;
 /** Ids that `claude stop/logs` accept: session UUIDs or the short background ids. Never starts with '-'. */
 const BG_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{3,63}$/;
 
+/** A failed command with the HTTP status to answer with; the message is a fixed string safe to show. */
 export class CommandError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -64,27 +65,28 @@ export function resolveClaudeBin(): { bin: string; prefix: string[] } | null {
   const extDir = join(homedir(), '.vscode', 'extensions');
   let dirs: string[] = [];
   try {
-    dirs = readdirSync(extDir).filter((d) => d.startsWith('anthropic.claude-code-'));
+    dirs = readdirSync(extDir).filter((dirName) => dirName.startsWith('anthropic.claude-code-'));
   } catch {
     return null;
   }
-  const version = (d: string) => (d.match(/(\d+)\.(\d+)\.(\d+)/) ?? []).slice(1).map(Number);
+  const version = (dirName: string) => (dirName.match(/(\d+)\.(\d+)\.(\d+)/) ?? []).slice(1).map(Number);
   dirs.sort((a, b) => {
-    const [x, y] = [version(a), version(b)];
-    for (let i = 0; i < 3; i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) - (y[i] ?? 0);
+    const [versionA, versionB] = [version(a), version(b)];
+    for (let i = 0; i < 3; i++) if ((versionA[i] ?? 0) !== (versionB[i] ?? 0)) return (versionA[i] ?? 0) - (versionB[i] ?? 0);
     return 0;
   });
-  for (const d of dirs.reverse()) {
-    const bin = join(extDir, d, 'resources', 'native-binary', BIN_NAME);
+  for (const dirName of dirs.reverse()) {
+    const bin = join(extDir, dirName, 'resources', 'native-binary', BIN_NAME);
     if (existsSync(bin)) return { bin, prefix: [] };
   }
   return null;
 }
 
+/** The requested permission mode (default `auto`); throws a 400 CommandError for one outside the allowlist. */
 export function validateMode(mode: unknown): PermissionMode {
-  const m = mode ?? 'auto';
-  if (!PERMISSION_MODES.includes(m as PermissionMode)) throw new CommandError(400, `permission mode must be one of ${PERMISSION_MODES.join(', ')}`);
-  return m as PermissionMode;
+  const chosen = mode ?? 'auto';
+  if (!PERMISSION_MODES.includes(chosen as PermissionMode)) throw new CommandError(400, `permission mode must be one of ${PERMISSION_MODES.join(', ')}`);
+  return chosen as PermissionMode;
 }
 
 /** Validate and normalise a prompt. A leading '-' would be parsed as a CLI flag, so it is prefixed. */
@@ -94,20 +96,28 @@ export function validatePrompt(prompt: unknown): string {
   return /^\s*-/.test(prompt) ? `Task:\n${prompt}` : prompt;
 }
 
+/** The id when it is a valid background session id; throws a 400 CommandError otherwise. */
 export function validateBgId(id: string): string {
   if (!BG_ID_RE.test(id)) throw new CommandError(400, 'invalid session id');
   return id;
 }
 
+/** Exit code of a finished process: 0 on success, the numeric error code, else 1. */
+function exitCodeOf(error: Error | null): number {
+  if (!error) return 0;
+  const code = (error as NodeJS.ErrnoException).code;
+  return typeof code === 'number' ? code : 1;
+}
+
 function run(args: string[], cwd: string, input?: string, timeout = TIMEOUT_MS): Promise<{ code: number; output: string }> {
-  const r = resolveClaudeBin();
-  if (!r) return Promise.reject(new CommandError(500, 'Claude CLI not found (set CLAUDE_BIN)'));
+  const resolved = resolveClaudeBin();
+  if (!resolved) return Promise.reject(new CommandError(500, 'Claude CLI not found (set CLAUDE_BIN)'));
   if (running >= MAX_CONCURRENT) return Promise.reject(new CommandError(429, 'too many commands running, try again shortly'));
   running++;
   return new Promise((resolve) => {
     // Argument array, no shell: the prompt is never interpreted by cmd.exe.
-    const child = execFile(r.bin, [...r.prefix, ...args], { cwd, timeout, windowsHide: true, maxBuffer: 1 << 20 }, (err, stdout, stderr) => {
-      const code = err ? (typeof (err as NodeJS.ErrnoException).code === 'number' ? Number((err as NodeJS.ErrnoException).code) : 1) : 0;
+    const child = execFile(resolved.bin, [...resolved.prefix, ...args], { cwd, timeout, windowsHide: true, maxBuffer: 1 << 20 }, (err, stdout, stderr) => {
+      const code = exitCodeOf(err);
       running--;
       resolve({ code, output: `${stdout}${stderr}`.trim() });
     });
@@ -117,18 +127,19 @@ function run(args: string[], cwd: string, input?: string, timeout = TIMEOUT_MS):
   });
 }
 
-function toResult(r: { code: number; output: string }): CommandResult {
-  const trust = /Workspace not trusted/i.test(r.output);
-  const id = r.output.match(/\b([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b/i)?.[1]
-    ?? r.output.match(/^\s*([A-Za-z0-9][A-Za-z0-9_-]{3,63})\s*$/m)?.[1];
+function toResult(result: { code: number; output: string }): CommandResult {
+  const isTrustMissing = /Workspace not trusted/i.test(result.output);
+  const id = result.output.match(/\b([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b/i)?.[1]
+    ?? result.output.match(/^\s*([A-Za-z0-9][A-Za-z0-9_-]{3,63})\s*$/m)?.[1];
   return {
-    ok: r.code === 0 && !trust,
-    output: r.output,
-    ...(r.code === 0 && id ? { id } : {}),
-    ...(trust ? { needsTrust: 'Open a terminal in this folder, run `claude` once and accept the trust prompt, then retry.' } : {}),
+    ok: result.code === 0 && !isTrustMissing,
+    output: result.output,
+    ...(result.code === 0 && id ? { id } : {}),
+    ...(isTrustMissing ? { needsTrust: 'Open a terminal in this folder, run `claude` once and accept the trust prompt, then retry.' } : {}),
   };
 }
 
+/** Append one entry to the command audit log (`.dashboard/commands.log`); never throws. */
 export function audit(entry: Record<string, unknown>) {
   try {
     mkdirSync(DATA_DIR, { recursive: true });
@@ -141,6 +152,7 @@ export function audit(entry: Record<string, unknown>) {
 /** `--settings <file>` (the permission hook, see permissions.ts) when the dashboard has one; nothing else changes. */
 const settingsArgs = (settingsFile?: string) => (settingsFile ? ['--settings', settingsFile] : []);
 
+/** Start a background Claude session in `cwd` with the prompt (`claude --bg`). */
 export async function startTask(cwd: string, prompt: string, mode: PermissionMode, settingsFile?: string): Promise<CommandResult> {
   return toResult(await run(['--bg', ...settingsArgs(settingsFile), '--permission-mode', mode, prompt], cwd));
 }
@@ -153,16 +165,17 @@ const SUMMARY_INSTRUCTION =
  * no session saved or resumed, no `--bg`. The transcript excerpt is stdin data. Throws on any failure or timeout.
  */
 export async function summarizeWithModel(excerpt: string, cwd: string, timeoutMs = TIMEOUT_MS): Promise<string> {
-  const r = await run(
+  const result = await run(
     ['-p', SUMMARY_INSTRUCTION, '--model', 'haiku', '--tools', '', '--disable-slash-commands', '--strict-mcp-config', '--setting-sources', 'user', '--no-session-persistence', '--output-format', 'text'],
     cwd,
     excerpt,
     timeoutMs,
   );
-  if (r.code !== 0 || !r.output || /Workspace not trusted/i.test(r.output)) throw new CommandError(502, 'summary failed');
-  return r.output;
+  if (result.code !== 0 || !result.output || /Workspace not trusted/i.test(result.output)) throw new CommandError(502, 'summary failed');
+  return result.output;
 }
 
+/** Resume a session with a follow-up prompt in the background; throws a 400 CommandError for a non-UUID id. */
 export async function continueSession(sessionId: string, cwd: string, prompt: string, mode: PermissionMode, settingsFile?: string): Promise<CommandResult> {
   if (!UUID_RE.test(sessionId)) throw new CommandError(400, 'invalid session id');
   return toResult(await run(['--bg', ...settingsArgs(settingsFile), '--resume', sessionId, '--permission-mode', mode, prompt], cwd));
@@ -176,10 +189,12 @@ function jobId(id: string): string {
   return UUID_RE.test(id) ? id.slice(0, 8).toLowerCase() : validateBgId(id);
 }
 
+/** Stop a background session (`claude stop`). */
 export async function stopSession(id: string, cwd: string): Promise<CommandResult> {
   return toResult(await run(['stop', jobId(id)], cwd));
 }
 
+/** Read a background session's logs (`claude logs`). */
 export async function sessionLogs(id: string, cwd: string): Promise<CommandResult> {
   return toResult(await run(['logs', jobId(id)], cwd));
 }

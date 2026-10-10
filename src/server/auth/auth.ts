@@ -1,60 +1,37 @@
-import { randomBytes } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import type { DeviceStore } from './devices.ts';
+import { createLoginLimiter, type LoginLimiter } from './login-limiter.ts';
+import { isLoopbackRequest } from './loopback.ts';
+import { createPairingStore, type PairingStore } from './pairings.ts';
+import { createSessionStore, SESSION_MS, type SessionStore } from './sessions.ts';
+
+export { isLoopbackRequest } from './loopback.ts';
+export { MAX_SESSIONS_PER_DEVICE, SESSION_MAX_MS } from './sessions.ts';
 
 const COOKIE = 'dash_sid';
-const SESSION_MS = 7 * 86_400_000;
-/** A session ends this long after sign-in even while in use (the 7-day slide never goes past it). */
-export const SESSION_MAX_MS = 90 * 86_400_000;
-/** At most this many live sessions per device; signing in again ends the oldest. */
-export const MAX_SESSIONS_PER_DEVICE = 10;
-const COOKIE_REISSUE_MS = 86_400_000;
-const LOGIN_WINDOW_MS = 60_000;
-const LOGIN_MAX = 5;
-const PAIR_MS = 10 * 60_000;
-const PAIR_MAX = 200;
-const PAIR_CODE_MAX = 128;
 
 /** The device id of a request from this PC (loopback socket and loopback Host). */
 export const PC_DEVICE = 'pc';
 
-const LOOPBACK_ADDRS = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
-const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
-/** Set by reverse proxies and tunnels. Never trusted; their presence only withdraws the loopback exemption. */
-const PROXY_HEADERS = ['x-forwarded-for', 'x-forwarded-host', 'x-real-ip', 'forwarded', 'via'];
-
-/** Hostname from the Host header itself. */
-function hostnameOf(host: string): string {
-  if (host.startsWith('[')) return host.slice(0, host.indexOf(']') + 1);
-  return host.split(':')[0].toLowerCase();
-}
-
-/**
- * Loopback exemption: the socket peer must be loopback AND the Host header a loopback host.
- * Forwarding headers (X-Forwarded-For and the like) are never trusted; if one is present the request is treated as
- * proxied and is not exempt, which also stops a same-PC proxy that adds them from opening the dashboard.
- */
-export function isLoopbackRequest(req: IncomingMessage): boolean {
-  if (PROXY_HEADERS.some((h) => req.headers[h] !== undefined)) return false;
-  const addr = req.socket?.remoteAddress;
-  return !!addr && LOOPBACK_ADDRS.has(addr) && LOOPBACK_HOSTS.has(hostnameOf(req.headers.host ?? ''));
-}
-
+/** Who a request belongs to. */
 export interface Identity {
   /** Device id, or `pc` for the loopback exemption. */
   deviceId: string;
   /** The session this request came in with; null for the loopback exemption (it has no session). */
+  // eslint-disable-next-line id-denylist -- part of the Identity shape that server.ts and the tests read
   sid: string | null;
   /** Set when the session cookie should be re-issued with this session id (at most once a day). */
   refreshSid: string | null;
 }
 
+/** Options of createAuth. */
 export interface AuthOptions {
   now?: () => number;
   /** Called for every failed or rate-limited sign-in. */
   onFailedLogin?: (ip: string, tMs: number) => void;
 }
 
+/** Sign-in, sessions, pairing codes and device revocation of the LAN login. */
 export interface Auth {
   readonly devices: DeviceStore;
   /** Returns a session id on success, 'rate-limited' when too many attempts, or null. */
@@ -83,22 +60,23 @@ export interface Auth {
    */
   sweepExpired(): void;
   /** Called with the session id whenever a session ends for any reason: logout, expiry, cap, revoke. */
-  onSessionEnd(listener: (sid: string) => void): void;
+  onSessionEnd(listener: (sessionId: string) => void): void;
   /** Delete the device, end its sessions and tell the listeners (open live-event streams). */
   revokeDevice(id: string): { found: boolean; persisted: boolean };
   onRevoke(listener: (deviceId: string) => void): void;
-  cookie(sid: string, secure: boolean): string;
-  clearCookie(secure: boolean): string;
+  cookie(sessionId: string, isSecure: boolean): string;
+  clearCookie(isSecure: boolean): string;
 }
 
+/** The value of one cookie of a request, or null. */
 export function readCookie(req: IncomingMessage, name: string): string | null {
   const raw = req.headers.cookie;
   if (!raw) return null;
   for (const part of raw.split(';')) {
-    const i = part.indexOf('=');
-    if (i > 0 && part.slice(0, i).trim() === name) {
+    const separatorIndex = part.indexOf('=');
+    if (separatorIndex > 0 && part.slice(0, separatorIndex).trim() === name) {
       try {
-        return decodeURIComponent(part.slice(i + 1).trim());
+        return decodeURIComponent(part.slice(separatorIndex + 1).trim());
       } catch {
         return null;
       }
@@ -107,175 +85,162 @@ export function readCookie(req: IncomingMessage, name: string): string | null {
   return null;
 }
 
-interface Session {
-  deviceId: string;
-  exp: number;
-  cookieAt: number;
-  /** When it was signed in: the 90-day limit counts from here. */
-  startedAt: number;
+/** The stores and clock the auth methods share. */
+interface AuthParts {
+  devices: DeviceStore;
+  now: () => number;
+  sessions: SessionStore;
+  pairings: PairingStore;
+  limiter: LoginLimiter;
+  reportFailure: (ip: string, timeMs: number) => void;
 }
 
-export function createAuth(devices: DeviceStore, opts: AuthOptions = {}): Auth {
-  const now = opts.now ?? Date.now;
-  const sessions = new Map<string, Session>();
-  const attempts = new Map<string, number[]>();
-  const revokeListeners: Array<(deviceId: string) => void> = [];
-  const endListeners: Array<(sid: string) => void> = [];
-  const pairings = new Map<string, { deviceId: string; exp: number }>();
+/** Drop expired sessions, pairing codes and stale attempt records so the maps can't grow without bound. */
+function sweepAll(parts: AuthParts, timeMs: number): void {
+  parts.sessions.sweep(timeMs);
+  parts.pairings.sweep(timeMs);
+  parts.limiter.sweep(timeMs);
+}
 
-  /** End one session and tell the listeners (they close the event streams opened with it). */
-  const endSession = (sid: string) => {
-    if (!sessions.delete(sid)) return;
-    for (const l of endListeners) {
-      try {
-        l(sid);
-      } catch {
-        // a broken listener must not stop the others
-      }
-    }
-  };
+/** The shared per-IP sign-in limit (tokens and pairing codes count together). Returns the time, or null when limited. */
+function tryAttempt(parts: AuthParts, ip: string): number | null {
+  const timeMs = parts.now();
+  sweepAll(parts, timeMs);
+  if (parts.limiter.tryAttempt(ip, timeMs)) return timeMs;
+  parts.reportFailure(ip, timeMs);
+  return null;
+}
 
-  /** Drop expired sessions and stale attempt records so the maps can't grow without bound. */
-  const sweep = (t: number) => {
-    for (const [sid, s] of [...sessions]) if (s.exp < t || !devices.has(s.deviceId)) endSession(sid);
-    for (const [code, p] of pairings) if (p.exp < t) pairings.delete(code);
-    for (const [ip, list] of attempts) if (!list.some((x) => t - x < LOGIN_WINDOW_MS)) attempts.delete(ip);
-  };
+/** Open a session for a device that just proved itself; the IP's failed attempts are forgotten. */
+function startSession(parts: AuthParts, ip: string, deviceId: string, timeMs: number): string {
+  parts.limiter.clear(ip);
+  return parts.sessions.start(deviceId, timeMs);
+}
 
-  const failed = (ip: string, t: number) => {
-    try {
-      opts.onFailedLogin?.(ip, t);
-    } catch {
-      // a broken hook must not break sign-in
-    }
-  };
+type SignInMethods = Pick<Auth, 'login' | 'pair' | 'createPairing' | 'peekPairing'>;
 
-  /** The shared per-IP sign-in limit (tokens and pairing codes count together). Returns the time, or null when limited. */
-  const attempt = (ip: string): number | null => {
-    const t = now();
-    sweep(t);
-    const recent = (attempts.get(ip) ?? []).filter((x) => t - x < LOGIN_WINDOW_MS);
-    if (recent.length >= LOGIN_MAX) {
-      attempts.set(ip, recent);
-      failed(ip, t);
-      return null;
-    }
-    recent.push(t);
-    attempts.set(ip, recent);
-    return t;
-  };
-
-  const startSession = (ip: string, deviceId: string, t: number): string => {
-    attempts.delete(ip);
-    const sid = randomBytes(32).toString('base64url');
-    // A device keeps at most MAX_SESSIONS_PER_DEVICE sessions: the oldest (first inserted) ends to make room.
-    const mine = [...sessions].filter(([, s]) => s.deviceId === deviceId).map(([id]) => id);
-    for (const old of mine.slice(0, Math.max(0, mine.length - MAX_SESSIONS_PER_DEVICE + 1))) endSession(old);
-    sessions.set(sid, { deviceId, exp: t + SESSION_MS, cookieAt: t, startedAt: t });
-    devices.touch(deviceId);
-    return sid;
-  };
-
-  const dropPairings = (deviceId: string) => {
-    for (const [code, p] of pairings) if (p.deviceId === deviceId) pairings.delete(code);
-  };
-
+/** Sign-in with a device token or a pairing code, and the creation of pairing codes. */
+function createSignIn(parts: AuthParts): SignInMethods {
+  const { devices, pairings } = parts;
   return {
-    devices,
     login(ip, provided) {
-      const t = attempt(ip);
-      if (t === null) return 'rate-limited';
+      const timeMs = tryAttempt(parts, ip);
+      if (timeMs === null) return 'rate-limited';
       const device = devices.verify(provided.trim());
       if (!device) {
-        failed(ip, t);
+        parts.reportFailure(ip, timeMs);
         return null;
       }
-      return startSession(ip, device.id, t);
+      return startSession(parts, ip, device.id, timeMs);
     },
     createPairing(deviceId) {
       if (!devices.has(deviceId)) return null;
-      const t = now();
-      sweep(t);
-      dropPairings(deviceId); // only the newest code of a device works
-      if (pairings.size >= PAIR_MAX) {
-        const oldest = pairings.keys().next().value;
-        if (oldest !== undefined) pairings.delete(oldest);
-      }
-      const code = randomBytes(32).toString('base64url');
-      const expiresMs = t + PAIR_MS;
-      pairings.set(code, { deviceId, exp: expiresMs });
-      return { code, expiresMs };
+      const timeMs = parts.now();
+      sweepAll(parts, timeMs);
+      return pairings.create(deviceId, timeMs);
     },
     pair(ip, code) {
-      const t = attempt(ip);
-      if (t === null) return 'rate-limited';
-      const p = typeof code === 'string' && code.length <= PAIR_CODE_MAX ? pairings.get(code) : undefined;
-      if (p) pairings.delete(code); // single use: spent even when it turns out to be expired
-      if (!p || p.exp < t || !devices.has(p.deviceId)) {
-        failed(ip, t);
+      const timeMs = tryAttempt(parts, ip);
+      if (timeMs === null) return 'rate-limited';
+      const pairing = pairings.take(code); // single use: spent even when it turns out to be expired
+      if (!pairing || pairing.expiresMs < timeMs || !devices.has(pairing.deviceId)) {
+        parts.reportFailure(ip, timeMs);
         return null;
       }
-      return startSession(ip, p.deviceId, t);
+      return startSession(parts, ip, pairing.deviceId, timeMs);
     },
     peekPairing(code) {
-      const p = typeof code === 'string' && code.length <= PAIR_CODE_MAX ? pairings.get(code) : undefined;
-      if (!p || p.exp < now()) return null;
-      return devices.list().find((d) => d.id === p.deviceId)?.name ?? null;
+      const pairing = pairings.peek(code);
+      if (!pairing || pairing.expiresMs < parts.now()) return null;
+      return devices.list().find((device) => device.id === pairing.deviceId)?.name ?? null;
     },
+  };
+}
+
+type SessionMethods = Pick<Auth, 'identify' | 'logout' | 'sweepExpired' | 'onSessionEnd'>;
+
+/** Who a request is, ending sessions, and the periodic expiry sweep. */
+function createSessionMethods(parts: AuthParts): SessionMethods {
+  return {
     identify(req) {
+      // eslint-disable-next-line id-denylist -- the Identity shape keeps its `sid` field
       if (isLoopbackRequest(req)) return { deviceId: PC_DEVICE, sid: null, refreshSid: null };
-      const sid = readCookie(req, COOKIE);
-      if (!sid) return null;
-      const s = sessions.get(sid);
-      if (!s) return null;
-      const t = now();
-      if (s.exp < t || !devices.has(s.deviceId)) {
-        endSession(sid);
-        return null;
-      }
-      s.exp = Math.min(t + SESSION_MS, s.startedAt + SESSION_MAX_MS);
-      devices.touch(s.deviceId);
-      let refreshSid: string | null = null;
-      if (t - s.cookieAt >= COOKIE_REISSUE_MS) {
-        s.cookieAt = t;
-        refreshSid = sid;
-      }
-      return { deviceId: s.deviceId, sid, refreshSid };
+      const sessionId = readCookie(req, COOKIE);
+      if (!sessionId) return null;
+      const renewed = parts.sessions.renew(sessionId);
+      if (!renewed) return null;
+      const refreshSid = renewed.shouldReissueCookie ? sessionId : null;
+      // eslint-disable-next-line id-denylist -- the Identity shape keeps its `sid` field
+      return { deviceId: renewed.deviceId, sid: sessionId, refreshSid };
     },
     logout(req) {
-      const sid = readCookie(req, COOKIE);
-      if (sid) endSession(sid);
+      const sessionId = readCookie(req, COOKIE);
+      if (sessionId) parts.sessions.end(sessionId);
     },
     sweepExpired() {
-      sweep(now());
+      sweepAll(parts, parts.now());
     },
     onSessionEnd(listener) {
-      endListeners.push(listener);
+      parts.sessions.onEnd(listener);
     },
+  };
+}
+
+type RevokeMethods = Pick<Auth, 'revokeDevice' | 'onRevoke'>;
+
+/** Device revocation and its listeners. */
+function createRevocation(parts: AuthParts): RevokeMethods {
+  const revokeListeners: Array<(deviceId: string) => void> = [];
+  return {
     revokeDevice(id) {
-      const r = devices.revoke(id);
+      const result = parts.devices.revoke(id);
       // Sessions end and streams close even when the file could not be written; the caller reports `persisted`.
-      for (const [sid, s] of [...sessions]) if (s.deviceId === id) endSession(sid);
-      dropPairings(id);
-      if (r.found) {
-        for (const l of revokeListeners) {
-          try {
-            l(id);
-          } catch {
-            // the device is already gone; one broken listener must not hide that or stop the others
-          }
+      parts.sessions.endAllOf(id);
+      parts.pairings.dropAllOf(id);
+      if (!result.found) return result;
+      for (const listener of revokeListeners) {
+        try {
+          listener(id);
+        } catch {
+          // the device is already gone; one broken listener must not hide that or stop the others
         }
       }
-      return r;
+      return result;
     },
     onRevoke(listener) {
       revokeListeners.push(listener);
     },
-    cookie(sid, secure) {
-      return `${COOKIE}=${sid}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${SESSION_MS / 1000}${secure ? '; Secure' : ''}`;
+  };
+}
+
+/** The Set-Cookie value for the session cookie, or one that clears it when the session id is empty. */
+function sessionCookie(sessionId: string, maxAgeSeconds: number, isSecure: boolean): string {
+  return `${COOKIE}=${sessionId}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAgeSeconds}${isSecure ? '; Secure' : ''}`;
+}
+
+/** Creates the auth service over a device store; sessions and pairing codes live in memory only. */
+export function createAuth(devices: DeviceStore, options: AuthOptions = {}): Auth {
+  const now = options.now ?? Date.now;
+  const parts: AuthParts = {
+    devices,
+    now,
+    sessions: createSessionStore(devices, now),
+    pairings: createPairingStore(),
+    limiter: createLoginLimiter(),
+    reportFailure(ip, timeMs) {
+      try {
+        options.onFailedLogin?.(ip, timeMs);
+      } catch {
+        // a broken hook must not break sign-in
+      }
     },
-    clearCookie(secure) {
-      return `${COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${secure ? '; Secure' : ''}`;
-    },
+  };
+  return {
+    devices,
+    ...createSignIn(parts),
+    ...createSessionMethods(parts),
+    ...createRevocation(parts),
+    cookie: (sessionId, isSecure) => sessionCookie(sessionId, SESSION_MS / 1000, isSecure),
+    clearCookie: (isSecure) => sessionCookie('', 0, isSecure),
   };
 }

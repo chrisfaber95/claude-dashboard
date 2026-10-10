@@ -5,12 +5,7 @@ import tseslint from 'typescript-eslint';
 // Files that still break the readability rules. This list may only shrink: cleanup tickets remove entries as
 // they fix a file, and a new or moved file must pass the rules (a move only updates the path).
 export const LEGACY_FILES = [
-  'src/server/auth/auth.ts',
-  'src/server/auth/devices.ts',
-  'src/server/claude/claude-cli.ts',
-  'src/server/claude/session-summary.ts',
   'src/server/config.ts',
-  'src/server/server.ts',
   'tests/measure-cpu.test.ts',
   'tests/server/auth/auth.test.ts',
   'tests/server/auth/devices.test.ts',

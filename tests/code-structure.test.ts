@@ -25,9 +25,7 @@ const ENTRY_POINTS = ['server/main.ts', 'server/server.ts', 'server/config.ts'];
 const MISPLACED_ALLOWLIST = new Set<string>([]);
 
 /** Today's files over the cap. This list may only shrink: split a file and remove its line; never add one. */
-const OVERSIZED_ALLOWLIST = new Set([
-  'server/server.ts',
-]);
+const OVERSIZED_ALLOWLIST = new Set<string>([]);
 
 /** Every .ts file under src/, as a path relative to src/ with forward slashes. */
 function listSourceFiles(directory: string): string[] {

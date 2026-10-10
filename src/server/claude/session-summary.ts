@@ -10,29 +10,30 @@ const REPLY_MAX = 300;
 export const EXCERPT_MAX = 20_000;
 export const MODEL_FALLBACK_NOTE = 'The model summary was not available, so this is the recap.';
 
+/** What the dashboard knows about a running session: its status and when it started. */
 export interface LiveInfo {
   status: string;
   startedAtMs: number;
 }
 
-function cut(s: string, max: number): string {
-  const t = s.replace(/\s+/g, ' ').trim();
-  return t.length > max ? t.slice(0, max - 1) + '…' : t;
+function cut(text: string, max: number): string {
+  const collapsed = text.replace(/\s+/g, ' ').trim();
+  return collapsed.length > max ? collapsed.slice(0, max - 1) + '…' : collapsed;
 }
 
 /** Masks likely secrets (bearer tokens, key=value, URL userinfo and query) before a target is cut. */
-function redact(s: string): string {
-  return s
+function redact(text: string): string {
+  return text
     .replace(/(\b(?:bearer|basic)\s+)\S+/gi, '$1***')
     .replace(/(\b[\w-]*(?:token|secret|key|password|passwd|auth)[\w-]*\s*[=:]\s*)\S+/gi, '$1***')
     .replace(/(--?[\w-]*(?:token|secret|key|password|auth)[\w-]*[ =])\S+/gi, '$1***')
     .replace(/(\w+:\/\/)[^/\s@]*@/g, '$1')
-    .replace(/\?\S*/g, (m) => (/^\?[\w%.~-]+=/.test(m) ? '?***' : m));
+    .replace(/\?\S*/g, (match) => (/^\?[\w%.~-]+=/.test(match) ? '?***' : match));
 }
 
 /** Stricter than redact(): also masks well-known token shapes, because this text leaves the machine. */
-export function redactForModel(s: string): string {
-  return redact(s)
+export function redactForModel(text: string): string {
+  return redact(text)
     .replace(/-----BEGIN [A-Z ]*-----[\s\S]*?(?:-----END [A-Z ]*-----|$)/g, '***')
     .replace(/\b(?:sk|pk|ghp|gho|xox[abp])[-_][\w-]{16,}/g, '***')
     .replace(/\bAKIA[0-9A-Z]{16}\b/g, '***')
@@ -54,16 +55,16 @@ function when(ms: number): string {
 }
 
 async function tailLines(path: string, maxBytes: number): Promise<string[]> {
-  const st = await stat(path);
-  const start = Math.max(0, st.size - maxBytes);
-  const buf = Buffer.alloc(st.size - start);
-  const fh = await open(path, 'r');
+  const stats = await stat(path);
+  const start = Math.max(0, stats.size - maxBytes);
+  const buffer = Buffer.alloc(stats.size - start);
+  const fileHandle = await open(path, 'r');
   try {
-    await fh.read(buf, 0, buf.length, start);
+    await fileHandle.read(buffer, 0, buffer.length, start);
   } finally {
-    await fh.close();
+    await fileHandle.close();
   }
-  const lines = buf.toString('utf8').split('\n');
+  const lines = buffer.toString('utf8').split('\n');
   if (start > 0) lines.shift(); // first line is partial
   return lines;
 }
@@ -78,33 +79,33 @@ export async function recapSession(path: string, live?: LiveInfo, maxBytes = VIE
   let lastMs = 0;
   for (const raw of lines) {
     if (!raw) continue;
-    let o: any;
+    let parsed: any;
     try {
-      o = JSON.parse(raw);
+      parsed = JSON.parse(raw);
     } catch {
       continue;
     }
-    if (o.isMeta || o.isSidechain) continue;
-    const ms = o.timestamp ? Date.parse(o.timestamp) : 0;
+    if (parsed.isMeta || parsed.isSidechain) continue;
+    const ms = parsed.timestamp ? Date.parse(parsed.timestamp) : 0;
     if (ms) {
       if (!firstMs) firstMs = ms;
       lastMs = Math.max(lastMs, ms);
     }
-    if (o.type !== 'assistant' || !o.message) continue;
-    const u = o.message.usage;
-    const key = `${o.message.id ?? ''}:${o.requestId ?? ''}`;
-    if (u && typeof u === 'object' && !(key !== ':' && seen.has(key))) {
+    if (parsed.type !== 'assistant' || !parsed.message) continue;
+    const usage = parsed.message.usage;
+    const key = `${parsed.message.id ?? ''}:${parsed.requestId ?? ''}`;
+    if (usage && typeof usage === 'object' && !(key !== ':' && seen.has(key))) {
       seen.add(key);
-      tokens.input += Number(u.input_tokens) || 0;
-      tokens.output += Number(u.output_tokens) || 0;
-      tokens.cacheRead += Number(u.cache_read_input_tokens) || 0;
-      tokens.cacheWrite += Number(u.cache_creation_input_tokens) || 0;
+      tokens.input += Number(usage.input_tokens) || 0;
+      tokens.output += Number(usage.output_tokens) || 0;
+      tokens.cacheRead += Number(usage.cache_read_input_tokens) || 0;
+      tokens.cacheWrite += Number(usage.cache_creation_input_tokens) || 0;
     }
-    if (Array.isArray(o.message.content)) {
-      for (const c of o.message.content) if (c?.type === 'tool_use') actions.push(toolAction(String(c.name), c.input));
+    if (Array.isArray(parsed.message.content)) {
+      for (const block of parsed.message.content) if (block?.type === 'tool_use') actions.push(toolAction(String(block.name), block.input));
     }
   }
-  const lastReply = parseEntries(lines).filter((e) => e.role === 'assistant').pop()?.text ?? '';
+  const lastReply = parseEntries(lines).filter((entry) => entry.role === 'assistant').pop()?.text ?? '';
   const started = live?.startedAtMs || firstMs;
   const status = live?.status ?? 'not running';
   const recent = actions.slice(-TOOLS_MAX);
@@ -114,7 +115,7 @@ export async function recapSession(path: string, live?: LiveInfo, maxBytes = VIE
     `Last activity: ${when(lastMs)}`,
     `Status: ${status}`,
     `Tokens: ${total.toLocaleString('en-US')} (in ${tokens.input.toLocaleString('en-US')}, out ${tokens.output.toLocaleString('en-US')}, cache read ${tokens.cacheRead.toLocaleString('en-US')}, cache write ${tokens.cacheWrite.toLocaleString('en-US')})`,
-    recent.length ? `Last actions:\n${recent.map((a) => `- ${a}`).join('\n')}` : 'Last actions: none',
+    recent.length ? `Last actions:\n${recent.map((action) => `- ${action}`).join('\n')}` : 'Last actions: none',
     lastReply ? `Last reply: ${cut(lastReply, REPLY_MAX)}` : 'Last reply: none',
   ].join('\n');
   return { mode: 'recap', text };
@@ -122,7 +123,7 @@ export async function recapSession(path: string, live?: LiveInfo, maxBytes = VIE
 
 /** The newest transcript text (user and assistant turns only), secrets masked, at most `max` characters. */
 export async function excerptSession(path: string, max = EXCERPT_MAX, maxBytes = VIEW_BYTES_MAX): Promise<string> {
-  const entries = parseEntries(await tailLines(path, maxBytes)).filter((e) => e.role === 'user' || e.role === 'assistant');
+  const entries = parseEntries(await tailLines(path, maxBytes)).filter((entry) => entry.role === 'user' || entry.role === 'assistant');
   const parts: string[] = [];
   let size = 0;
   for (let i = entries.length - 1; i >= 0; i--) {
@@ -170,7 +171,7 @@ function remember(key: string, entry: CacheEntry): void {
 /** One model call per session at a time: later requests wait for the running one. */
 const inflight = new Map<string, Promise<SessionSummary>>();
 
-async function modelSummary(path: string, st: { size: number; mtimeMs: number }, prev: CacheEntry | undefined, live: LiveInfo | undefined, model: ModelContext): Promise<SessionSummary> {
+async function modelSummary(path: string, stats: { size: number; mtimeMs: number }, prev: CacheEntry | undefined, live: LiveInfo | undefined, model: ModelContext): Promise<SessionSummary> {
   const at = clock();
   let text = '';
   try {
@@ -181,11 +182,11 @@ async function modelSummary(path: string, st: { size: number; mtimeMs: number },
   model.onAudit(Boolean(text));
   if (text) {
     text = redactForModel(text);
-    remember(path, { size: st.size, mtimeMs: st.mtimeMs, at, text });
+    remember(path, { size: stats.size, mtimeMs: stats.mtimeMs, at, text });
     return { mode: 'model', text };
   }
   // The old answer keeps the transcript state it was made from; only the cooldown clock restarts.
-  const old = prev?.text ? prev : { size: st.size, mtimeMs: st.mtimeMs, text: '' };
+  const old = prev?.text ? prev : { size: stats.size, mtimeMs: stats.mtimeMs, text: '' };
   remember(path, { size: old.size, mtimeMs: old.mtimeMs, at, text: old.text });
   return { ...(await recapSession(path, live)), note: MODEL_FALLBACK_NOTE };
 }
@@ -193,16 +194,16 @@ async function modelSummary(path: string, st: { size: number; mtimeMs: number },
 /** Recap, or in `model` mode one cheap-model call over the transcript excerpt, cached per session; any failure returns the recap plus a fixed note. */
 export async function summarize(path: string, mode: SummaryMode, live?: LiveInfo, model?: ModelContext): Promise<SessionSummary> {
   if (mode === 'model' && model) {
-    const st = await stat(path);
+    const stats = await stat(path);
     const prev = cache.get(path);
-    if (prev?.text && prev.size === st.size && prev.mtimeMs === st.mtimeMs) return { mode: 'model', text: prev.text };
+    if (prev?.text && prev.size === stats.size && prev.mtimeMs === stats.mtimeMs) return { mode: 'model', text: prev.text };
     if (prev && clock() - prev.at < SUMMARY_COOLDOWN_MS) {
       if (prev.text) return { mode: 'model', text: prev.text };
       return { ...(await recapSession(path, live)), note: COOLDOWN_NOTE };
     }
     const running = inflight.get(path);
     if (running) return running;
-    const call = modelSummary(path, st, prev, live, model);
+    const call = modelSummary(path, stats, prev, live, model);
     inflight.set(path, call);
     try {
       return await call;
