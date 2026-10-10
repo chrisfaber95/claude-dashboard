@@ -6,28 +6,36 @@ import type { AuditEntry } from '../../../shared/types/index.ts';
 // The only fields that ever leave `commands.log` through the API (never `ip`, ids of targets, names, codes).
 export type { AuditEntry };
 
+/** `GET /api/audit` returns this many entries at most. */
 export const AUDIT_MAX_ENTRIES = 200;
 /** `GET /api/launches` returns this many launches at most. */
 export const LAUNCHES_MAX = 50;
 /** At most this much of the end of the file is read. */
 export const AUDIT_MAX_BYTES = 1024 * 1024;
-const FIELD_MAX = 200;
+const FIELD_MAX_CHARS = 200;
+const TIMESTAMP_MAX_CHARS = 40;
+const ACTION_MAX_CHARS = 40;
+const DEVICE_MAX_CHARS = 80;
+const DEVICE_ID_MAX_CHARS = 64;
+const TARGET_MAX_CHARS = 120;
+const GOAL_MAX_CHARS = 500;
+const TARGET_FIELDS = ['project', 'session', 'mode'] as const;
 
 const ID_LIKE = /^(?:pc|[0-9a-f]{12})$/;
 
-function str(v: unknown, max = FIELD_MAX): string | undefined {
-  return typeof v === 'string' ? v.slice(0, max) : undefined;
+function stringField(value: unknown, max = FIELD_MAX_CHARS): string | undefined {
+  return typeof value === 'string' ? value.slice(0, max) : undefined;
 }
 
 /** One parsed log line reduced to the allowlisted fields, or null when it is not an entry. */
 export function toAuditEntry(raw: unknown): AuditEntry | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
-  const r = raw as Record<string, unknown>;
-  const ts = str(r.ts, 40);
-  const action = str(r.action, 40);
+  const fields = raw as Record<string, unknown>;
+  const ts = stringField(fields.ts, TIMESTAMP_MAX_CHARS);
+  const action = stringField(fields.action, ACTION_MAX_CHARS);
   if (!ts || !action) return null;
-  let device = str(r.device, 80);
-  let deviceId = str(r.deviceId, 64);
+  let device = stringField(fields.device, DEVICE_MAX_CHARS);
+  let deviceId = stringField(fields.deviceId, DEVICE_ID_MAX_CHARS);
   // Entries written before device names existed carried the device id in `device`.
   if (deviceId === undefined && device !== undefined && ID_LIKE.test(device)) {
     deviceId = device;
@@ -36,23 +44,33 @@ export function toAuditEntry(raw: unknown): AuditEntry | null {
   const entry: AuditEntry = { ts, action };
   if (device !== undefined) entry.device = device;
   if (deviceId !== undefined) entry.deviceId = deviceId;
-  for (const k of ['project', 'session', 'mode'] as const) {
-    const v = str(r[k], 120);
-    if (v !== undefined) entry[k] = v;
+  for (const field of TARGET_FIELDS) {
+    const value = stringField(fields[field], TARGET_MAX_CHARS);
+    if (value !== undefined) entry[field] = value;
   }
-  if (typeof r.ok === 'boolean') entry.ok = r.ok;
-  const prompt = str(r.prompt);
+  if (typeof fields.ok === 'boolean') entry.ok = fields.ok;
+  const prompt = stringField(fields.prompt);
   if (prompt !== undefined) entry.prompt = prompt;
-  const goal = str(r.goal, 500);
+  const goal = stringField(fields.goal, GOAL_MAX_CHARS);
   if (goal !== undefined) entry.goal = goal;
-  if (typeof r.notesLength === 'number' && Number.isSafeInteger(r.notesLength) && r.notesLength >= 0) entry.notesLength = r.notesLength;
+  const { notesLength } = fields;
+  if (typeof notesLength === 'number' && Number.isSafeInteger(notesLength) && notesLength >= 0) entry.notesLength = notesLength;
   return entry;
 }
 
+/** Narrowing for `parseAudit` and `readAudit`. */
 export interface AuditFilter {
   /** Only entries with this action. */
   action?: string;
   limit?: number;
+}
+
+function parseJson(line: string): unknown {
+  try {
+    return JSON.parse(line);
+  } catch {
+    return undefined;
+  }
 }
 
 /** Parse log text: newest first, malformed lines skipped, optionally only one device or action, at most `limit` entries. */
@@ -62,47 +80,40 @@ export function parseAudit(text: string, deviceId?: string, { action, limit = AU
   for (let i = lines.length - 1; i >= 0 && out.length < limit; i--) {
     const line = lines[i].trim();
     if (!line) continue;
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(line);
-    } catch {
-      continue;
-    }
-    const e = toAuditEntry(parsed);
-    if (!e) continue;
-    if (deviceId !== undefined && e.deviceId !== deviceId) continue;
-    if (action !== undefined && e.action !== action) continue;
-    out.push(e);
+    const entry = toAuditEntry(parseJson(line));
+    if (!entry) continue;
+    if (deviceId !== undefined && entry.deviceId !== deviceId) continue;
+    if (action !== undefined && entry.action !== action) continue;
+    out.push(entry);
   }
   return out;
 }
 
 /** The newest audit entries from `<DATA_DIR>/commands.log`, reading at most its last megabyte. A missing file is empty. */
 export async function readAudit(deviceId?: string, filter?: AuditFilter): Promise<AuditEntry[]> {
-  let fh;
+  let handle;
   try {
-    fh = await open(join(DATA_DIR, 'commands.log'), 'r');
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return [];
-    throw e;
+    handle = await open(join(DATA_DIR, 'commands.log'), 'r');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    throw error;
   }
   try {
-    const st = await fh.stat();
-    if (!st.isFile()) throw new Error('commands.log is not a file');
-    const size = st.size;
-    const start = Math.max(0, size - AUDIT_MAX_BYTES);
-    const buf = Buffer.alloc(size - start);
-    let read = 0;
-    while (read < buf.length) {
-      const { bytesRead } = await fh.read(buf, read, buf.length - read, start + read);
+    const fileStat = await handle.stat();
+    if (!fileStat.isFile()) throw new Error('commands.log is not a file');
+    const start = Math.max(0, fileStat.size - AUDIT_MAX_BYTES);
+    const buffer = Buffer.alloc(fileStat.size - start);
+    let bytesFilled = 0;
+    while (bytesFilled < buffer.length) {
+      const { bytesRead } = await handle.read(buffer, bytesFilled, buffer.length - bytesFilled, start + bytesFilled);
       if (bytesRead === 0) break;
-      read += bytesRead;
+      bytesFilled += bytesRead;
     }
-    let text = buf.subarray(0, read).toString('utf8');
+    let text = buffer.subarray(0, bytesFilled).toString('utf8');
     // Started mid-file: the first line is probably cut, drop it.
     if (start > 0) text = text.slice(text.indexOf('\n') + 1);
     return parseAudit(text, deviceId, filter);
   } finally {
-    await fh.close();
+    await handle.close();
   }
 }
