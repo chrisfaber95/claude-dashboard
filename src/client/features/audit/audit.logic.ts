@@ -4,12 +4,15 @@ import type { AuditEntry } from '../../../shared/types/index.ts';
 /** The "All devices" choice has this value; every other option's value is a device id. */
 export const ALL_DEVICES = '';
 
+/** One choice of the device filter dropdown. */
 export interface DeviceOption {
   id: string;
   name: string;
 }
 
-const pad = (n: number) => String(n).padStart(2, '0');
+const SESSION_PREFIX_LENGTH = 8;
+
+const pad = (value: number) => String(value).padStart(2, '0');
 
 /** The ids the server accepts as a filter; anything else can't be filtered on, so it is not offered. */
 const FILTERABLE = /^[A-Za-z0-9_-]{1,64}$/;
@@ -18,8 +21,8 @@ const FILTERABLE = /^[A-Za-z0-9_-]{1,64}$/;
 export function timeLabel(ts: string): string {
   const ms = Date.parse(ts);
   if (Number.isNaN(ms)) return ts;
-  const d = new Date(ms);
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  const date = new Date(ms);
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
 const ACTIONS: Record<string, string> = {
@@ -34,6 +37,7 @@ const ACTIONS: Record<string, string> = {
 /** A readable action; an unknown one is shown as it is. */
 export const actionLabel = (action: string): string => ACTIONS[action] ?? action;
 
+/** One audit entry prepared for display. */
 export interface AuditRow {
   time: string;
   device: string;
@@ -45,14 +49,21 @@ export interface AuditRow {
   prompt: string;
 }
 
-export function rowOf(e: AuditEntry): AuditRow {
+function resultOf(isOk: boolean | undefined): AuditRow['result'] {
+  if (isOk === true) return 'ok';
+  if (isOk === false) return 'failed';
+  return '';
+}
+
+/** Turn an audit entry into display strings. */
+export function rowOf(entry: AuditEntry): AuditRow {
   return {
-    time: timeLabel(e.ts),
-    device: e.device ?? e.deviceId ?? 'unknown',
-    action: actionLabel(e.action),
-    target: e.project ?? (e.session ? e.session.slice(0, 8) : ''),
-    result: e.ok === true ? 'ok' : e.ok === false ? 'failed' : '',
-    prompt: e.prompt ?? '',
+    time: timeLabel(entry.ts),
+    device: entry.device ?? entry.deviceId ?? 'unknown',
+    action: actionLabel(entry.action),
+    target: entry.project ?? (entry.session ? entry.session.slice(0, SESSION_PREFIX_LENGTH) : ''),
+    result: resultOf(entry.ok),
+    prompt: entry.prompt ?? '',
   };
 }
 
@@ -62,13 +73,13 @@ export function rowOf(e: AuditEntry): AuditRow {
  * latest name. Entries without a device id add nothing.
  */
 export function mergeDeviceOptions(known: readonly DeviceOption[], entries: readonly AuditEntry[]): DeviceOption[] {
-  const byId = new Map(known.map((o) => [o.id, o.name] as const));
+  const byId = new Map(known.map((option) => [option.id, option.name] as const));
   // entries are newest first: the first name seen for an id is its latest
   const seen = new Set<string>();
-  for (const e of entries) {
-    if (!e.deviceId || !FILTERABLE.test(e.deviceId) || seen.has(e.deviceId)) continue;
-    seen.add(e.deviceId);
-    byId.set(e.deviceId, e.device ?? e.deviceId);
+  for (const entry of entries) {
+    if (!entry.deviceId || !FILTERABLE.test(entry.deviceId) || seen.has(entry.deviceId)) continue;
+    seen.add(entry.deviceId);
+    byId.set(entry.deviceId, entry.device ?? entry.deviceId);
   }
   return [...byId].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
 }

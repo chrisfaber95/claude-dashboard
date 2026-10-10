@@ -11,19 +11,22 @@ import { api } from '../../shared/api.ts';
 const chat = createChatState();
 let latest: DashboardState | null = null;
 let rendered = 0;
-let busy = false;
+let isBusy = false;
+const STICK_TO_BOTTOM_PX = 40;
 
 /** Same default as the transcript drawer; never a mode the server does not list. */
 function permissionMode(): string {
   const modes = latest?.features.permissionModes ?? [];
-  return modes.includes('auto') ? 'auto' : modes.includes('default') ? 'default' : 'plan';
+  if (modes.includes('auto')) return 'auto';
+  if (modes.includes('default')) return 'default';
+  return 'plan';
 }
 
 function line(role: 'user' | 'bot', text: string): HTMLElement {
-  const el = document.createElement('div');
-  el.className = `chat__msg chat__msg--${role}`;
-  el.textContent = text;
-  return el;
+  const element = document.createElement('div');
+  element.className = `chat__msg chat__msg--${role}`;
+  element.textContent = text;
+  return element;
 }
 
 function log(): HTMLElement {
@@ -33,28 +36,28 @@ function log(): HTMLElement {
 /** Appends entries added since the last call and trims the DOM to the bounded history. */
 function syncLog(): void {
   const box = log();
-  const stick = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
-  for (const e of chat.history) {
-    if (e.id <= rendered) continue;
-    const el = line(e.role, e.text);
-    el.dataset['id'] = String(e.id);
-    box.insertBefore(el, elementById('chat-confirm'));
-    rendered = e.id;
+  const shouldStick = box.scrollHeight - box.scrollTop - box.clientHeight < STICK_TO_BOTTOM_PX;
+  for (const entry of chat.history) {
+    if (entry.id <= rendered) continue;
+    const element = line(entry.role, entry.text);
+    element.dataset['id'] = String(entry.id);
+    box.insertBefore(element, elementById('chat-confirm'));
+    rendered = entry.id;
   }
   const first = chat.history[0]?.id ?? 0;
-  for (const el of Array.from(box.querySelectorAll<HTMLElement>('[data-id]'))) {
-    if (Number(el.dataset['id']) < first) el.remove();
+  for (const element of Array.from(box.querySelectorAll<HTMLElement>('[data-id]'))) {
+    if (Number(element.dataset['id']) < first) element.remove();
   }
-  if (stick) box.scrollTop = box.scrollHeight;
+  if (shouldStick) box.scrollTop = box.scrollHeight;
 }
 
 function showConfirm(): void {
-  const p = chat.pending;
+  const pending = chat.pending;
   const box = elementById('chat-confirm');
-  box.hidden = !p;
-  elementById('chat-confirm-name').textContent = p ? p.name : '';
-  elementById('chat-confirm-text').textContent = p ? p.text : '';
-  if (p) log().scrollTop = log().scrollHeight;
+  box.hidden = !pending;
+  elementById('chat-confirm-name').textContent = pending ? pending.name : '';
+  elementById('chat-confirm-text').textContent = pending ? pending.text : '';
+  if (pending) log().scrollTop = log().scrollHeight;
 }
 
 function bot(text: string): void {
@@ -63,46 +66,49 @@ function bot(text: string): void {
 }
 
 async function sendMessage(): Promise<void> {
-  const p = chat.confirm();
+  const pending = chat.confirm();
   showConfirm();
-  if (!p) return;
-  if (!latest?.sessions.some((x) => x.sessionId === p.sessionId)) {
-    bot(`${p.name} is no longer running. Nothing was sent.`);
+  if (!pending) return;
+  if (!latest?.sessions.some((session) => session.sessionId === pending.sessionId)) {
+    bot(`${pending.name} is no longer running. Nothing was sent.`);
     return;
   }
-  busy = true;
+  isBusy = true;
   try {
-    const r = await api<CommandResult>(`/api/sessions/${encodeURIComponent(p.sessionId)}/message`, { prompt: p.text, permissionMode: permissionMode() });
-    bot(r.ok ? `Sent to ${p.name}.` : r.output || 'Could not send the message.');
-  } catch (e) {
-    bot((e as Error).message);
+    const result = await api<CommandResult>(`/api/sessions/${encodeURIComponent(pending.sessionId)}/message`, {
+      prompt: pending.text,
+      permissionMode: permissionMode(),
+    });
+    bot(result.ok ? `Sent to ${pending.name}.` : result.output || 'Could not send the message.');
+  } catch (error) {
+    bot((error as Error).message);
   } finally {
-    busy = false;
+    isBusy = false;
   }
 }
 
 async function showSummary(sessionId: string): Promise<void> {
-  busy = true;
+  isBusy = true;
   try {
-    const r = await api<SessionSummary>(`/api/sessions/${encodeURIComponent(sessionId)}/summary`);
-    bot(r.text);
-    if (r.note) bot(r.note);
-  } catch (e) {
-    bot((e as Error).message);
+    const summary = await api<SessionSummary>(`/api/sessions/${encodeURIComponent(sessionId)}/summary`);
+    bot(summary.text);
+    if (summary.note) bot(summary.note);
+  } catch (error) {
+    bot((error as Error).message);
   } finally {
-    busy = false;
+    isBusy = false;
   }
 }
 
 async function dismissAlert(id: string, title: string): Promise<void> {
-  busy = true;
+  isBusy = true;
   try {
     await api('/api/alerts/dismiss', { id });
     bot(`Dismissed "${title}".`);
-  } catch (e) {
-    bot((e as Error).message);
+  } catch (error) {
+    bot((error as Error).message);
   } finally {
-    busy = false;
+    isBusy = false;
   }
 }
 
@@ -144,10 +150,10 @@ async function handle(text: string): Promise<void> {
 /** Builds nothing: the markup is static in index.html. Wires the form once. */
 export function initChat(): void {
   const input = elementById<HTMLInputElement>('chat-input');
-  elementById('chat-form').addEventListener('submit', (e) => {
-    e.preventDefault();
+  elementById('chat-form').addEventListener('submit', (event) => {
+    event.preventDefault();
     const text = input.value.trim();
-    if (!text || busy) return;
+    if (!text || isBusy) return;
     input.value = '';
     void handle(text);
   });
@@ -161,6 +167,6 @@ export function initChat(): void {
 }
 
 /** Called on every state push. Only remembers the state; the form and history are not touched. */
-export function updateChat(s: DashboardState): void {
-  latest = s;
+export function updateChat(state: DashboardState): void {
+  latest = state;
 }

@@ -22,20 +22,20 @@ function setStatus(text: string): void {
   elementById('audit-status').textContent = text;
 }
 
-function rowHtml(e: AuditEntry): string {
-  const r = rowOf(e);
-  const mark = r.result ? `<span class="audit__result audit__result--${r.result}">${r.result}</span>` : '';
-  const prompt = r.prompt ? `<div class="audit__prompt" data-tip="${esc(r.prompt)}">${esc(r.prompt)}</div>` : '';
+function rowHtml(entry: AuditEntry): string {
+  const row = rowOf(entry);
+  const mark = row.result ? `<span class="audit__result audit__result--${row.result}">${row.result}</span>` : '';
+  const prompt = row.prompt ? `<div class="audit__prompt" data-tip="${esc(row.prompt)}">${esc(row.prompt)}</div>` : '';
   return `<li class="audit__item">
-    <div class="audit__line"><span class="audit__time sub">${esc(r.time)}</span> <strong class="audit__device">${esc(r.device)}</strong> <span class="audit__action">${esc(r.action)}</span>${r.target ? ` <span class="audit__target">${esc(r.target)}</span>` : ''} ${mark}</div>${prompt}</li>`;
+    <div class="audit__line"><span class="audit__time sub">${esc(row.time)}</span> <strong class="audit__device">${esc(row.device)}</strong> <span class="audit__action">${esc(row.action)}</span>${row.target ? ` <span class="audit__target">${esc(row.target)}</span>` : ''} ${mark}</div>${prompt}</li>`;
 }
 
 /** Rebuild the dropdown only when its options changed; the selected device stays selected even if it is no longer listed. */
 function syncOptions(select: HTMLSelectElement, entries: readonly AuditEntry[]): void {
   const selected = select.value;
   options = mergeDeviceOptions(options, entries);
-  const list = options.some((o) => o.id === selected) || selected === ALL_DEVICES ? options : [...options, { id: selected, name: selected }];
-  const html = [`<option value="${ALL_DEVICES}">All devices</option>`, ...list.map((o) => `<option value="${esc(o.id)}">${esc(o.name)}</option>`)].join('');
+  const list = options.some((option) => option.id === selected) || selected === ALL_DEVICES ? options : [...options, { id: selected, name: selected }];
+  const html = [`<option value="${ALL_DEVICES}">All devices</option>`, ...list.map((option) => `<option value="${esc(option.id)}">${esc(option.name)}</option>`)].join('');
   if (html === optionsHtml) return;
   optionsHtml = html;
   select.innerHTML = html;
@@ -71,8 +71,9 @@ async function load(): Promise<void> {
 }
 
 /** Data loads on open, filter change and Refresh only; a state push has nothing to do here. */
-export function renderAudit(_s: DashboardState): void {}
+export function renderAudit(_state: DashboardState): void {}
 
+/** Wire the panel toggle, the device filter and the Refresh button. */
 export function initAudit(): void {
   const panel = elementById<HTMLDetailsElement>('audit');
   panel.addEventListener('toggle', () => {

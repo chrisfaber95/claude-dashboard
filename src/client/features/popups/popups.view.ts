@@ -17,9 +17,9 @@ const button = (id: PopupId) => document.querySelector<HTMLButtonElement>(`[data
 const sectionHidden = (id: PopupId) => elementById(id === 'audit' ? 'audit' : id).hidden;
 
 function show(id: PopupId | null) {
-  for (const p of POPUPS) wrap(p.id).hidden = p.id !== id;
+  for (const popup of POPUPS) wrap(popup.id).hidden = popup.id !== id;
   elementById('popups').hidden = id === null;
-  for (const p of POPUPS) button(p.id).setAttribute('aria-expanded', String(p.id === id));
+  for (const popup of POPUPS) button(popup.id).setAttribute('aria-expanded', String(popup.id === id));
   current = id;
 }
 
@@ -41,39 +41,40 @@ function close() {
 /** Called on every state push: shows only the buttons whose section exists, and closes a popup whose section went away. */
 export function updatePopups(): void {
   const visible = visiblePopups(sectionHidden);
-  for (const p of POPUPS) button(p.id).hidden = !visible.includes(p.id);
+  for (const popup of POPUPS) button(popup.id).hidden = !visible.includes(popup.id);
   if (stillOpen(current, visible) === null && current) close();
 }
 
+/** Create the popup buttons and wire open, close, backdrop and Esc handling. */
 export function initPopups(render: (id: PopupId) => void): void {
   onOpen = render;
   const bar = elementById('popup-bar');
-  for (const p of POPUPS) {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'btn';
-    b.dataset.popup = p.id;
-    b.textContent = p.label;
-    b.setAttribute('aria-haspopup', 'dialog');
-    b.setAttribute('aria-expanded', 'false');
-    bar.append(b);
+  for (const popup of POPUPS) {
+    const popupButton = document.createElement('button');
+    popupButton.type = 'button';
+    popupButton.className = 'btn';
+    popupButton.dataset.popup = popup.id;
+    popupButton.textContent = popup.label;
+    popupButton.setAttribute('aria-haspopup', 'dialog');
+    popupButton.setAttribute('aria-expanded', 'false');
+    bar.append(popupButton);
   }
-  bar.addEventListener('click', (e) => {
-    const b = (e.target as Element).closest<HTMLButtonElement>('[data-popup]');
-    if (!b) return;
-    const next = toggled(current, b.dataset.popup as PopupId);
-    if (next) open(next, b);
+  bar.addEventListener('click', (event) => {
+    const popupButton = (event.target as Element).closest<HTMLButtonElement>('[data-popup]');
+    if (!popupButton) return;
+    const next = toggled(current, popupButton.dataset.popup as PopupId);
+    if (next) open(next, popupButton);
     else close();
   });
-  elementById('popups').addEventListener('click', (e) => {
-    if (backdropCloses(e.target, elementById('popups')) || (e.target as Element).closest('[data-popup-close]')) close();
+  elementById('popups').addEventListener('click', (event) => {
+    if (backdropCloses(event.target, elementById('popups')) || (event.target as Element).closest('[data-popup-close]')) close();
   });
   // Capture phase and registered before the building dialog and drawer: they are still open when this runs,
   // so Esc closes them first and the popup only on the next press.
   document.addEventListener(
     'keydown',
-    (e) => {
-      if (escapeClosesPopup(e.key, current, !elementById('building').hidden || !elementById('drawer').hidden)) close();
+    (event) => {
+      if (escapeClosesPopup(event.key, current, !elementById('building').hidden || !elementById('drawer').hidden)) close();
     },
     true,
   );

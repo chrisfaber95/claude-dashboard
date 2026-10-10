@@ -12,28 +12,28 @@ const DOTS = 50;
 const SEEDS = 22;
 const ORBS = 3;
 
-let built = false;
+let isBuilt = false;
 
-function box(tag: string, cls: string, count = 0): HTMLElement {
-  const e = document.createElement(tag);
-  e.className = cls;
-  for (let i = 0; i < count; i++) e.append(document.createElement('span'));
-  return e;
+function box(tag: string, className: string, count = 0): HTMLElement {
+  const element = document.createElement(tag);
+  element.className = className;
+  for (let i = 0; i < count; i++) element.append(document.createElement('span'));
+  return element;
 }
 
-function img(file: string, cls: string): HTMLImageElement {
-  const i = document.createElement('img');
-  i.src = `/root/${file}.svg`;
-  i.alt = '';
-  i.className = cls;
-  i.decoding = 'async';
-  i.draggable = false;
-  return i;
+function img(file: string, className: string): HTMLImageElement {
+  const image = document.createElement('img');
+  image.src = `/root/${file}.svg`;
+  image.alt = '';
+  image.className = className;
+  image.decoding = 'async';
+  image.draggable = false;
+  return image;
 }
 
-function hidden<T extends HTMLElement>(e: T): T {
-  e.setAttribute('aria-hidden', 'true');
-  return e;
+function hidden<T extends HTMLElement>(element: T): T {
+  element.setAttribute('aria-hidden', 'true');
+  return element;
 }
 
 /** A seed of Eywa: a halo, a rig of 11 rotated strand slices, and a fixed body. The same files are reused everywhere, so the browser caches them. */
@@ -107,8 +107,8 @@ function buildFx(): HTMLElement {
 
 /** Builds the scene once. Called when the Root skin becomes active (and at startup if it is the saved skin). */
 export function ensureRootScene(): void {
-  if (!built) {
-    built = true;
+  if (!isBuilt) {
+    isBuilt = true;
     document.body.append(buildHero(), buildFx());
   }
   fillCoreSeed();
