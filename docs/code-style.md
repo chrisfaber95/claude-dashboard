@@ -57,6 +57,17 @@ API routes, JSON field names in `src/shared/types`, `public/` output file names,
 in `CLAUDE.md` (request checks, `claude-cli.ts` as the only command runner, `esc()`). Cleanups preserve behaviour.
 Moves use `git mv` in their own PR with only import edits, so `git log --follow` keeps working.
 
+## What ESLint checks
+
+`npm run lint` (`eslint.config.js`, run in CI) enforces, as errors: `id-length` (min 2, except `i`, `j`, `a`, `b`,
+`_`), `id-denylist` (`fmt`, `st`, `rec`, `sid`, `msg`, `buf`, `el`, `cls`, `tmp`, `cfg`), `naming-convention`
+(camelCase, PascalCase types, UPPER_CASE constants, booleans prefixed `is`/`has`/`should`/`can`),
+`no-nested-ternary`, `max-lines` 300, `max-lines-per-function` 50 (not in `tests/`) and `max-depth` 4.
+
+Files in `LEGACY_FILES` are exempt until their cleanup ticket. The list may only shrink; a new or moved file must
+pass. Left to review: other abbreviations, verb-first function names, plural collections, units in names, one
+responsibility per module, magic numbers, comments, and the folder map (`tests/code-structure.test.ts`).
+
 ## Examples
 
 Names and nested ternary (`fmt` in `src/client/app.ts`):

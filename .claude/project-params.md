@@ -10,11 +10,11 @@ keeps your edits. Values marked unknown should be filled in.
 - branch_naming: `<type>/<short-kebab-description>` with type `feat`, `fix`, `chore`, `docs`, `refactor` or `test`, for example `fix/sse-reconnect` (conventional default, chosen by the user)
 - commit_convention: Conventional Commits, `type(scope): subject` in the imperative, subject under 72 characters, scope is a module such as `server`, `client` or `auth`; PR titles use the same format (conventional default, chosen by the user)
 - revision_id_format: none (no project docs mention revision ids)
-- ci_workflows: `.github/workflows/ci.yml` (job `check`: `npm ci`, `npm run typecheck`, `npm test` on windows-latest, Node 24; runs on every PR and push to main)
-- required_checks: CI job `check` must be green before merging; also run `npm run typecheck` and `npm test` locally before merging (CLAUDE.md). Skip them when the change consists only of documentation (`*.md` files, `docs/`, `.claude/` agent, skill and parameter files, comments); any change to code, config, `package.json` or tests still needs them. In the PR description, state that the checks were skipped because the change is documentation only.
+- ci_workflows: `.github/workflows/ci.yml` (job `check`: `npm ci`, `npm run typecheck`, `npm run lint`, `npm test` on windows-latest, Node 24; runs on every PR and push to main)
+- required_checks: CI job `check` must be green before merging; also run `npm run typecheck`, `npm run lint` and `npm test` locally before merging (CLAUDE.md). Skip them when the change consists only of documentation (`*.md` files, `docs/`, `.claude/` agent, skill and parameter files, comments); any change to code, config, `package.json` or tests still needs them. In the PR description, state that the checks were skipped because the change is documentation only.
 - branch_protection: none, and GitHub can't enforce it on a private repo without Pro; by convention work on a branch, merge by PR, and don't push directly to `main` after the initial commit
 - extra_merge_gates: none documented
-- after_merge_checks: `npm run typecheck`, `npm test` (CLAUDE.md "Commands"); skipped for documentation-only changes (see required_checks)
+- after_merge_checks: `npm run typecheck`, `npm run lint`, `npm test` (CLAUDE.md "Commands"); skipped for documentation-only changes (see required_checks)
 <!-- /params:git -->
 
 <!-- params:node -->
@@ -50,16 +50,16 @@ keeps your edits. Values marked unknown should be filled in.
 <!-- params:dependencies -->
 ## dependencies (dependency-manager)
 - packages: `.` with npm (package.json, package-lock.json); no runtime dependencies, dev only: esbuild, sass, typescript, @types/node, qrcode-generator (2.0.4, MIT, no dependencies, no install scripts; bundled by esbuild into the client `app.js` for the QR pairing code, so nothing new at server runtime; added with the user's approval, team-hq decision 0003)
-- policy: the server has no runtime dependencies and must keep none; only dev tools (esbuild, sass, typescript, @types/node) and the one user-approved bundled client devDependency `qrcode-generator` may be added or upgraded; any other new package needs the user's approval first. Upgrades go one at a time with typecheck, tests and build after each (CLAUDE.md "Layout")
+- policy: the server has no runtime dependencies and must keep none; only dev tools (esbuild, sass, typescript, @types/node), the lint tools `eslint`, `@eslint/js` and `typescript-eslint` (user-approved 2026-10-10, T-046) and the one user-approved bundled client devDependency `qrcode-generator` may be added or upgraded; any other new package needs the user's approval first. Upgrades go one at a time with typecheck, tests and build after each (CLAUDE.md "Layout")
 - install_scripts: read before approving (esbuild runs a postinstall); never approve one that was not read
 - pinned_packages: none; `@types/node` stays on the major of the Node runtime (24)
-- verification_commands: `npm run typecheck`, `npm test`, `npm run build` (package.json)
+- verification_commands: `npm run typecheck`, `npm run lint`, `npm test`, `npm run build` (package.json)
 <!-- /params:dependencies -->
 
 <!-- params:review -->
 ## review (code-reviewer)
 - review_rules: the "Rules" and "TypeScript constraints" sections of CLAUDE.md
-- checks_per_package: `npm run typecheck`, `npm test`, `npm run build` (package.json); no lint script
+- checks_per_package: `npm run typecheck`, `npm run lint`, `npm test`, `npm run build` (package.json)
 - sensitive_areas: `src/server/auth.ts`, `src/server/server.ts`, `src/server/claude-cli.ts`, `src/server/limits.ts`, `src/server/tls.ts`, client rendering in `src/client/` (CLAUDE.md: security-auditor scope); `.dashboard/` holds secrets
 - base_branch: main (origin: github.com/chrisfaber95/claude-dashboard)
 <!-- /params:review -->
