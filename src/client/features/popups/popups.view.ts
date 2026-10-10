@@ -14,7 +14,7 @@ export const draws = (id: string): boolean => drawsSection(id, current);
 
 const wrap = (id: PopupId) => elementById(`popup-${id}`);
 const button = (id: PopupId) => document.querySelector<HTMLButtonElement>(`[data-popup="${id}"]`)!;
-const sectionHidden = (id: PopupId) => elementById(id === 'audit' ? 'audit' : id).hidden;
+const sectionHidden = (id: PopupId): boolean => elementById(id).hidden === true;
 
 function show(id: PopupId | null) {
   for (const popup of POPUPS) wrap(popup.id).hidden = popup.id !== id;
