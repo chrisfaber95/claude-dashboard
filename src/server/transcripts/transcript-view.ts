@@ -1,35 +1,78 @@
 import { open, stat } from 'node:fs/promises';
 import type { TranscriptEntry, TranscriptPage } from '../../shared/types/index.ts';
 
-const RESULT_MAX = 2048;
-const TEXT_MAX = 20_000;
+const RESULT_MAX_CHARS = 2048;
+const TEXT_MAX_CHARS = 20_000;
+const TOOL_SUMMARY_MAX_CHARS = 300;
+const SNIPPET_MAX_CHARS = 220;
+const MEGABYTE = 1024 * 1024;
 /** Only the tail of very large transcripts is shown. */
-export const VIEW_BYTES_MAX = 32 * 1024 * 1024;
-const cache = new Map<string, { key: string; entries: TranscriptEntry[]; truncated: boolean }>();
+export const VIEW_BYTES_MAX = 32 * MEGABYTE;
+const CACHE_MAX_FILES = 8;
 
-function clip(s: string, max: number): string {
-  return s.length > max ? s.slice(0, max) + `\n… (${s.length - max} more characters)` : s;
+interface CachedEntries {
+  key: string;
+  entries: TranscriptEntry[];
+  truncated: boolean;
+}
+
+interface EntryBase {
+  uuid: string;
+  tsMs: number;
+}
+
+const cache = new Map<string, CachedEntries>();
+
+function clip(text: string, max: number): string {
+  return text.length > max ? text.slice(0, max) + `\n… (${text.length - max} more characters)` : text;
 }
 
 function textOf(content: unknown): string {
   if (typeof content === 'string') return content;
   if (!Array.isArray(content)) return '';
   return content
-    .filter((c) => c && typeof c === 'object' && (c as { type?: string }).type === 'text')
-    .map((c) => String((c as { text: unknown }).text))
+    .filter((part) => part && typeof part === 'object' && (part as { type?: string }).type === 'text')
+    .map((part) => String((part as { text: unknown }).text))
     .join('\n');
 }
 
-export function toolSummary(name: string, input: Record<string, unknown> | undefined, max = 300): string {
+/** Collapse whitespace and cut a text to `max` characters, marking the cut with an ellipsis. */
+export function snippet(text: string, max = SNIPPET_MAX_CHARS): string {
+  const collapsed = text.replace(/\s+/g, ' ').trim();
+  return collapsed.length > max ? collapsed.slice(0, max - 1) + '…' : collapsed;
+}
+
+/** The plain text of a message content, which is a string or a list of blocks with `text`. */
+export function contentText(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return '';
+  return content
+    .map((part) => (part && typeof part === 'object' && 'text' in part ? String((part as { text: unknown }).text) : ''))
+    .join(' ');
+}
+
+/** The report inside a "[Subagent hand-back]" body, without the harness preamble. */
+export function handbackBody(body: string): string {
+  return body.replace(/^\[Subagent hand-back\][\s\S]*?The report follows:\s*/, '').replace(/^\[Subagent hand-back\][^:]*:\s*/, '');
+}
+
+/** One-line description of a tool call: its name plus the most telling input. */
+export function toolSummary(name: string, input: Record<string, unknown> | undefined, max = TOOL_SUMMARY_MAX_CHARS): string {
   if (!input) return name;
   const pick = input.command ?? input.file_path ?? input.pattern ?? input.url ?? input.query ?? input.description ?? input.prompt;
-  const s = typeof pick === 'string' ? pick : JSON.stringify(input);
-  return `${name}: ${s.replace(/\s+/g, ' ').slice(0, max)}`;
+  const text = typeof pick === 'string' ? pick : JSON.stringify(input);
+  return `${name}: ${text.replace(/\s+/g, ' ').slice(0, max)}`;
+}
+
+function originOf(line: any): any {
+  if (line.type === 'user') return line.origin;
+  if (line.type === 'attachment' && line.attachment?.type === 'queued_command') return line.attachment.origin;
+  return undefined;
 }
 
 /** The peer origin of a line: on the user line itself, or (newer Claude Code) on a queued_command attachment. */
-export function peerOrigin(o: any): any {
-  const origin = o.type === 'user' ? o.origin : o.type === 'attachment' && o.attachment?.type === 'queued_command' ? o.attachment.origin : undefined;
+export function peerOrigin(line: any): any {
+  const origin = originOf(line);
   return origin?.kind === 'peer' ? origin : undefined;
 }
 
@@ -43,6 +86,45 @@ export function peerName(peer: any): string {
   return from && !from.startsWith('uds:') ? from : 'unknown';
 }
 
+function userEntries(line: any, base: EntryBase): TranscriptEntry[] {
+  const out: TranscriptEntry[] = [];
+  const content = line.message?.content;
+  if (Array.isArray(content)) {
+    for (const part of content) {
+      if (part?.type !== 'tool_result') continue;
+      const text = typeof part.content === 'string' ? part.content : textOf(part.content);
+      out.push({ ...base, role: 'result', text: clip(text, RESULT_MAX_CHARS), isError: Boolean(part.is_error) });
+    }
+  }
+  const text = textOf(content).trim();
+  if (text && !text.startsWith('<system-reminder>')) out.push({ ...base, role: 'user', text: clip(text, TEXT_MAX_CHARS) });
+  return out;
+}
+
+function assistantEntries(content: any[], base: EntryBase): TranscriptEntry[] {
+  const out: TranscriptEntry[] = [];
+  for (const part of content) {
+    if (part?.type === 'text' && String(part.text).trim()) {
+      out.push({ ...base, role: 'assistant', text: clip(String(part.text), TEXT_MAX_CHARS) });
+    } else if (part?.type === 'tool_use') {
+      out.push({ ...base, role: 'tool', text: toolSummary(String(part.name), part.input) });
+    }
+  }
+  return out;
+}
+
+function entriesOfLine(line: any, base: EntryBase): TranscriptEntry[] {
+  // Subagent hand-backs in attachment form stay out: their report also comes back as the Agent tool result.
+  const peer = peerOrigin(line);
+  if (peer && (line.type === 'user' || !peer.senderTaskId)) {
+    const text = clip(String(peer.body ?? textOf(line.message?.content)), TEXT_MAX_CHARS);
+    return [{ ...base, role: 'peer', from: peerName(peer), text }];
+  }
+  if (line.type === 'user') return userEntries(line, base);
+  if (line.type === 'assistant' && Array.isArray(line.message?.content)) return assistantEntries(line.message.content, base);
+  return [];
+}
+
 /**
  * Turn raw JSONL lines into readable entries. Thinking, attachments and system reminders are dropped,
  * except session-to-session messages, which arrive as queued_command attachments.
@@ -52,62 +134,38 @@ export function parseEntries(lines: string[], sidechain = false): TranscriptEntr
   const out: TranscriptEntry[] = [];
   for (const raw of lines) {
     if (!raw) continue;
-    let o: any;
+    let line: any;
     try {
-      o = JSON.parse(raw);
+      line = JSON.parse(raw);
     } catch {
       continue;
     }
-    if (o.isMeta || (o.isSidechain && !sidechain)) continue;
-    const base = { uuid: String(o.uuid ?? ''), tsMs: o.timestamp ? Date.parse(o.timestamp) : 0 };
-
-    // Subagent hand-backs in attachment form stay out: their report also comes back as the Agent tool result.
-    const peer = peerOrigin(o);
-    if (peer && (o.type === 'user' || !peer.senderTaskId)) {
-      out.push({ ...base, role: 'peer', from: peerName(peer), text: clip(String(peer.body ?? textOf(o.message?.content)), TEXT_MAX) });
-      continue;
-    }
-    if (o.type === 'user') {
-      const content = o.message?.content;
-      if (Array.isArray(content)) {
-        for (const c of content) {
-          if (c?.type === 'tool_result') {
-            const t = typeof c.content === 'string' ? c.content : textOf(c.content);
-            out.push({ ...base, role: 'result', text: clip(t, RESULT_MAX), isError: Boolean(c.is_error) });
-          }
-        }
-      }
-      const text = textOf(content).trim();
-      if (text && !text.startsWith('<system-reminder>')) out.push({ ...base, role: 'user', text: clip(text, TEXT_MAX) });
-    } else if (o.type === 'assistant' && Array.isArray(o.message?.content)) {
-      for (const c of o.message.content) {
-        if (c?.type === 'text' && String(c.text).trim()) out.push({ ...base, role: 'assistant', text: clip(String(c.text), TEXT_MAX) });
-        else if (c?.type === 'tool_use') out.push({ ...base, role: 'tool', text: toolSummary(String(c.name), c.input) });
-      }
-    }
+    if (line.isMeta || (line.isSidechain && !sidechain)) continue;
+    const base = { uuid: String(line.uuid ?? ''), tsMs: line.timestamp ? Date.parse(line.timestamp) : 0 };
+    out.push(...entriesOfLine(line, base));
   }
   return out;
 }
 
 /** Parsed entries of (at most the last VIEW_BYTES_MAX bytes of) a transcript, cached by size + mtime. */
-async function loadEntries(path: string, maxBytes: number, sidechain: boolean): Promise<{ entries: TranscriptEntry[]; truncated: boolean }> {
-  const st = await stat(path);
-  const key = `${st.size}:${st.mtimeMs}:${maxBytes}:${sidechain}`;
+async function loadEntries(path: string, maxBytes: number, sidechain: boolean): Promise<CachedEntries> {
+  const fileStat = await stat(path);
+  const key = `${fileStat.size}:${fileStat.mtimeMs}:${maxBytes}:${sidechain}`;
   const hit = cache.get(path);
   if (hit?.key === key) return hit;
-  const start = Math.max(0, st.size - maxBytes);
-  const buf = Buffer.alloc(st.size - start);
-  const fh = await open(path, 'r');
+  const start = Math.max(0, fileStat.size - maxBytes);
+  const buffer = Buffer.alloc(fileStat.size - start);
+  const handle = await open(path, 'r');
   try {
-    await fh.read(buf, 0, buf.length, start);
+    await handle.read(buffer, 0, buffer.length, start);
   } finally {
-    await fh.close();
+    await handle.close();
   }
-  const lines = buf.toString('utf8').split('\n');
+  const lines = buffer.toString('utf8').split('\n');
   if (start > 0) lines.shift(); // first line is partial
   const value = { key, entries: parseEntries(lines, sidechain), truncated: start > 0 };
   cache.set(path, value);
-  if (cache.size > 8) cache.delete(cache.keys().next().value!);
+  if (cache.size > CACHE_MAX_FILES) cache.delete(cache.keys().next().value!);
   return value;
 }
 
@@ -119,12 +177,12 @@ export async function readTranscriptPage(
   maxBytes = VIEW_BYTES_MAX,
   sidechain = false,
 ): Promise<TranscriptPage> {
-  const { entries: all, truncated } = await loadEntries(path, maxBytes, sidechain);
-  let end = all.length;
+  const { entries: allEntries, truncated: isTruncated } = await loadEntries(path, maxBytes, sidechain);
+  let end = allEntries.length;
   if (before) {
-    const i = all.findIndex((e) => e.uuid === before);
-    if (i >= 0) end = i;
+    const index = allEntries.findIndex((entry) => entry.uuid === before);
+    if (index >= 0) end = index;
   }
   const start = Math.max(0, end - limit);
-  return { entries: all.slice(start, end), hasMore: start > 0, ...(truncated && start === 0 ? { truncated: true } : {}) };
+  return { entries: allEntries.slice(start, end), hasMore: start > 0, ...(isTruncated && start === 0 ? { truncated: true } : {}) };
 }

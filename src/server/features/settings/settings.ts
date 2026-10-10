@@ -8,8 +8,8 @@ const FILE = () => join(DATA_DIR, 'settings.json');
 /** The saved summary mode; `recap` when the file is missing, mid-write or holds anything else. */
 export function getSummaryMode(): SummaryMode {
   try {
-    const v = (JSON.parse(readFileSync(FILE(), 'utf8')) as { summary?: unknown }).summary;
-    return SUMMARY_MODES.includes(v as SummaryMode) ? (v as SummaryMode) : 'recap';
+    const stored = (JSON.parse(readFileSync(FILE(), 'utf8')) as { summary?: unknown }).summary;
+    return SUMMARY_MODES.includes(stored as SummaryMode) ? (stored as SummaryMode) : 'recap';
   } catch {
     return 'recap';
   }
@@ -20,9 +20,9 @@ export function setSummaryMode(mode: unknown): boolean {
   if (!SUMMARY_MODES.includes(mode as SummaryMode)) return false;
   try {
     mkdirSync(DATA_DIR, { recursive: true });
-    const tmp = FILE() + '.tmp';
-    writeFileSync(tmp, JSON.stringify({ summary: mode }));
-    renameSync(tmp, FILE());
+    const tempPath = FILE() + '.tmp';
+    writeFileSync(tempPath, JSON.stringify({ summary: mode }));
+    renameSync(tempPath, FILE());
     return true;
   } catch {
     return false;
