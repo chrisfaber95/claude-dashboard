@@ -19,7 +19,12 @@ watch('src/client', (_event, name) => {
 });
 
 const js = await context({
-  entryPoints: ['src/client/app.ts', 'src/client/login.ts', 'src/client/pair.ts', 'src/client/boot.ts'],
+  entryPoints: {
+    app: 'src/client/app/app.ts',
+    login: 'src/client/features/login/login.view.ts',
+    pair: 'src/client/features/pair/pair.view.ts',
+    boot: 'src/client/app/boot.ts',
+  },
   bundle: true,
   outdir: 'public',
   target: 'es2022',

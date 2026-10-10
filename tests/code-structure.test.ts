@@ -22,18 +22,11 @@ const ENTRY_POINTS = ['server/main.ts', 'server/server.ts', 'server/config.ts'];
  * Today's files outside the map. This list may only shrink: moving a file into the map removes its line;
  * never add a file here.
  */
-const MISPLACED_ALLOWLIST = new Set([
-  'client/alerts-logic.ts', 'client/alerts.ts', 'client/app.ts', 'client/audit-logic.ts', 'client/audit.ts',
-  'client/boot.ts', 'client/building.ts', 'client/chat-logic.ts', 'client/chat-state.ts', 'client/chat.ts',
-  'client/controls.ts', 'client/core.ts', 'client/devices-logic.ts', 'client/devices.ts',
-  'client/launch-logic.ts', 'client/login.ts', 'client/mood.ts', 'client/pair.ts', 'client/patch.ts',
-  'client/popups-logic.ts', 'client/popups.ts', 'client/qr.ts', 'client/root-scene.ts', 'client/settings.ts',
-  'client/skin.ts', 'client/team.ts', 'client/util.ts',
-]);
+const MISPLACED_ALLOWLIST = new Set<string>([]);
 
 /** Today's files over the cap. This list may only shrink: split a file and remove its line; never add one. */
 const OVERSIZED_ALLOWLIST = new Set([
-  'client/app.ts', 'client/building.ts', 'client/controls.ts', 'server/server.ts', 'server/transcripts/transcripts.ts',
+  'client/app/app.ts', 'client/features/building/building.view.ts', 'client/features/controls/controls.view.ts', 'server/server.ts', 'server/transcripts/transcripts.ts',
 ]);
 
 /** Every .ts file under src/, as a path relative to src/ with forward slashes. */

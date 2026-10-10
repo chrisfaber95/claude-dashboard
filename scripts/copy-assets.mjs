@@ -6,7 +6,7 @@ import { checkSvg } from './svg-guard.mjs';
 // so each folder has an extension allowlist, symlinks are skipped and SVGs must pass the allowlist check.
 const ASSETS = [
   { from: 'src/client/fonts', to: 'public/fonts', allowed: new Set(['.woff2', '.txt']) },
-  { from: 'src/client/root', to: 'public/root', allowed: new Set(['.svg']) },
+  { from: 'src/client/skins/root', to: 'public/root', allowed: new Set(['.svg']) },
 ];
 
 /** Every regular file under dir that would be copied (symlinks skipped, as in the copy). */
