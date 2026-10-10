@@ -1,3 +1,4 @@
+// Chat view source guard: it may only call the message, summary and alert-dismiss endpoints.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -21,12 +22,12 @@ test('the only API paths in the chat are the session message, session summary an
   ]);
   // Every request goes through api(). Its first argument must be exactly one of the allowed literals,
   // so a path built from pieces (without an /api/ literal) is caught too.
-  const args = [...source.matchAll(API_CALL)].map((m) => m[1].trim());
-  for (const a of args) assert.ok(allowed.has(a), `unexpected api() path in chat.ts: ${a}`);
+  const args = [...source.matchAll(API_CALL)].map((match) => match[1].trim());
+  for (const argument of args) assert.ok(allowed.has(argument), `unexpected api() path in chat.ts: ${argument}`);
   assert.equal(args.length, allowed.size, 'each allowed endpoint is called exactly once');
   assert.ok(!/\bfetch\s*\(|XMLHttpRequest|EventSource|sendBeacon/.test(source), 'chat.ts must call the server only through api()');
   const literals: string[] = source.match(/\/api\/[^`'"]*/g) ?? [];
-  for (const p of literals) assert.ok(args.some((a) => a.includes(p)), `stray API path in chat.ts: ${p}`);
+  for (const literal of literals) assert.ok(args.some((argument) => argument.includes(literal)), `stray API path in chat.ts: ${literal}`);
 });
 
 test('the endpoint check catches a path built without an /api/ literal', () => {

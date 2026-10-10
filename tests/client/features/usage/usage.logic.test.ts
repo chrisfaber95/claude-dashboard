@@ -1,3 +1,4 @@
+// Usage chart data: per-day series, Other bucket and stacked segments.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { UsageDay } from '../../../../src/shared/types/index.ts';

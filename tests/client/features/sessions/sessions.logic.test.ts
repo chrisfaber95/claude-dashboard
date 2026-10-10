@@ -1,3 +1,4 @@
+// Session list helpers: background-session kinds and status dot classes.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { dotStateClass, isBackgroundSession } from '../../../../src/client/features/sessions/sessions.logic.ts';

@@ -21,20 +21,7 @@ export const LEGACY_FILES = [
   'src/server/transcripts/state.ts',
   'src/server/transcripts/transcript-view.ts',
   'src/server/transcripts/transcripts.ts',
-  'tests/client/features/alerts/alerts.logic.test.ts',
-  'tests/client/features/audit/audit.logic.test.ts',
-  'tests/client/features/chat/chat.logic.test.ts',
-  'tests/client/features/chat/chat-state.logic.test.ts',
-  'tests/client/features/chat/chat.view.test.ts',
-  'tests/client/features/devices/devices.logic.test.ts',
-  'tests/helpers.ts',
-  'tests/client/features/launch/launch.logic.test.ts',
   'tests/measure-cpu.test.ts',
-  'tests/client/features/core/mood.logic.test.ts',
-  'tests/client/app/patch.test.ts',
-  'tests/client/features/popups/popups.logic.test.ts',
-  'tests/client/features/devices/qr.logic.test.ts',
-  'tests/client/skins/root-assets.test.ts',
   'tests/server/auth/auth.test.ts',
   'tests/server/auth/devices.test.ts',
   'tests/server/claude/claude-bin.test.ts',
@@ -55,7 +42,6 @@ export const LEGACY_FILES = [
   'tests/server/transcripts/subagents.test.ts',
   'tests/server/transcripts/transcript-view.test.ts',
   'tests/server/transcripts/transcripts.test.ts',
-  'tests/client/skins/skin.test.ts',
 ];
 
 const FORBIDDEN_ABBREVIATIONS = [

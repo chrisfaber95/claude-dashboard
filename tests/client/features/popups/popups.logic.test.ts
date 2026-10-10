@@ -1,3 +1,4 @@
+// Popup buttons: order, toggling, closing rules and which sections draw.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { UsageDay } from '../../../../src/shared/types/index.ts';
@@ -5,7 +6,7 @@ import { POPUPS, backdropCloses, openPopup, escapeClosesPopup, stillOpen, toggle
 
 test('the button set and order are fixed', () => {
   assert.deepEqual(
-    POPUPS.map((p) => p.id),
+    POPUPS.map((popup) => popup.id),
     ['projects', 'comms', 'team', 'usage', 'chat', 'run', 'devices', 'audit'],
   );
 });
@@ -41,7 +42,7 @@ test('only a click on the backdrop itself closes', () => {
 });
 
 test("tokensToday sums today's four counters and is 0 without a day", () => {
-  const day = (d: string): UsageDay => ({ day: d, tokens: { input: 1, output: 2, cacheRead: 3, cacheWrite: 4 }, byProject: {}, byModel: {} });
+  const day = (date: string): UsageDay => ({ day: date, tokens: { input: 1, output: 2, cacheRead: 3, cacheWrite: 4 }, byProject: {}, byModel: {} });
   const now = new Date(2026, 9, 9, 12);
   assert.equal(tokensToday([day('2026-10-08'), day('2026-10-09')], now), 10);
   assert.equal(tokensToday([day('2026-10-08')], now), 0);

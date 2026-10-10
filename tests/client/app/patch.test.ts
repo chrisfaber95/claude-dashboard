@@ -1,3 +1,4 @@
+// DOM patching: unchanged markup writes nothing and kept nodes stay in place.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { patchChildren } from '../../../src/client/app/patch.ts';
@@ -21,9 +22,9 @@ class FakeNode implements PNode {
   get nodeValue(): string | null {
     return this.#value;
   }
-  set nodeValue(v: string | null) {
+  set nodeValue(value: string | null) {
     writes++;
-    this.#value = v;
+    this.#value = value;
   }
   get childNodes(): FakeNode[] {
     return this.kids;
@@ -32,52 +33,52 @@ class FakeNode implements PNode {
     return this.kids[0] ?? null;
   }
   get nextSibling(): FakeNode | null {
-    const i = this.parent ? this.parent.kids.indexOf(this) : -1;
-    return this.parent?.kids[i + 1] ?? null;
+    const position = this.parent ? this.parent.kids.indexOf(this) : -1;
+    return this.parent?.kids[position + 1] ?? null;
   }
-  getAttribute(n: string): string | null {
-    return this.attrs.get(n) ?? null;
+  getAttribute(name: string): string | null {
+    return this.attrs.get(name) ?? null;
   }
-  setAttribute(n: string, v: string): void {
+  setAttribute(name: string, value: string): void {
     writes++;
-    this.attrs.set(n, v);
+    this.attrs.set(name, value);
   }
-  removeAttribute(n: string): void {
+  removeAttribute(name: string): void {
     writes++;
-    this.attrs.delete(n);
+    this.attrs.delete(name);
   }
   attrNames(): string[] {
     return [...this.attrs.keys()];
   }
   insertBefore(node: PNode, ref: PNode | null): void {
-    const n = node as FakeNode;
+    const child = node as FakeNode;
     writes++;
-    n.parent?.kids.splice(n.parent.kids.indexOf(n), 1);
-    n.parent = this;
-    const i = ref ? this.kids.indexOf(ref as FakeNode) : this.kids.length;
-    this.kids.splice(i, 0, n);
+    child.parent?.kids.splice(child.parent.kids.indexOf(child), 1);
+    child.parent = this;
+    const index = ref ? this.kids.indexOf(ref as FakeNode) : this.kids.length;
+    this.kids.splice(index, 0, child);
   }
   removeChild(node: PNode): void {
     writes++;
-    const n = node as FakeNode;
-    this.kids.splice(this.kids.indexOf(n), 1);
-    n.parent = null;
+    const child = node as FakeNode;
+    this.kids.splice(this.kids.indexOf(child), 1);
+    child.parent = null;
   }
 }
 
-const text = (v: string) => new FakeNode(3, '#text', v);
-function el(name: string, attrs: Record<string, string>, ...kids: Array<FakeNode | string>): FakeNode {
-  const e = new FakeNode(1, name.toUpperCase());
-  for (const [k, v] of Object.entries(attrs)) e.attrs.set(k, v);
-  for (const k of kids) {
-    const n = typeof k === 'string' ? text(k) : k;
-    n.parent = e;
-    e.kids.push(n);
+const text = (value: string) => new FakeNode(3, '#text', value);
+function element(name: string, attrs: Record<string, string>, ...kids: Array<FakeNode | string>): FakeNode {
+  const created = new FakeNode(1, name.toUpperCase());
+  for (const [attributeName, value] of Object.entries(attrs)) created.attrs.set(attributeName, value);
+  for (const kid of kids) {
+    const node = typeof kid === 'string' ? text(kid) : kid;
+    node.parent = created;
+    created.kids.push(node);
   }
-  return e;
+  return created;
 }
-const row = (key: string, label: string, tokens: string) => el('tr', { 'data-key': key }, el('td', {}, label), el('td', { class: 'num' }, tokens));
-const table = (...rows: FakeNode[]) => el('div', {}, el('table', {}, el('tbody', {}, ...rows)));
+const row = (key: string, label: string, tokens: string) => element('tr', { 'data-key': key }, element('td', {}, label), element('td', { class: 'num' }, tokens));
+const table = (...rows: FakeNode[]) => element('div', {}, element('table', {}, element('tbody', {}, ...rows)));
 const rowsOf = (root: FakeNode) => root.kids[0]!.kids[0]!.kids;
 
 test('an identical render writes nothing and keeps every node', () => {
@@ -101,9 +102,9 @@ test('only the changed text is written; unchanged rows keep their node', () => {
 });
 
 test('attributes are added, changed and removed on the kept element', () => {
-  const live = el('div', { class: 'a', title: 'x' }, 'hi');
+  const live = element('div', { class: 'a', title: 'x' }, 'hi');
   const same = live;
-  patchChildren(el('section', {}, live), el('section', {}, el('div', { class: 'b', id: 'n' }, 'hi')));
+  patchChildren(element('section', {}, live), element('section', {}, element('div', { class: 'b', id: 'n' }, 'hi')));
   assert.equal(same.getAttribute('class'), 'b');
   assert.equal(same.getAttribute('title'), null);
   assert.equal(same.getAttribute('id'), 'n');
@@ -111,43 +112,43 @@ test('attributes are added, changed and removed on the kept element', () => {
 
 test('keyed rows keep their node when added, removed and reordered', () => {
   const live = table(row('a', 'alpha', '1'), row('b', 'beta', '2'), row('c', 'gamma', '3'));
-  const [a, b, c] = rowsOf(live);
+  const [rowA, rowB, rowC] = rowsOf(live);
   patchChildren(live, table(row('c', 'gamma', '3'), row('d', 'delta', '4'), row('a', 'alpha', '1')));
   const now = rowsOf(live);
   assert.equal(now.length, 3);
-  assert.equal(now[0], c);
-  assert.equal(now[2], a);
+  assert.equal(now[0], rowC);
+  assert.equal(now[2], rowA);
   assert.equal(now[1]!.getAttribute('data-key'), 'd');
-  assert.equal(b!.parent, null);
+  assert.equal(rowB!.parent, null);
 });
 
 test('a new section appears and an old one goes away', () => {
-  const live = el('div', {}, el('h2', {}, 'T'), el('div', { class: 'empty' }, 'none'));
-  const h = live.kids[0];
-  patchChildren(live, el('div', {}, el('h2', {}, 'T'), el('ul', {}, el('li', { 'data-key': 'x' }, 'one'))));
-  assert.equal(live.kids[0], h);
+  const live = element('div', {}, element('h2', {}, 'T'), element('div', { class: 'empty' }, 'none'));
+  const heading = live.kids[0];
+  patchChildren(live, element('div', {}, element('h2', {}, 'T'), element('ul', {}, element('li', { 'data-key': 'x' }, 'one'))));
+  assert.equal(live.kids[0], heading);
   assert.equal(live.kids[1]!.nodeName, 'UL');
   assert.equal(live.kids.length, 2);
 });
 
 test('an open <details> stays as the reader left it', () => {
-  const live = el('div', {}, el('details', { open: '' }, el('summary', {}, 's')));
-  const d = live.kids[0]!;
-  patchChildren(live, el('div', {}, el('details', {}, el('summary', {}, 's'))));
-  assert.equal(live.kids[0], d);
-  assert.equal(d.getAttribute('open'), '');
+  const live = element('div', {}, element('details', { open: '' }, element('summary', {}, 's')));
+  const details = live.kids[0]!;
+  patchChildren(live, element('div', {}, element('details', {}, element('summary', {}, 's'))));
+  assert.equal(live.kids[0], details);
+  assert.equal(details.getAttribute('open'), '');
 });
 
 test('patchIfChanged: unchanged markup does not call the patcher again', async () => {
   const { patchIfChanged, forgetHtml } = await import('../../../src/client/app/patch.ts');
-  const el = {};
+  const target = {};
   let calls = 0;
   const run = () => calls++;
-  assert.equal(patchIfChanged(el, '<p>a</p>', run), true);
-  assert.equal(patchIfChanged(el, '<p>a</p>', run), false);
+  assert.equal(patchIfChanged(target, '<p>a</p>', run), true);
+  assert.equal(patchIfChanged(target, '<p>a</p>', run), false);
   assert.equal(calls, 1);
-  assert.equal(patchIfChanged(el, '<p>b</p>', run), true);
-  forgetHtml(el);
-  assert.equal(patchIfChanged(el, '<p>b</p>', run), true);
+  assert.equal(patchIfChanged(target, '<p>b</p>', run), true);
+  forgetHtml(target);
+  assert.equal(patchIfChanged(target, '<p>b</p>', run), true);
   assert.equal(calls, 3);
 });

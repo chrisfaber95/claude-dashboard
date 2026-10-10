@@ -32,19 +32,19 @@ export function makeFixture(): Fixture {
   return { root, claudeDir, projectsRoot, claudeJson, dataDir };
 }
 
-export function slug(p: string): string {
-  return p.replace(/[^a-zA-Z0-9]/g, '-');
+export function slug(path: string): string {
+  return path.replace(/[^a-zA-Z0-9]/g, '-');
 }
 
 /** Path of the transcript folder for a cwd inside the fixture. */
 export function transcriptDir(fx: Fixture, cwd: string): string {
-  const d = join(fx.claudeDir, 'projects', slug(cwd));
-  mkdirSync(d, { recursive: true });
-  return d;
+  const directory = join(fx.claudeDir, 'projects', slug(cwd));
+  mkdirSync(directory, { recursive: true });
+  return directory;
 }
 
 export function jsonl(lines: object[]): string {
-  return lines.map((l) => JSON.stringify(l)).join('\n') + '\n';
+  return lines.map((line) => JSON.stringify(line)).join('\n') + '\n';
 }
 
 export function assistantLine(opts: {
@@ -96,7 +96,7 @@ export function raw(
       { host: '127.0.0.1', port, path: opts.path, method: opts.method ?? 'GET', headers: opts.headers, rejectUnauthorized: false },
       (res) => {
         let body = '';
-        res.on('data', (d) => (body += d));
+        res.on('data', (chunk) => (body += chunk));
         res.on('end', () => resolve({ status: res.statusCode ?? 0, headers: res.headers, body }));
       },
     );

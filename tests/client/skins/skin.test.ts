@@ -1,3 +1,4 @@
+// Skin names and parsing of the stored skin value.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { SKINS, parseSkin } from '../../../src/client/skins/skin.ts';
@@ -13,7 +14,7 @@ test('parseSkin accepts known skins', () => {
 });
 
 test('parseSkin falls back to classic for unknown or missing values (case-sensitive)', () => {
-  for (const v of [null, undefined, '', 'Copilot', 'COPILOT', ' copilot', 'Root', 'ROOT', ' root', 'root ', 'nope']) {
-    assert.equal(parseSkin(v), 'classic', String(v));
+  for (const value of [null, undefined, '', 'Copilot', 'COPILOT', ' copilot', 'Root', 'ROOT', ' root', 'root ', 'nope']) {
+    assert.equal(parseSkin(value), 'classic', String(value));
   }
 });
