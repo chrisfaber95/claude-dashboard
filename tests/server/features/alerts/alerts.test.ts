@@ -108,7 +108,7 @@ test('threshold: default 80, validated, persisted', () => {
 test('missing or corrupt file falls back to defaults', () => {
   mkdirSync(fx.dataDir, { recursive: true });
   const on = { sessions: [session('s1', 'waiting')], limits: limits([]), team: null, nowMs: 1 };
-  for (const content of ['{not json', '{"dismissed":"x","threshold":500}', '[]']) {
+  for (const content of ['{not json', '{"dismissed":"x","threshold":500}', '[]', 'null', '"text"', '42']) {
     reset();
     writeFileSync(file, content);
     assert.equal(store.alertThreshold(), 80);

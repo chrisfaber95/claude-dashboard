@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CLAUDE_DIR, CLAUDE_JSON } from '../../config.ts';
+import { isRecord } from '../json/json-guards.ts';
 import { limitHits } from '../../transcripts/transcripts.ts';
 import type { LimitWindow, LimitsInfo } from '../../../shared/types/index.ts';
 
@@ -32,17 +33,18 @@ let lastPollMs = 0;
 let isPolling = false;
 
 /** Pick the known usage windows out of a usage API (or cached) utilization object. */
-export function toWindows(utilization: Record<string, any> | undefined | null): LimitWindow[] {
-  if (!utilization) return [];
+export function toWindows(utilization: unknown): LimitWindow[] {
+  if (!isRecord(utilization)) return [];
   const out: LimitWindow[] = [];
   for (const [key, label] of Object.entries(LABELS)) {
     const usageWindow = utilization[key];
-    if (!usageWindow || typeof usageWindow.utilization !== 'number') continue;
+    if (!isRecord(usageWindow) || typeof usageWindow.utilization !== 'number') continue;
+    const resetsAt = usageWindow.resets_at;
     out.push({
       key,
       label,
       utilization: usageWindow.utilization,
-      resetsAtMs: usageWindow.resets_at ? Date.parse(usageWindow.resets_at) : null,
+      resetsAtMs: typeof resetsAt === 'string' && resetsAt ? Date.parse(resetsAt) : null,
     });
   }
   return out;
@@ -50,10 +52,16 @@ export function toWindows(utilization: Record<string, any> | undefined | null): 
 
 function readCache(): Snapshot | null {
   try {
-    const claudeJson = JSON.parse(readFileSync(CLAUDE_JSON, 'utf8'));
+    const claudeJson: unknown = JSON.parse(readFileSync(CLAUDE_JSON, 'utf8'));
+    if (!isRecord(claudeJson)) return null;
     const cached = claudeJson.cachedUsageUtilization;
-    if (!cached) return null;
-    return { source: 'cache', fetchedAtMs: cached.fetchedAtMs ?? 0, windows: toWindows(cached.utilization) };
+    if (!isRecord(cached)) return null;
+    const { fetchedAtMs } = cached;
+    return {
+      source: 'cache',
+      fetchedAtMs: typeof fetchedAtMs === 'number' && Number.isFinite(fetchedAtMs) ? fetchedAtMs : 0,
+      windows: toWindows(cached.utilization),
+    };
   } catch {
     return null; // file may be mid-write; try again next tick
   }
@@ -69,7 +77,9 @@ export async function pollLive(): Promise<void> {
   try {
     let token: unknown;
     try {
-      token = JSON.parse(readFileSync(join(CLAUDE_DIR, '.credentials.json'), 'utf8'))?.claudeAiOauth?.accessToken;
+      const credentials: unknown = JSON.parse(readFileSync(join(CLAUDE_DIR, '.credentials.json'), 'utf8'));
+      const oauth = isRecord(credentials) ? credentials.claudeAiOauth : undefined;
+      token = isRecord(oauth) ? oauth.accessToken : undefined;
     } catch {
       // Never surface the raw error: JSON.parse messages can quote part of the file (i.e. the token).
       throw new Error('credentials unreadable');
@@ -81,7 +91,7 @@ export async function pollLive(): Promise<void> {
       signal: AbortSignal.timeout(POLL_TIMEOUT_MS),
     });
     if (!response.ok) throw new Error(`usage API responded ${response.status}`);
-    const body: any = await response.json().catch(() => null);
+    const body: unknown = await response.json().catch(() => null);
     const windows = toWindows(body);
     if (!windows.length) throw new Error('unexpected usage API response shape');
     live = { source: 'live', fetchedAtMs: Date.now(), windows };
