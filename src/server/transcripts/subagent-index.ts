@@ -2,6 +2,8 @@ import { readFileSync, statSync } from 'node:fs';
 import { contentText, handbackBody, peerOrigin, snippet, toolSummary } from './transcript-view.ts';
 import { sessionAgg } from './transcript-aggregates.ts';
 import type { SubagentInfo } from '../../shared/types/index.ts';
+import { isRecord } from './transcript-line.ts';
+import type { TranscriptLine } from './transcript-line.ts';
 
 /** What the dashboard knows about one subagent transcript. */
 export interface SubagentRecord {
@@ -133,7 +135,8 @@ function loadMeta(record: SubagentRecord): void {
   try {
     const metaPath = record.path.replace(/\.jsonl$/, '.meta.json');
     if (statSync(metaPath).size > META_MAX_BYTES) return;
-    const meta = JSON.parse(readFileSync(metaPath, 'utf8'));
+    const meta: unknown = JSON.parse(readFileSync(metaPath, 'utf8'));
+    if (!isRecord(meta)) return;
     record.agentType = snippet(String(meta.agentType ?? ''), AGENT_TYPE_MAX_CHARS);
     record.description = snippet(String(meta.description ?? ''), DESCRIPTION_MAX_CHARS);
     record.toolUseId = String(meta.toolUseId ?? '');
@@ -145,13 +148,13 @@ function loadMeta(record: SubagentRecord): void {
 }
 
 /** Agent tool calls on an assistant line, and the current activity of the subagent that wrote it. */
-function trackToolCalls(line: any, subagent: SubagentRecord | null, tsMs: number): void {
+function trackToolCalls(line: TranscriptLine, subagent: SubagentRecord | null, tsMs: number): void {
   const content = line.message?.content;
   if (line.type !== 'assistant' || !Array.isArray(content)) return;
   for (const part of content) {
-    if (part?.type !== 'tool_use') continue;
-    if (SPAWN_TOOL_NAMES.includes(part.name)) {
-      spawns.set(String(part.id), {
+    if (part.type !== 'tool_use' || !part.name) continue;
+    if (part.id && SPAWN_TOOL_NAMES.includes(part.name)) {
+      spawns.set(part.id, {
         tsMs,
         agentType: snippet(String(part.input?.subagent_type ?? ''), AGENT_TYPE_MAX_CHARS),
         description: snippet(String(part.input?.description ?? ''), DESCRIPTION_MAX_CHARS),
@@ -160,20 +163,19 @@ function trackToolCalls(line: any, subagent: SubagentRecord | null, tsMs: number
         byAgentId: subagent ? subagent.agentId : null,
       });
     }
-    if (subagent) subagent.activity = toolSummary(String(part.name), part.input, ACTIVITY_MAX_CHARS);
+    if (subagent) subagent.activity = toolSummary(part.name, part.input, ACTIVITY_MAX_CHARS);
   }
 }
 
 /** Agent tool results on a user line: which tool_use started which agent, and its finished report. */
-function trackToolResults(line: any, tsMs: number): void {
+function trackToolResults(line: TranscriptLine, tsMs: number): void {
   const content = line.message?.content;
-  if (line.type !== 'user' || !Array.isArray(content)) return;
   const toolResult = line.toolUseResult;
-  const agentId = toolResult && typeof toolResult === 'object' && typeof toolResult.agentId === 'string' ? toolResult.agentId : '';
-  if (!agentId) return;
+  if (line.type !== 'user' || !Array.isArray(content) || !toolResult?.agentId) return;
+  const { agentId } = toolResult;
   for (const part of content) {
-    if (part?.type !== 'tool_result') continue;
-    agentToolUse.set(agentId, String(part.tool_use_id));
+    if (part.type !== 'tool_result' || !part.toolUseId) continue;
+    agentToolUse.set(agentId, part.toolUseId);
     if (toolResult.status === 'completed') {
       handedBack.set(agentId, { tsMs, result: snippet(contentText(toolResult.content), RESULT_MAX_CHARS) });
     }
@@ -181,23 +183,23 @@ function trackToolResults(line: any, tsMs: number): void {
 }
 
 /** Background subagents hand back through a peer message whose sender is the subagent itself. */
-function trackPeerHandBack(line: any, tsMs: number): void {
+function trackPeerHandBack(line: TranscriptLine, tsMs: number): void {
   const peer = peerOrigin(line);
   if (!peer?.senderTaskId) return;
-  const body = String(peer.body ?? contentText(line.message?.content));
-  handedBack.set(String(peer.senderTaskId), { tsMs, result: snippet(handbackBody(body), RESULT_MAX_CHARS) });
+  const body = peer.body ?? contentText(line.message?.content);
+  handedBack.set(peer.senderTaskId, { tsMs, result: snippet(handbackBody(body), RESULT_MAX_CHARS) });
 }
 
 /** The completion notice names the finished task; it carries no report, so it never replaces one. */
-function trackCompletionNotice(line: any, tsMs: number): void {
-  const notice = line.type === 'attachment' && typeof line.attachment?.prompt === 'string' ? line.attachment.prompt : '';
+function trackCompletionNotice(line: TranscriptLine, tsMs: number): void {
+  const notice = line.type === 'attachment' ? (line.attachment?.prompt ?? '') : '';
   if (!notice.startsWith('<task-notification>')) return;
   const taskId = notice.match(/<task-id>([A-Za-z0-9_-]+)<\/task-id>/)?.[1];
   if (taskId && !handedBack.has(taskId)) handedBack.set(taskId, { tsMs, result: '' });
 }
 
 /** Agent tool calls (what was handed down), their results (what came back) and a subagent's current activity. */
-export function trackSubagents(line: any, subagent: SubagentRecord | null, tsMs: number): void {
+export function trackSubagents(line: TranscriptLine, subagent: SubagentRecord | null, tsMs: number): void {
   trackToolCalls(line, subagent, tsMs);
   trackToolResults(line, tsMs);
   trackPeerHandBack(line, tsMs);

@@ -1,4 +1,5 @@
 import { closeSync, openSync, readSync, readdirSync, statSync } from 'node:fs';
+import type { Dirent } from 'node:fs';
 import { join } from 'node:path';
 import { CLAUDE_DIR } from '../config.ts';
 import {
@@ -11,6 +12,7 @@ import {
 } from './transcript-aggregates.ts';
 import { isSubagentPath, parentSessionIdOf, registerSubagent, trackSubagents } from './subagent-index.ts';
 import type { SubagentRecord } from './subagent-index.ts';
+import { parseTranscriptLine } from './transcript-line.ts';
 
 interface FileState {
   offset: number;
@@ -34,7 +36,7 @@ export function resetScanner(): void {
 }
 
 function* walk(dir: string): Generator<string> {
-  let entries;
+  let entries: Dirent[];
   try {
     entries = readdirSync(dir, { withFileTypes: true });
   } catch {
@@ -47,14 +49,6 @@ function* walk(dir: string): Generator<string> {
   }
 }
 
-function parseLine(raw: string): any {
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return undefined;
-  }
-}
-
 /** The subagent record of a line in a subagent transcript, caching the agent id on the file state. */
 function subagentOf(fileState: FileState, filePath: string, project: string, tsMs: number): SubagentRecord | null {
   const { agentId, record } = registerSubagent({ filePath, project, tsMs, agentId: fileState.agentId });
@@ -63,7 +57,7 @@ function subagentOf(fileState: FileState, filePath: string, project: string, tsM
 }
 
 function handleLine(raw: string, fileState: FileState, filePath: string): void {
-  const line = parseLine(raw);
+  const line = parseTranscriptLine(raw);
   if (line === undefined) return;
   const tsMs = line.timestamp ? Date.parse(line.timestamp) : NaN;
   if (line.sessionId) fileState.sessionId = line.sessionId;
