@@ -1,7 +1,9 @@
 // Pure chat panel state (no DOM, no network): bounded history and the single pending confirmation.
 
+/** Who wrote a chat line. */
 export type ChatRole = 'user' | 'bot';
 
+/** One line of the chat history. */
 export interface ChatEntry {
   id: number;
   role: ChatRole;
@@ -15,8 +17,10 @@ export interface PendingMessage {
   text: string;
 }
 
+/** How many chat lines are kept. */
 export const HISTORY_MAX = 50;
 
+/** The chat history plus the single pending confirmation. */
 export interface ChatState {
   readonly history: readonly ChatEntry[];
   readonly pending: PendingMessage | null;
@@ -24,12 +28,13 @@ export interface ChatState {
   addUser(text: string): ChatEntry;
   addBot(text: string): ChatEntry;
   /** Asks for confirmation of exactly this message. Replaces an earlier pending one. */
-  setPending(p: PendingMessage): void;
+  setPending(message: PendingMessage): void;
   /** Returns what to send and clears it, so a second call returns null. */
   confirm(): PendingMessage | null;
   cancel(): void;
 }
 
+/** A fresh chat state that keeps at most `max` lines. */
 export function createChatState(max: number = HISTORY_MAX): ChatState {
   let history: ChatEntry[] = [];
   let pending: PendingMessage | null = null;
@@ -53,13 +58,13 @@ export function createChatState(max: number = HISTORY_MAX): ChatState {
       return add('user', text);
     },
     addBot: (text) => add('bot', text),
-    setPending(p) {
-      pending = { sessionId: p.sessionId, name: p.name, text: p.text };
+    setPending(message) {
+      pending = { sessionId: message.sessionId, name: message.name, text: message.text };
     },
     confirm() {
-      const p = pending;
+      const confirmed = pending;
       pending = null;
-      return p;
+      return confirmed;
     },
     cancel() {
       pending = null;

@@ -12,16 +12,17 @@ export const POPUPS = [
   { id: 'audit', label: 'Activity' },
 ] as const;
 
+/** Id of one popup. */
 export type PopupId = (typeof POPUPS)[number]['id'];
 
 /** Buttons for sections that are hidden today (no board, devices or commands not allowed) stay hidden. */
 export function visiblePopups(sectionHidden: (id: PopupId) => boolean): PopupId[] {
-  return POPUPS.map((p) => p.id).filter((id) => !sectionHidden(id));
+  return POPUPS.map((popup) => popup.id).filter((id) => !sectionHidden(id));
 }
 
 /** A section that lives in a popup is drawn only while that popup is open; everything else always. */
 export function drawsSection(id: string, current: PopupId | null): boolean {
-  return !POPUPS.some((p) => p.id === id) || current === id;
+  return !POPUPS.some((popup) => popup.id === id) || current === id;
 }
 
 /** Opening reveals the popup first (so its section counts as drawn), then renders it from the latest state. */
@@ -50,13 +51,14 @@ export function backdropCloses(target: unknown, backdrop: unknown): boolean {
   return target === backdrop;
 }
 
-export function localDayKey(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+/** Local calendar day as YYYY-MM-DD, the key of a usage day. */
+export function localDayKey(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
 /** Today's total tokens (all four kinds) from the usage days. */
 export function tokensToday(days: readonly UsageDay[], now: Date): number {
-  const d = days.find((x) => x.day === localDayKey(now));
-  return d ? d.tokens.input + d.tokens.output + d.tokens.cacheRead + d.tokens.cacheWrite : 0;
+  const today = days.find((entry) => entry.day === localDayKey(now));
+  return today ? today.tokens.input + today.tokens.output + today.tokens.cacheRead + today.tokens.cacheWrite : 0;
 }

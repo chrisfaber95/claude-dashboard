@@ -2,8 +2,10 @@
 import type { AuditEntry } from '../../../shared/types/index.ts';
 import { timeLabel } from '../audit/audit.logic.ts';
 
+/** Longest goal text shown in the launch list. */
 export const GOAL_SHOWN_MAX = 120;
 
+/** The POST /api/commands body. */
 export interface LaunchBody {
   project: string;
   goal: string;
@@ -20,13 +22,15 @@ export function launchBody(project: string, goal: string, notes: string, permiss
 export const fieldsAfterLaunch = (ok: boolean): { clearGoal: boolean; clearNotes: boolean } => ({ clearGoal: ok, clearNotes: ok });
 
 /** Shortened text with an ellipsis; whitespace runs collapse to one space. */
-export function truncate(s: string, max: number): string {
-  const flat = s.replace(/\s+/g, ' ').trim();
+export function truncate(text: string, max: number): string {
+  const flat = text.replace(/\s+/g, ' ').trim();
   return flat.length > max ? `${flat.slice(0, Math.max(0, max - 1)).trimEnd()}…` : flat;
 }
 
+/** Launch status shown in the list. */
 export type LaunchState = 'running' | 'not live' | 'failed';
 
+/** One row of the launch list. */
 export interface LaunchRow {
   /** Stable key for the patcher. */
   key: string;
@@ -41,16 +45,17 @@ export interface LaunchRow {
   ok: boolean;
 }
 
-export function launchRow(e: AuditEntry): LaunchRow {
+/** Turn one audit entry into a launch-list row. */
+export function launchRow(entry: AuditEntry): LaunchRow {
   return {
-    key: `${e.ts}|${e.session ?? ''}|${e.project ?? ''}`,
-    time: timeLabel(e.ts),
-    tsMs: Number.isNaN(Date.parse(e.ts)) ? null : Date.parse(e.ts),
-    project: e.project ?? '',
-    goal: truncate(e.goal ?? e.prompt ?? '', GOAL_SHOWN_MAX),
-    device: e.device ?? e.deviceId ?? 'unknown',
-    session: e.ok === false ? '' : (e.session ?? ''),
-    ok: e.ok !== false,
+    key: `${entry.ts}|${entry.session ?? ''}|${entry.project ?? ''}`,
+    time: timeLabel(entry.ts),
+    tsMs: Number.isNaN(Date.parse(entry.ts)) ? null : Date.parse(entry.ts),
+    project: entry.project ?? '',
+    goal: truncate(entry.goal ?? entry.prompt ?? '', GOAL_SHOWN_MAX),
+    device: entry.device ?? entry.deviceId ?? 'unknown',
+    session: entry.ok === false ? '' : (entry.session ?? ''),
+    ok: entry.ok !== false,
   };
 }
 
