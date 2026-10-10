@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { DeviceInfo } from '../src/shared/types.ts';
+import type { DeviceInfo } from '../src/shared/types/index.ts';
 import { cleanName, createdLabel, lastSeenLabel, sortDevices } from '../src/client/devices-logic.ts';
 
 const dev = (id: string, name: string, createdMs: number): DeviceInfo => ({ id, name, createdMs, lastSeenMs: null });

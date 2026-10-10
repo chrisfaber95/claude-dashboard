@@ -1,5 +1,5 @@
 // Pure launch-form and launch-list logic (no DOM): testable with node --test.
-import type { AuditEntry } from '../shared/types.ts';
+import type { AuditEntry } from '../shared/types/index.ts';
 import { timeLabel } from './audit-logic.ts';
 
 export const GOAL_SHOWN_MAX = 120;

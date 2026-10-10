@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { SessionInfo, SubagentInfo } from '../src/shared/types.ts';
+import type { SessionInfo, SubagentInfo } from '../src/shared/types/index.ts';
 import { CORE_LABEL, coreHeadline, coreSummary, moodOf, coreHeadlineParts } from '../src/client/mood.ts';
 import type { CoreSummary } from '../src/client/mood.ts';
 

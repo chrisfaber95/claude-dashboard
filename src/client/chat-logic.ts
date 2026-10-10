@@ -1,5 +1,5 @@
 // Pure chat logic (no DOM, no network): text in, intent out, reply text from the current state. Testable with node --test.
-import type { Alert, DashboardState, SessionInfo, TokenCounts } from '../shared/types.ts';
+import type { Alert, DashboardState, SessionInfo, TokenCounts } from '../shared/types/index.ts';
 import { moodOf } from './mood.ts';
 
 /** Result of looking a name, project or id prefix up among candidates. */

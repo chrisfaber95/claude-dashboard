@@ -1,5 +1,5 @@
 import { updateSummaryNote } from './settings.ts';
-import type { AuditEntry, CommandResult, DashboardState, TranscriptEntry, TranscriptPage } from '../shared/types.ts';
+import type { AuditEntry, CommandResult, DashboardState, TranscriptEntry, TranscriptPage } from '../shared/types/index.ts';
 import { launchBody, fieldsAfterLaunch, launchRow, launchState } from './launch-logic.ts';
 import { patchHtml } from './patch.ts';
 import { $, ago, api, esc } from './util.ts';

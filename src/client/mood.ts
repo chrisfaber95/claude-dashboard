@@ -1,5 +1,5 @@
 // Pure status logic (no DOM): shared by the building popup and the Co-pilot core, and testable with node --test.
-import type { DashboardState, SessionInfo } from '../shared/types.ts';
+import type { DashboardState, SessionInfo } from '../shared/types/index.ts';
 
 export type SessionMood = 'busy' | 'waiting' | 'idle';
 

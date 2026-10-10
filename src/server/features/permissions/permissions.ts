@@ -2,7 +2,7 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypt
 import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { APP_ROOT, DATA_DIR } from '../../config.ts';
-import type { PermissionRequestInfo } from '../../../shared/types.ts';
+import type { PermissionRequestInfo } from '../../../shared/types/index.ts';
 
 /** The hook waits this long for an answer; Claude Code's own hook timeout (settings file) is a little longer. */
 export const HOOK_WAIT_MS = 9 * 60_000;

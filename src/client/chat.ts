@@ -1,4 +1,4 @@
-import type { CommandResult, DashboardState, SessionSummary } from '../shared/types.ts';
+import type { CommandResult, DashboardState, SessionSummary } from '../shared/types/index.ts';
 import { answer, parseIntent } from './chat-logic.ts';
 import { createChatState } from './chat-state.ts';
 import { openTranscript } from './controls.ts';

@@ -1,4 +1,4 @@
-import type { DashboardState, MessageInfo, SessionInfo, TokenCounts, UsageDay } from '../shared/types.ts';
+import type { DashboardState, MessageInfo, SessionInfo, TokenCounts, UsageDay } from '../shared/types/index.ts';
 import { initAlerts, renderAlerts } from './alerts.ts';
 import { initSummarySetting } from './settings.ts';
 import { initChat, updateChat } from './chat.ts';

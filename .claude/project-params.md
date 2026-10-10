@@ -60,14 +60,14 @@ keeps your edits. Values marked unknown should be filled in.
 ## review (code-reviewer)
 - review_rules: the "Rules" and "TypeScript constraints" sections of CLAUDE.md
 - checks_per_package: `npm run typecheck`, `npm run lint`, `npm test`, `npm run build` (package.json)
-- sensitive_areas: `src/server/auth.ts`, `src/server/server.ts`, `src/server/claude-cli.ts`, `src/server/limits.ts`, `src/server/tls.ts`, client rendering in `src/client/` (CLAUDE.md: security-auditor scope); `.dashboard/` holds secrets
+- sensitive_areas: `src/server/auth/auth.ts`, `src/server/server.ts`, `src/server/claude/claude-cli.ts`, `src/server/features/limits/limits.ts`, `src/server/auth/tls.ts`, client rendering in `src/client/` (CLAUDE.md: security-auditor scope); `.dashboard/` holds secrets
 - base_branch: main (origin: github.com/chrisfaber95/claude-dashboard)
 <!-- /params:review -->
 
 <!-- params:docs -->
 ## docs (documentation-engineer)
 - doc_locations: `CLAUDE.md` (no README.md or docs/ yet)
-- update_rules: API or type changes in `src/shared/types.ts` update server, client and CLAUDE.md together; new env vars, endpoints or security rules update the matching CLAUDE.md section; `public/` is build output, never documented as source
+- update_rules: API or type changes in `src/shared/types/` update server, client and CLAUDE.md together; new env vars, endpoints or security rules update the matching CLAUDE.md section; `public/` is build output, never documented as source
 - per_change_records: none
 - local_only_docs: `.dashboard/` (holds secrets, never print, serve or commit; listed in `.gitignore`)
 - audience: the project owner (single-user dashboard)
@@ -78,7 +78,7 @@ keeps your edits. Values marked unknown should be filled in.
 - architecture_doc: CLAUDE.md, "Layout" and "Data sources" sections
 - architecture_rules: CLAUDE.md "Rules" (remote-execution surface, `claude-cli.ts` is the only place that runs `claude.exe`, `~/.claude` is read-only, loopback-only without login)
 - decisions_folder: none
-- components: `src/server` (Node HTTP server, transcripts, limits, auth, CLI wrapper), `src/client` (vanilla TS/SCSS), `src/shared/types.ts` (API types), `public/` (build output only), `.dashboard/` (secrets and audit log)
+- components: `src/server` (Node HTTP server, transcripts, limits, auth, CLI wrapper), `src/client` (vanilla TS/SCSS), `src/shared/types/` (API types), `public/` (build output only), `.dashboard/` (secrets and audit log)
 - performance_targets: single user; `/api/events` pushes state every 2s; transcript scans are incremental (16 MB chunks), viewer reads at most the last 32 MB of a file; at most 4 CLI processes at once (CLAUDE.md "Layout" and "Rules")
 <!-- /params:architecture -->
 

@@ -1,4 +1,4 @@
-import type { UsageDay } from '../shared/types.ts';
+import type { UsageDay } from '../shared/types/index.ts';
 
 /** Fixed set and order of the popup buttons; not user-arrangeable. */
 export const POPUPS = [

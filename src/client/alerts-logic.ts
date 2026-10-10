@@ -1,5 +1,5 @@
 // Pure alert logic (no DOM): testable with node --test.
-import type { Alert } from '../shared/types.ts';
+import type { Alert } from '../shared/types/index.ts';
 
 export const badgeCount = (items: readonly Alert[]): number => items.length;
 

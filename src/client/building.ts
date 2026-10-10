@@ -1,4 +1,4 @@
-import type { DashboardState, SessionInfo, SubagentInfo, TokenCounts } from '../shared/types.ts';
+import type { DashboardState, SessionInfo, SubagentInfo, TokenCounts } from '../shared/types/index.ts';
 import { openSubagentTranscript, openTranscript } from './controls.ts';
 import { moodOf, type SessionMood } from './mood.ts';
 import { $, esc } from './util.ts';

@@ -5,12 +5,12 @@ import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { APP_ROOT, COMMANDS_ENABLED, DATA_DIR, HOST, LAN_MODE, PORT, PROJECTS_ROOT, UUID_RE, normPath } from './config.ts';
-import { dismissAlert, recordFailedSignin, setAlertThreshold } from './alerts.ts';
-import { LAUNCHES_MAX, readAudit } from './audit-log.ts';
-import { composeLaunch, GOAL_AUDIT_MAX } from './launch.ts';
+import { dismissAlert, recordFailedSignin, setAlertThreshold } from './features/alerts/alerts.ts';
+import { LAUNCHES_MAX, readAudit } from './features/audit-log/audit-log.ts';
+import { composeLaunch, GOAL_AUDIT_MAX } from './features/launch/launch.ts';
 import { createPermissionStore, requestText, type PermissionStore } from './features/permissions/permissions.ts';
-import { PC_DEVICE, createAuth, type Auth } from './auth.ts';
-import { MAX_DEVICES, createDeviceStore } from './devices.ts';
+import { PC_DEVICE, createAuth, type Auth } from './auth/auth.ts';
+import { MAX_DEVICES, createDeviceStore } from './auth/devices.ts';
 import {
   CommandError,
   audit,
@@ -20,13 +20,13 @@ import {
   stopSession,
   validateMode,
   validatePrompt,
-} from './claude-cli.ts';
-import { buildState, readSessions } from './state.ts';
-import { ensureCert, lanAddresses } from './tls.ts';
-import { summarize } from './session-summary.ts';
-import { getSummaryMode, setSummaryMode } from './settings.ts';
-import { readTranscriptPage } from './transcript-view.ts';
-import { scanTranscripts, subagentPaths, transcriptIndex } from './transcripts.ts';
+} from './claude/claude-cli.ts';
+import { buildState, readSessions } from './transcripts/state.ts';
+import { ensureCert, lanAddresses } from './auth/tls.ts';
+import { summarize } from './claude/session-summary.ts';
+import { getSummaryMode, setSummaryMode } from './features/settings/settings.ts';
+import { readTranscriptPage } from './transcripts/transcript-view.ts';
+import { scanTranscripts, subagentPaths, transcriptIndex } from './transcripts/transcripts.ts';
 
 const PUBLIC_DIR = join(APP_ROOT, 'public');
 const TYPES: Record<string, string> = {
