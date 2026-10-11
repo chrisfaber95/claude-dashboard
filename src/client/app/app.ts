@@ -5,7 +5,7 @@ import { initSummarySetting } from '../features/settings/settings.view.ts';
 import { initChat, updateChat } from '../features/chat/chat.view.ts';
 import { initBuilding, updateBuilding } from '../features/building/building.view.ts';
 import { initControls, updateControls } from '../features/controls/controls.view.ts';
-import { initCore, updateCore } from '../features/core/core.view.ts';
+import CoreStrip from '../features/core/core-strip.vue';
 import { initAudit, renderAudit } from '../features/audit/audit.view.ts';
 import { initDevices, renderDevices } from '../features/devices/devices.view.ts';
 import LimitsPanel from '../features/limits/limits-panel.vue';
@@ -13,7 +13,7 @@ import { renderMessages } from '../features/messages/messages.view.ts';
 import { initPermissions, renderApprovals, updateApprovals } from '../features/permissions/permissions.view.ts';
 import { draws, initPopups, updatePopups } from '../features/popups/popups.view.ts';
 import type { PopupId } from '../features/popups/popups.logic.ts';
-import { renderProjects } from '../features/projects/projects.view.ts';
+import ProjectsPanel from '../features/projects/projects-panel.vue';
 import { renderSessions } from '../features/sessions/sessions.view.ts';
 import { renderTeam } from '../features/team/team.view.ts';
 import Tooltip from '../features/tooltip/tooltip.vue';
@@ -43,13 +43,11 @@ function render(state: DashboardState): void {
     ['devices', () => renderDevices(state)],
     ['audit', () => renderAudit(state)],
     ['approvals', () => updateApprovals(state)],
-    ['projects', () => draws('projects') && renderProjects(state)],
     ['sessions', () => renderSessions(state)],
     ['messages', () => draws('comms') && renderMessages(state)],
     ['usage', () => draws('usage') && renderUsage(state)],
     ['controls', () => updateControls(state)],
     ['building', () => updateBuilding(state, projectTint)],
-    ['core', () => updateCore(state)],
     ['popups', () => updatePopups(state)],
   ];
   let hasFailed = false;
@@ -68,14 +66,14 @@ function render(state: DashboardState): void {
 // Opening a popup draws its section from the latest state first; closed popups are skipped on pushes.
 function drawPopup(id: PopupId): void {
   if (!latestState) return;
-  if (id === 'projects') renderProjects(latestState);
-  else if (id === 'comms') renderMessages(latestState);
+  if (id === 'comms') renderMessages(latestState);
   else if (id === 'team') renderTeam(latestState);
   else if (id === 'usage') renderUsage(latestState);
   else if (id === 'approvals') renderApprovals();
 }
 
 mountComponent(LimitsPanel, 'limits');
+mountComponent(ProjectsPanel, 'projects');
 mountComponent(Tooltip, 'tip-root');
 initUsage(() => latestState);
 initPopups(drawPopup); // before initBuilding: its Escape handler must see the building still open
@@ -91,7 +89,7 @@ initPermissions(() => {
   renderAlerts(latestState);
 });
 initBuilding();
-initCore();
+mountComponent(CoreStrip, 'core');
 
 // Relative times ("3m ago", uptime, resets in) advance on their own light tick, writing only the text that changed.
 setInterval(() => tickTimes(), TIME_TICK_MS);

@@ -1,6 +1,6 @@
 // Scene for the Root skin (Eywa and the Tree of Souls). Built once, lazily, the first time the skin is active, so
 // Classic and Co-pilot never download the artwork. Only fixed asset paths are used; sizes, positions and timings
-// come from _skin-root.scss (nth-child loops), so there are no inline styles. Mood changes are CSS only: core.ts
+// come from _skin-root.scss (nth-child loops), so there are no inline styles. Mood changes are CSS only: core-strip.vue
 // sets data-mood on <html>.
 
 const SLICES = 11;
@@ -45,7 +45,7 @@ export function buildSprite(): HTMLElement {
   return sprite;
 }
 
-/** Puts the big central seed into the core strip (the core markup is built by core.ts). Safe to call repeatedly. */
+/** Puts the big central seed into the core strip (the core markup is built by core-strip.vue). Safe to call repeatedly. */
 function fillCoreSeed(): void {
   const slot = document.querySelector('#core .core__seed');
   if (!slot || slot.childElementCount > 0) return;
