@@ -54,3 +54,25 @@ export function buildMessageGraph(sessionNames: readonly string[], sessionMessag
   );
   return { nodes, edges: [...edgeByKey.values()], positions };
 }
+
+const NODE_LABEL_MAX = 18;
+
+/** Shorten a session name to fit under its graph node. */
+export function nodeLabel(name: string): string {
+  return name.length > NODE_LABEL_MAX ? `${name.slice(0, NODE_LABEL_MAX - 1)}…` : name;
+}
+
+/** Tooltip text of one graph edge: "a → b: 3 messages". */
+export function edgeTooltip(edge: MessageEdge): string {
+  return `${edge.from} → ${edge.to}: ${edge.count} message${edge.count > 1 ? 's' : ''}`;
+}
+
+/** Stable key of one feed entry. */
+export function feedKey(message: MessageInfo): string {
+  return `${message.tsMs}|${message.kind}|${message.direction}|${message.sessionId}|${message.peer}`;
+}
+
+/** "sender → receiver" of one message, from the viewpoint of the session that logged it. */
+export function routeText(message: MessageInfo): string {
+  return message.direction === 'out' ? `${message.sessionName} → ${message.peer}` : `${message.peer} → ${message.sessionName}`;
+}

@@ -6,13 +6,14 @@ import ChatPanel from '../features/chat/chat-panel.vue';
 import BuildingDialog from '../features/building/building-dialog.vue';
 import { initControls, updateControls } from '../features/controls/controls.view.ts';
 import RunPanel from '../features/controls/run-panel.vue';
+import TranscriptDrawer from '../features/controls/transcript-drawer.vue';
 import CoreStrip from '../features/core/core-strip.vue';
 import AuditPanel from '../features/audit/audit-panel.vue';
 import DevicesPanel from '../features/devices/devices-panel.vue';
 import LimitsPanel from '../features/limits/limits-panel.vue';
-import { renderMessages } from '../features/messages/messages.view.ts';
+import MessagesPanel from '../features/messages/messages-panel.vue';
 import { initPermissions, renderApprovals, updateApprovals } from '../features/permissions/permissions.view.ts';
-import { draws, initPopups, updatePopups } from '../features/popups/popups.view.ts';
+import { initPopups, updatePopups } from '../features/popups/popups.view.ts';
 import type { PopupId } from '../features/popups/popups.logic.ts';
 import ProjectsPanel from '../features/projects/projects-panel.vue';
 import SessionsPanel from '../features/sessions/sessions-panel.vue';
@@ -39,7 +40,6 @@ function render(state: DashboardState): void {
   const steps: Array<[string, () => void]> = [
     ['colors', () => setProjectColors(state.projects.map((project) => project.name))],
     ['approvals', () => updateApprovals(state)],
-    ['messages', () => draws('comms') && renderMessages(state)],
     ['controls', () => updateControls(state)],
     ['popups', () => updatePopups(state)],
   ];
@@ -59,8 +59,7 @@ function render(state: DashboardState): void {
 // Opening a popup draws its section from the latest state first; closed popups are skipped on pushes.
 function drawPopup(id: PopupId): void {
   if (!latestState) return;
-  if (id === 'comms') renderMessages(latestState);
-  else if (id === 'approvals') renderApprovals();
+  if (id === 'approvals') renderApprovals();
 }
 
 mountComponent(LimitsPanel, 'limits');
@@ -77,8 +76,10 @@ initSummarySetting();
 mountComponent(ChatPanel, 'chat-panel');
 mountComponent(DevicesPanel, 'devices');
 mountComponent(AuditPanel, 'audit');
+mountComponent(MessagesPanel, 'comms');
 initPermissions();
 mountComponent(BuildingDialog, 'building-dialog');
+mountComponent(TranscriptDrawer, 'transcript-drawer');
 mountComponent(CoreStrip, 'core');
 
 // Relative times ("3m ago", uptime, resets in) advance on their own light tick, writing only the text that changed.

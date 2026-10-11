@@ -17,8 +17,6 @@ export const TYPE_SAFETY_LEGACY_FILES = [
   'src/client/features/chat/chat.logic.ts',
   'src/client/features/controls/controls.logic.ts',
   'src/client/features/controls/controls.view.ts',
-  'src/client/features/controls/drawer.view.ts',
-  'src/client/features/messages/messages.view.ts',
   'src/client/features/permissions/permissions.logic.ts',
   'src/client/shared/api.ts',
   'src/client/shared/dom.ts',
