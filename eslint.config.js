@@ -24,7 +24,6 @@ export const TYPE_SAFETY_LEGACY_FILES = [
   'src/client/features/controls/run-form.view.ts',
   'src/client/features/devices/devices.view.ts',
   'src/client/features/messages/messages.view.ts',
-  'src/client/features/pair/pair.view.ts',
   'src/client/features/permissions/permissions.logic.ts',
   'src/client/features/permissions/permissions.view.ts',
   'src/client/features/usage/usage.view.ts',
