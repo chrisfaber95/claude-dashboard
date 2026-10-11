@@ -5,6 +5,8 @@ import RelativeTime from '../../shared/relative-time.vue';
 import { formatTokenCount, sumTokens } from '../../shared/token-format.ts';
 import PermissionRequests from '../permissions/permission-requests.vue';
 import { pendingRequests } from '../permissions/permissions.logic.ts';
+import { stopSession } from '../controls/session-actions.ts';
+import { openLogs, openTranscript } from '../controls/transcript-drawer-selection.ts';
 import { dotStateClass, isBackgroundSession } from './sessions.logic.ts';
 
 const RECENT_SESSIONS_SHOWN = 12;
@@ -70,10 +72,10 @@ const recentSessions = computed(() =>
           <td><RelativeTime kind="up" :timestamp-ms="row.session.startedAtMs" /></td>
           <td class="num" :data-tip="row.tokenTooltip">{{ row.tokenText }}</td>
           <td class="actions">
-            <button class="btn btn--sm" :data-view="row.session.sessionId" :data-name="row.session.name">View</button>
+            <button class="btn btn--sm" @click="openTranscript(row.session.sessionId, row.session.name)">View</button>
             <template v-if="canControl && row.isBackground">
-              {{ ' ' }}<button class="btn btn--sm" :data-logs="row.session.sessionId" :data-name="row.session.name">Logs</button>
-              {{ ' ' }}<button class="btn btn--sm" :data-stop="row.session.sessionId" :data-name="row.session.name">Stop</button>
+              {{ ' ' }}<button class="btn btn--sm" @click="openLogs(row.session.sessionId, row.session.name)">Logs</button>
+              {{ ' ' }}<button class="btn btn--sm" @click="stopSession(row.session.sessionId, row.session.name)">Stop</button>
             </template>
           </td>
         </tr>
@@ -85,7 +87,7 @@ const recentSessions = computed(() =>
     <h3 class="h3">Recent sessions</h3>
     <ul class="recent">
       <li v-for="item in recentSessions" :key="item.recent.sessionId" :data-key="item.recent.sessionId">
-        <button class="link" :data-view="item.recent.sessionId" :data-name="item.label">{{ item.label }}</button>
+        <button class="link" @click="openTranscript(item.recent.sessionId, item.label)">{{ item.label }}</button>
         <span class="sub"><RelativeTime kind="ago" :timestamp-ms="item.recent.lastTsMs" /></span>
       </li>
     </ul>

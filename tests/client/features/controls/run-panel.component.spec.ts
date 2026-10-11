@@ -2,6 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setDashboardState } from '../../../../src/client/app/dashboard-state.ts';
 import RunPanel from '../../../../src/client/features/controls/run-panel.vue';
+import { useDrawerRequest } from '../../../../src/client/features/controls/transcript-drawer-selection.ts';
 import type { AuditEntry, DashboardState, ProjectInfo, SessionInfo } from '../../../../src/shared/types/index.ts';
 
 const launchEntries: AuditEntry[] = [
@@ -77,9 +78,9 @@ describe('RunPanel', () => {
     expect(wrapper.find('.recent__prompt b').exists()).toBe(false);
     expect(items[0]?.get('.recent__prompt').text()).toBe('<b>fix</b> the build');
     expect(items[0]?.get('.recent__state').text()).toBe('not live');
-    expect(items[0]?.get('[data-recent]').attributes('data-recent')).toBe('bg-1a2b3c');
+    expect(items[0]?.get('button').text()).toBe('View');
     expect(items[1]?.classes()).toContain('is-failed');
-    expect(items[1]?.find('[data-recent]').exists()).toBe(false);
+    expect(items[1]?.find('button').exists()).toBe(false);
     expect(wrapper.get('#recent').attributes('hidden')).toBeUndefined();
   });
 
@@ -143,5 +144,17 @@ describe('RunPanel', () => {
     await wrapper.get('form').trigger('submit');
     await flushPromises();
     expect(calls.some((call) => call.path === '/api/commands')).toBe(false);
+  });
+
+  it('opens the transcript of a launch from its View button', async () => {
+    const live = makeState();
+    live.sessions = [makeSession('bg-1a2b3c-full')];
+    setDashboardState(live);
+    const wrapper = mount(RunPanel);
+    await flushPromises();
+
+    await wrapper.get('.recent__item button').trigger('click');
+
+    expect(useDrawerRequest().value?.mode).toEqual({ kind: 'transcript', id: 'bg-1a2b3c-full' });
   });
 });

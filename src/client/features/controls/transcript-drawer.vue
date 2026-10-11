@@ -3,8 +3,9 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch,
 import type { CommandResult, TranscriptEntry, TranscriptPage } from '../../../shared/types/index.ts';
 import { useDashboardState } from '../../app/dashboard-state.ts';
 import { api } from '../../shared/api.ts';
-import { describeCommandResult, entrySpeaker, showsTranscript, transcriptPath } from './controls.logic.ts';
-import { showToast } from './toast.view.ts';
+import { entrySpeaker, showsTranscript, transcriptPath } from './controls.logic.ts';
+import { continueSession } from './session-actions.ts';
+import { showToast } from './use-toasts.ts';
 import { closeDrawer, useDrawerRequest } from './transcript-drawer-selection.ts';
 import type { DrawerRequest } from './transcript-drawer-selection.ts';
 import { isLiveElsewhere, mergeLiveTail } from './transcript-drawer.logic.ts';
@@ -149,16 +150,9 @@ watch(request, (current) => {
 async function sendFollowUp(): Promise<void> {
   if (!sessionId.value) return;
   statusText.value = 'Sending…';
-  try {
-    const result = await api<CommandResult>(`/api/sessions/${encodeURIComponent(sessionId.value)}/message`, {
-      prompt: prompt.value,
-      permissionMode: chosenMode.value,
-    });
-    statusText.value = describeCommandResult(result);
-    if (result.ok) prompt.value = '';
-  } catch (error) {
-    statusText.value = errorText(error);
-  }
+  const outcome = await continueSession(sessionId.value, prompt.value, chosenMode.value);
+  statusText.value = outcome.text;
+  if (outcome.isOk) prompt.value = '';
 }
 
 function onEscape(event: KeyboardEvent): void {
