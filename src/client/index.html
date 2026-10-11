@@ -58,21 +58,7 @@
     <div id="popup-chat" class="popup" role="dialog" aria-modal="true" aria-label="Chat" hidden>
       <button class="btn popup__close" type="button" data-popup-close aria-label="Close Chat">Close</button>
       <section id="chat" class="panel chat" aria-labelledby="h-chat">
-        <h2 id="h-chat">Ask the dashboard</h2>
-        <div id="chat-log" class="chat__log" role="log" aria-live="polite">
-          <div id="chat-confirm" class="chat__confirm" hidden>
-            <div>Send to <strong id="chat-confirm-name"></strong>:</div>
-            <pre id="chat-confirm-text" class="chat__quote"></pre>
-            <div class="chat__actions">
-              <button id="chat-confirm-yes" class="btn btn--sm btn--primary" type="button">Confirm</button>
-              <button id="chat-confirm-no" class="btn btn--sm" type="button">Cancel</button>
-            </div>
-          </div>
-        </div>
-        <form id="chat-form" class="chat__form">
-          <input id="chat-input" type="text" maxlength="2000" autocomplete="off" aria-label="Ask the dashboard" placeholder="What is going on?">
-          <button class="btn btn--sm" type="submit">Send</button>
-        </form>
+        <div id="chat-panel"></div>
         <div class="chat__setting">
           <label>Session summaries
             <select id="summary-mode">
