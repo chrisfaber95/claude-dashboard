@@ -3,7 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watchEffect } from
 import { useDashboardState } from '../../app/dashboard-state.ts';
 import { elementById } from '../../shared/dom.ts';
 import { projectTint } from '../../shared/project-colors.ts';
-import { openSubagentTranscript, openTranscript } from '../controls/controls.view.ts';
+import { openSubagentTranscript, openTranscript } from '../controls/transcript-drawer-selection.ts';
 import BuildingScene from './building-scene.vue';
 import { setOpenBuilding } from './building-selection.ts';
 import { buildingSubtitle } from './building.logic.ts';

@@ -3,7 +3,7 @@ import type { Ref } from 'vue';
 import type { CommandResult, DashboardState, SessionSummary } from '../../../shared/types/index.ts';
 import { useDashboardState } from '../../app/dashboard-state.ts';
 import { api } from '../../shared/api.ts';
-import { openTranscript } from '../controls/controls.view.ts';
+import { openTranscript } from '../controls/transcript-drawer-selection.ts';
 import { answer, parseIntent } from './chat.logic.ts';
 import { createChatState } from './chat-state.logic.ts';
 import type { ChatEntry, ChatState, PendingMessage } from './chat-state.logic.ts';

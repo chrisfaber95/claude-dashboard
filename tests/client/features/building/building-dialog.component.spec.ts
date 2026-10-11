@@ -9,7 +9,7 @@ import type { DashboardState, ProjectInfo, SessionInfo } from '../../../../src/s
 
 const transcriptCalls = vi.hoisted((): { session: string[]; subagent: string[] } => ({ session: [], subagent: [] }));
 
-vi.mock('../../../../src/client/features/controls/controls.view.ts', () => ({
+vi.mock('../../../../src/client/features/controls/transcript-drawer-selection.ts', () => ({
   openTranscript: (sessionId: string): void => {
     transcriptCalls.session.push(sessionId);
   },
