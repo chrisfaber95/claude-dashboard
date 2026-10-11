@@ -8,7 +8,39 @@ const outputDirectory = fileURLToPath(new URL('./public', import.meta.url));
 const BUILD_TARGET = 'es2022';
 
 /** Entries served before login (guards.ts PUBLIC_PATHS) keep their name; everything else gets a hash. */
-const STABLE_ENTRIES = new Set(['login', 'pair']);
+const STABLE_ENTRIES = new Set(['login']);
+
+/**
+ * One self-contained IIFE build of a classic script (no imports, so no shared chunk). `pair.js` needs this: the server
+ * serves only `/pair.js` before login (guards.ts PUBLIC_PATHS), not the hashed `/assets/` chunks a module entry loads.
+ */
+async function buildClassicScript(entry: string, name: string, fileName: string): Promise<void> {
+  await build({
+    configFile: false,
+    root: clientRoot,
+    publicDir: false,
+    logLevel: 'warn',
+    plugins: [vue()],
+    define: { 'process.env.NODE_ENV': JSON.stringify('production') },
+    build: {
+      outDir: outputDirectory,
+      emptyOutDir: false,
+      target: BUILD_TARGET,
+      sourcemap: true,
+      lib: { entry, formats: ['iife'], name, fileName: () => fileName },
+    },
+  });
+}
+
+/** The pairing page's script, built on its own (see buildClassicScript). */
+function pairScript() {
+  return {
+    name: 'dashboard-pair-script',
+    async writeBundle() {
+      await buildClassicScript(`${clientRoot}/features/pair/pair.ts`, 'dashboardPair', 'pair.js');
+    },
+  };
+}
 
 /** Copies fonts and skin artwork into the output folder after Vite has emptied it; fails on a bad SVG. */
 function skinAssets() {
@@ -31,19 +63,7 @@ function bootScript() {
   return {
     name: 'dashboard-boot-script',
     async writeBundle() {
-      await build({
-        configFile: false,
-        root: clientRoot,
-        publicDir: false,
-        logLevel: 'warn',
-        build: {
-          outDir: outputDirectory,
-          emptyOutDir: false,
-          target: BUILD_TARGET,
-          sourcemap: true,
-          lib: { entry: `${clientRoot}/app/boot.ts`, formats: ['iife'], name: 'dashboardBoot', fileName: () => 'boot.js' },
-        },
-      });
+      await buildClassicScript(`${clientRoot}/app/boot.ts`, 'dashboardBoot', 'boot.js');
     },
   };
 }
@@ -52,7 +72,7 @@ export default defineConfig({
   root: clientRoot,
   base: '/',
   publicDir: false,
-  plugins: [vue(), skinAssets(), bootScript()],
+  plugins: [vue(), skinAssets(), bootScript(), pairScript()],
   build: {
     outDir: outputDirectory,
     emptyOutDir: true,
