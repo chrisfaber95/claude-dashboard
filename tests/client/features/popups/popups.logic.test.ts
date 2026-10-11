@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { UsageDay } from '../../../../src/shared/types/index.ts';
-import { POPUPS, backdropCloses, openPopup, escapeClosesPopup, stillOpen, toggled, tokensToday, visiblePopups } from '../../../../src/client/features/popups/popups.logic.ts';
+import { POPUPS, backdropCloses, openPopup, escapeClosesPopup, isPopupId, stillOpen, toggled, tokensToday, visiblePopups } from '../../../../src/client/features/popups/popups.logic.ts';
 
 test('the button set and order are fixed', () => {
   assert.deepEqual(
@@ -11,9 +11,27 @@ test('the button set and order are fixed', () => {
   );
 });
 
-test('buttons of hidden sections are left out, order kept', () => {
-  const hidden = new Set(['team', 'run', 'devices']);
-  assert.deepEqual(visiblePopups((id) => hidden.has(id)), ['projects', 'comms', 'usage', 'chat', 'audit', 'approvals']);
+const NOTHING = { hasTeamBoard: false, canRunCommands: false, canManageDevices: false };
+
+test('without a board, commands or device rights only the always-on buttons show, order kept', () => {
+  assert.deepEqual(visiblePopups(NOTHING), ['projects', 'comms', 'usage', 'chat', 'audit']);
+});
+
+test('each capability adds only its own buttons', () => {
+  assert.deepEqual(visiblePopups({ ...NOTHING, hasTeamBoard: true }), ['projects', 'comms', 'team', 'usage', 'chat', 'audit']);
+  assert.deepEqual(visiblePopups({ ...NOTHING, canRunCommands: true }), ['projects', 'comms', 'usage', 'chat', 'run', 'audit', 'approvals']);
+  assert.deepEqual(visiblePopups({ ...NOTHING, canManageDevices: true }), ['projects', 'comms', 'usage', 'chat', 'devices', 'audit']);
+});
+
+test('with everything allowed every button shows', () => {
+  const all = { hasTeamBoard: true, canRunCommands: true, canManageDevices: true };
+  assert.deepEqual(visiblePopups(all), POPUPS.map((popup) => popup.id));
+});
+
+test('isPopupId accepts only known ids', () => {
+  assert.equal(isPopupId('team'), true);
+  assert.equal(isPopupId('nope'), false);
+  assert.equal(isPopupId(undefined), false);
 });
 
 test('opening replaces the open popup; the same button closes it', () => {
