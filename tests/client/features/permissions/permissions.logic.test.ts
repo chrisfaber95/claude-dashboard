@@ -22,12 +22,15 @@ const request = (overrides: Partial<PermissionRequestInfo>): PermissionRequestIn
   ...overrides,
 });
 
+/** A copy that went through JSON, typed loosely: for inputs an older server could send with fields missing. */
+const looseCopy = (value: unknown) => JSON.parse(JSON.stringify(value));
+
 const entry = (overrides: Partial<AuditEntry>): AuditEntry => ({ ts: '2026-10-09T10:00:00.000Z', action: 'approval', ...overrides });
 
 test('pendingRequests drops expired requests and tolerates a missing list', () => {
   const state = { permissions: [request({ id: 'a' }), request({ id: 'b', status: 'expired' })] };
   assert.deepEqual(pendingRequests(state).map((item) => item.id), ['a']);
-  assert.deepEqual(pendingRequests({} as { permissions: PermissionRequestInfo[] }), []);
+  assert.deepEqual(pendingRequests(looseCopy({})), []);
 });
 
 test('canAnswer is false on the PC and with commands off, true on a paired device', () => {

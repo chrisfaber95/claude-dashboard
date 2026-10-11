@@ -11,7 +11,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT_DIR = fileURLToPath(new URL('../../../src/client/skins/root/', import.meta.url));
 const guardUrl = pathToFileURL(join(import.meta.dirname, '..', '..', '..', 'scripts', 'svg-guard.mjs')).href;
-const { checkSvg } = (await import(guardUrl)) as { checkSvg: (text: string) => string[] };
+const guard: { checkSvg: (text: string) => string[] } = await import(guardUrl);
+const { checkSvg } = guard;
 
 const NS = 'xmlns="http://www.w3.org/2000/svg"';
 

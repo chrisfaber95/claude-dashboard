@@ -1,3 +1,5 @@
+import { isRecord } from '../../shared/guards.ts';
+
 /** An API call that failed; its message is safe to show to the user. */
 export class ApiError extends Error {}
 
@@ -14,6 +16,8 @@ export async function api<T>(path: string, body?: unknown): Promise<T> {
     throw new ApiError('login required');
   }
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new ApiError((data as { error?: string }).error ?? `request failed (${response.status})`);
-  return data as T;
+  if (!response.ok) {
+    throw new ApiError(isRecord(data) && typeof data.error === 'string' ? data.error : `request failed (${response.status})`);
+  }
+  return data; // the caller names the shape it expects from its own endpoint
 }

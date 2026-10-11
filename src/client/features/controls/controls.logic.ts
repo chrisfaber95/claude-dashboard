@@ -13,7 +13,7 @@ export type TranscriptDrawerMode = Extract<DrawerMode, { kind: 'transcript' | 's
 export const showsTranscript = (mode: DrawerMode | null): mode is TranscriptDrawerMode => mode?.kind === 'transcript' || mode?.kind === 'subagent';
 
 /** The transcript API path of a transcript drawer, with its query string. */
-export const transcriptPath = (mode: TranscriptDrawerMode, query: string) =>
+export const transcriptPath = (mode: TranscriptDrawerMode, query: string): string =>
   `/api/${mode.kind === 'subagent' ? 'subagents' : 'sessions'}/${encodeURIComponent(mode.id)}/transcript?${query}`;
 
 const ROLE_LABEL: Record<TranscriptEntry['role'], string> = {

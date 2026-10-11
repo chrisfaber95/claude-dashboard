@@ -1,12 +1,12 @@
 import type { Alert } from '../../../shared/types/index.ts';
-import { elementById } from '../../shared/dom.ts';
 
 const TOAST_MS = 8000;
 const MAX_TOASTS = 4;
 
 /** Show a short-lived toast for a new alert; built with `textContent`, the oldest toasts drop past four. */
 export function showAlertToast(alertItem: Alert): void {
-  const box = elementById('toasts');
+  const box = document.getElementById('toasts');
+  if (!box) return;
   const toast = document.createElement('div');
   toast.className = 'alert-toast';
   const title = document.createElement('strong');

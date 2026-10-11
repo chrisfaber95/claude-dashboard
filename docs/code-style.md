@@ -12,10 +12,10 @@ fixtures and the fake CLI.
 ```
 src/
   client/
-    app/                 boot.ts, app.ts (shell: wires features together), patch.ts
+    app/                 boot.ts, app.ts (entry), App.vue (root: lays out every panel)
     features/<feature>/  <feature>.view.ts (DOM), <feature>.logic.ts (pure), _<feature>.scss
     skins/               skin.ts, _copilot.scss, _root.scss, root-scene.ts, root/ (svg), fonts/
-    shared/              dom helpers, formatting, api client, esc()
+    shared/              formatting, api client
     style.scss, *.html
   server/
     main.ts or server.ts (entry), config.ts
@@ -59,7 +59,7 @@ existing one.
 - Markup is normal indented HTML. `<template src="./<name>.html">` is allowed, but `vue-tsc` does **not**
   type-check external templates (T-050 probed it), so a template that binds more than trivial values stays inline
   until the lead decides otherwise.
-- No `v-html`, ever (`vue/no-v-html` is an error): Vue escapes text and attributes, which replaces `esc()`.
+- No `v-html`, ever (`vue/no-v-html` is an error): Vue escapes text and attributes.
 - Typing: no `any`, no `as` (except `as const`), no non-null `!` in new or changed code. Values from outside the
   program (JSON, network, `~/.claude`, `dataset`, `event.target`) arrive as `unknown` and are narrowed by a type
   guard; DOM elements by `instanceof`; constant data uses `satisfies`. Exported functions declare their return type.
@@ -69,8 +69,8 @@ existing one.
 
 The limits panel (`src/client/features/limits/limits-panel.vue`) is the example every panel copies:
 
-- The page keeps the empty `<section id="<feature>">`; `app.ts` calls `mountComponent(Panel, '<feature>')` once, and the
-  panel is not part of the `render(state)` steps.
+- `app/App.vue` holds the host element (`<section id="<feature>">`) and renders the panel inside it; a panel that throws
+  is caught by `onErrorCaptured` there, so the other panels keep working.
 - The panel reads the latest push from the store (`useDashboardState()` in `app/dashboard-state.ts`) and derives what it
   shows with `computed`. It takes no props and keeps no copy of the state.
 - Pure helpers (`<feature>.logic.ts`) stay outside the component and keep their `node:test` tests; the component only
@@ -84,7 +84,7 @@ The limits panel (`src/client/features/limits/limits-panel.vue`) is the example 
 ## What a cleanup may not change
 
 API routes, JSON field names in `src/shared/types`, `public/` file names that the server serves before login (`login.js`, `pair.js`, `style.css`), storage file formats, and every rule
-in `CLAUDE.md` (request checks, `claude-cli.ts` as the only command runner, `esc()`). Cleanups preserve behaviour.
+in `CLAUDE.md` (request checks, `claude-cli.ts` as the only command runner, no `v-html`). Cleanups preserve behaviour.
 Moves use `git mv` in their own PR with only import edits, so `git log --follow` keeps working.
 
 ## What ESLint checks
