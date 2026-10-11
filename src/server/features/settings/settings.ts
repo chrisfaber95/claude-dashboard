@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DATA_DIR } from '../../config.ts';
-import { isRecord } from '../json/json-guards.ts';
+import { isRecord } from '../../../shared/guards.ts';
 import { SUMMARY_MODES, type SummaryMode } from '../../../shared/types/index.ts';
 
 const FILE = () => join(DATA_DIR, 'settings.json');

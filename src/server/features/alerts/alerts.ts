@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DATA_DIR } from '../../config.ts';
-import { isRecord } from '../json/json-guards.ts';
+import { isRecord } from '../../../shared/guards.ts';
 import type { Alert, AlertsInfo, LimitsInfo, SessionInfo, TeamBoard } from '../../../shared/types/index.ts';
 
 /** Usage percentage at which a usage window raises an alert, until the user sets another. */

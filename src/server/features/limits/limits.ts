@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CLAUDE_DIR, CLAUDE_JSON } from '../../config.ts';
-import { isRecord } from '../json/json-guards.ts';
+import { isRecord } from '../../../shared/guards.ts';
 import { limitHits } from '../../transcripts/transcripts.ts';
 import type { LimitWindow, LimitsInfo } from '../../../shared/types/index.ts';
 

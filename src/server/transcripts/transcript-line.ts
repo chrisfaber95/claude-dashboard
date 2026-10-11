@@ -1,3 +1,4 @@
+import { isRecord } from '../../shared/guards.ts';
 import type { TokenCounts } from '../../shared/types/index.ts';
 
 /** One block of a message: text, a tool call or a tool result. Fields of the wrong type are left out. */
@@ -70,11 +71,6 @@ export interface TranscriptLine {
   attachment?: TranscriptAttachment;
   toolUseResult?: ToolUseResult;
   quotaLimits?: QuotaLimits;
-}
-
-/** Type guard for a parsed JSON object (not null, not an array). */
-export function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function stringField(record: Record<string, unknown>, key: string): string | undefined {

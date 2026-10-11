@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { isRecord } from '../../shared/guards.ts';
 import type { DeviceInfo } from '../../shared/types/index.ts';
 
 /** A device as stored in devices.json. */
@@ -10,10 +11,6 @@ export interface StoredDevice extends DeviceInfo {
 
 const FILE_MODE = 0o600;
 const SHA256_HEX_RE = /^[0-9a-f]{64}$/;
-
-function isRecord(value: unknown): value is object {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 /** Check one parsed entry field by field; undefined when any field is missing or has the wrong type. */
 function toStoredDevice(entry: unknown): StoredDevice | undefined {

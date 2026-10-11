@@ -1,7 +1,7 @@
 import { open } from 'node:fs/promises';
 import { join } from 'node:path';
 import { DATA_DIR } from '../../config.ts';
-import { isRecord } from '../json/json-guards.ts';
+import { isRecord } from '../../../shared/guards.ts';
 import type { AuditEntry } from '../../../shared/types/index.ts';
 
 // The only fields that ever leave `commands.log` through the API (never `ip`, ids of targets, names, codes).
