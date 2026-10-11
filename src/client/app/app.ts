@@ -18,7 +18,7 @@ import ProjectsPanel from '../features/projects/projects-panel.vue';
 import SessionsPanel from '../features/sessions/sessions-panel.vue';
 import TeamPanel from '../features/team/team-panel.vue';
 import Tooltip from '../features/tooltip/tooltip.vue';
-import { initUsage, renderUsage } from '../features/usage/usage.view.ts';
+import UsagePanel from '../features/usage/usage-panel.vue';
 import { elementById } from '../shared/dom.ts';
 import { setProjectColors } from '../shared/project-colors.ts';
 import { tickTimes } from '../shared/time.ts';
@@ -40,7 +40,6 @@ function render(state: DashboardState): void {
     ['colors', () => setProjectColors(state.projects.map((project) => project.name))],
     ['approvals', () => updateApprovals(state)],
     ['messages', () => draws('comms') && renderMessages(state)],
-    ['usage', () => draws('usage') && renderUsage(state)],
     ['controls', () => updateControls(state)],
     ['popups', () => updatePopups(state)],
   ];
@@ -61,7 +60,6 @@ function render(state: DashboardState): void {
 function drawPopup(id: PopupId): void {
   if (!latestState) return;
   if (id === 'comms') renderMessages(latestState);
-  else if (id === 'usage') renderUsage(latestState);
   else if (id === 'approvals') renderApprovals();
 }
 
@@ -71,7 +69,7 @@ mountComponent(ProjectsPanel, 'projects');
 mountComponent(SessionsPanel, 'sessions');
 mountComponent(TeamPanel, 'team');
 mountComponent(Tooltip, 'tip-root');
-initUsage(() => latestState);
+mountComponent(UsagePanel, 'usage');
 initPopups(drawPopup); // before the building dialog: its Escape handler must see the building still open
 initControls();
 mountComponent(AlertsPanel, 'alerts');
