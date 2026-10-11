@@ -28,7 +28,6 @@ function show(id: PopupId | null) {
 function open(id: PopupId, from: HTMLElement) {
   opener = from;
   openPopup(id, show, onOpen);
-  if (id === 'audit') elementById<HTMLDetailsElement>('audit').open = true; // its toggle handler loads the list
   wrap(id).querySelector<HTMLElement>('[data-popup-close]')?.focus();
 }
 

@@ -5,9 +5,10 @@ import { initSummarySetting } from '../features/settings/settings.view.ts';
 import ChatPanel from '../features/chat/chat-panel.vue';
 import BuildingDialog from '../features/building/building-dialog.vue';
 import { initControls, updateControls } from '../features/controls/controls.view.ts';
+import RunPanel from '../features/controls/run-panel.vue';
 import CoreStrip from '../features/core/core-strip.vue';
-import { initAudit, renderAudit } from '../features/audit/audit.view.ts';
-import { initDevices, renderDevices } from '../features/devices/devices.view.ts';
+import AuditPanel from '../features/audit/audit-panel.vue';
+import DevicesPanel from '../features/devices/devices-panel.vue';
 import LimitsPanel from '../features/limits/limits-panel.vue';
 import { renderMessages } from '../features/messages/messages.view.ts';
 import { initPermissions, renderApprovals, updateApprovals } from '../features/permissions/permissions.view.ts';
@@ -37,8 +38,6 @@ function render(state: DashboardState): void {
   // Each step runs on its own: one failing section must not freeze the others or later pushes.
   const steps: Array<[string, () => void]> = [
     ['colors', () => setProjectColors(state.projects.map((project) => project.name))],
-    ['devices', () => renderDevices(state)],
-    ['audit', () => renderAudit(state)],
     ['approvals', () => updateApprovals(state)],
     ['messages', () => draws('comms') && renderMessages(state)],
     ['usage', () => draws('usage') && renderUsage(state)],
@@ -67,6 +66,7 @@ function drawPopup(id: PopupId): void {
 }
 
 mountComponent(LimitsPanel, 'limits');
+mountComponent(RunPanel, 'run');
 mountComponent(ProjectsPanel, 'projects');
 mountComponent(SessionsPanel, 'sessions');
 mountComponent(TeamPanel, 'team');
@@ -77,8 +77,8 @@ initControls();
 mountComponent(AlertsPanel, 'alerts');
 initSummarySetting();
 mountComponent(ChatPanel, 'chat-panel');
-initDevices();
-initAudit();
+mountComponent(DevicesPanel, 'devices');
+mountComponent(AuditPanel, 'audit');
 initPermissions();
 mountComponent(BuildingDialog, 'building-dialog');
 mountComponent(CoreStrip, 'core');
