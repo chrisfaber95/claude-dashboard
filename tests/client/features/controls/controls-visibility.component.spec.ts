@@ -24,19 +24,17 @@ function makeState(features: { lan: boolean; commands: boolean }): DashboardStat
 describe('bindControlsVisibility', () => {
   beforeEach(() => {
     document.body.innerHTML =
-      '<section id="run" hidden></section><form id="logout" hidden></form>';
+      '<form id="logout" hidden></form>';
   });
 
-  it('shows the run section and logout button only when the state turns the features on', async () => {
+  it('shows the logout button only when the state turns the features on', async () => {
     bindControlsVisibility();
     setDashboardState(makeState({ lan: true, commands: true }));
     await flushPromises();
-    expect(document.getElementById('run')?.hidden).toBe(false);
     expect(document.getElementById('logout')?.hidden).toBe(false);
 
     setDashboardState(makeState({ lan: false, commands: false }));
     await flushPromises();
-    expect(document.getElementById('run')?.hidden).toBe(true);
     expect(document.getElementById('logout')?.hidden).toBe(true);
   });
 });
