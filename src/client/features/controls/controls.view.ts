@@ -1,18 +1,14 @@
 import type { CommandResult, DashboardState } from '../../../shared/types/index.ts';
 import { api } from '../../shared/api.ts';
 import { elementById } from '../../shared/dom.ts';
-import { esc } from '../../shared/escape.ts';
 import { updateSummaryNote } from '../settings/settings.view.ts';
 import { resolveSession } from './controls.logic.ts';
-import { initDrawer, loadEarlier, openLogs, openTranscript, updateDrawer } from './drawer.view.ts';
 import { showToast } from './toast.view.ts';
+import { openLogs, openTranscript } from './transcript-drawer-selection.ts';
 
-export { openSubagentTranscript, openTranscript } from './drawer.view.ts';
-
-const DEFAULT_PERMISSION_MODE = 'auto';
+export { openSubagentTranscript, openTranscript } from './transcript-drawer-selection.ts';
 
 let latestState: DashboardState | null = null;
-let hasFilledModes = false;
 
 async function stopSession(id: string, name: string): Promise<void> {
   if (!confirm(`Stop background session ${name}? Its conversation is kept.`)) return;
@@ -37,12 +33,10 @@ async function handleActionClick(event: MouseEvent): Promise<void> {
     openRecentLaunch(recentButton);
     return;
   }
-  const button = target.closest<HTMLElement>('[data-view],[data-logs],[data-stop],[data-more]');
+  const button = target.closest<HTMLElement>('[data-view],[data-logs],[data-stop]');
   if (!button) return;
-  const { more, view, logs, stop, name } = button.dataset;
-  if (more !== undefined) {
-    await loadEarlier().catch((error) => showToast((error as Error).message, true));
-  } else if (view) {
+  const { view, logs, stop, name } = button.dataset;
+  if (view) {
     openTranscript(view, name ?? view);
   } else if (logs) {
     await openLogs(logs, name ?? logs);
@@ -51,7 +45,7 @@ async function handleActionClick(event: MouseEvent): Promise<void> {
   }
 }
 
-/** Wire the transcript drawer and the session action buttons. */
+/** Wire the session action buttons. */
 export function initControls(): void {
   try {
     localStorage.removeItem('recentTasks'); // old per-browser history, replaced by the server-side launch history
@@ -59,16 +53,6 @@ export function initControls(): void {
     // storage unavailable
   }
   document.addEventListener('click', (event) => void handleActionClick(event));
-  initDrawer();
-}
-
-function fillPermissionModes(state: DashboardState): void {
-  if (hasFilledModes) return;
-  const options = state.features.permissionModes
-    .map((mode) => `<option value="${esc(mode)}"${mode === DEFAULT_PERMISSION_MODE ? ' selected' : ''}>${esc(mode)}</option>`)
-    .join('');
-  elementById('drawer-mode').innerHTML = options;
-  hasFilledModes = true;
 }
 
 /** Called on every state push. Never re-renders the forms, so typing isn't interrupted. */
@@ -77,6 +61,4 @@ export function updateControls(state: DashboardState): void {
   updateSummaryNote(state.features.commands);
   elementById('run').hidden = !state.features.commands;
   elementById('logout').hidden = !state.features.lan;
-  updateDrawer(state);
-  fillPermissionModes(state);
 }
