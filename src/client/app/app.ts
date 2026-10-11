@@ -15,8 +15,8 @@ import { draws, initPopups, updatePopups } from '../features/popups/popups.view.
 import type { PopupId } from '../features/popups/popups.logic.ts';
 import ProjectsPanel from '../features/projects/projects-panel.vue';
 import { renderSessions } from '../features/sessions/sessions.view.ts';
-import { renderTeam } from '../features/team/team.view.ts';
-import { initTooltip } from '../features/tooltip/tooltip.view.ts';
+import TeamPanel from '../features/team/team-panel.vue';
+import Tooltip from '../features/tooltip/tooltip.vue';
 import { initUsage, renderUsage } from '../features/usage/usage.view.ts';
 import { elementById } from '../shared/dom.ts';
 import { setProjectColors, projectTint } from '../shared/project-colors.ts';
@@ -39,7 +39,6 @@ function render(state: DashboardState): void {
     ['colors', () => setProjectColors(state.projects.map((project) => project.name))],
     ['alerts', () => renderAlerts(state)],
     ['chat', () => updateChat(state)],
-    ['team', () => renderTeam(state, draws('team'))],
     ['devices', () => renderDevices(state)],
     ['audit', () => renderAudit(state)],
     ['approvals', () => updateApprovals(state)],
@@ -67,14 +66,14 @@ function render(state: DashboardState): void {
 function drawPopup(id: PopupId): void {
   if (!latestState) return;
   if (id === 'comms') renderMessages(latestState);
-  else if (id === 'team') renderTeam(latestState);
   else if (id === 'usage') renderUsage(latestState);
   else if (id === 'approvals') renderApprovals();
 }
 
 mountComponent(LimitsPanel, 'limits');
 mountComponent(ProjectsPanel, 'projects');
-initTooltip();
+mountComponent(TeamPanel, 'team');
+mountComponent(Tooltip, 'tip-root');
 initUsage(() => latestState);
 initPopups(drawPopup); // before initBuilding: its Escape handler must see the building still open
 initControls();

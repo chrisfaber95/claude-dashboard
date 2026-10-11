@@ -1,6 +1,5 @@
 // Pure geometry, text and tooltip logic of the building popup (no DOM): testable with node --test.
 import type { ProjectInfo, SessionInfo, SubagentInfo } from '../../../shared/types/index.ts';
-import { esc } from '../../shared/escape.ts';
 import { formatTokenCount, sumTokens } from '../../shared/token-format.ts';
 import { isBackgroundSession } from '../sessions/sessions.logic.ts';
 import { moodOf } from '../core/mood.logic.ts';
@@ -41,11 +40,8 @@ export function formatSessionUptime(startedAtMs: number): string {
   return hours ? `${hours}h ${minutes}m` : `${minutes}m`;
 }
 
-/** Tooltip text, one line per entry. It is shown with textContent; `tooltipAttribute` escapes it for an HTML attribute. */
+/** Tooltip text, one line per entry. It is shown with textContent. */
 export const tooltipText = (lines: (string | false)[]) => lines.filter(Boolean).join('\n');
-
-/** Escape tooltip text for a `data-tip` attribute, keeping its line breaks. */
-export const tooltipAttribute = (text: string) => esc(text).replace(/\n/g, '&#10;');
 
 /** The "12k tokens · up 5m" line of a room. */
 export function sessionStatLine(session: SessionInfo): string {
@@ -128,17 +124,4 @@ export function buildingSubtitle(project: ProjectInfo, sessions: SessionInfo[], 
   const subagentText = subagents.length ? ` · ${countOf(subagents.length, 'subagent')} (${subagentsWorkingCount} working)` : '';
   const branch = project.branch ? ` · ${project.branch}` : '';
   return `${countOf(sessions.length, 'session')} in the building · ${workingCount} working${waiting}${subagentText}${branch}`;
-}
-
-/** Changes whenever something visible in the building changes, so the drawing is redrawn only then. */
-export function buildingRedrawKey(name: string, tintClass: string, sessions: SessionInfo[], subagents: SubagentInfo[]): string {
-  return [
-    name,
-    tintClass,
-    ...sessions.map((session) => `${session.sessionId}:${session.name}:${session.status}:${session.kind}:${session.branch}`),
-    ...subagents.map(
-      (subagent) =>
-        `${subagent.agentId}:${subagent.state}:${subagent.handedBack}:${subagent.parentAgentId}:${subagent.agentType}:${subagent.description}:${subagent.background}`,
-    ),
-  ].join('|');
 }
