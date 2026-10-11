@@ -11,7 +11,7 @@
   <header class="top">
     <h1>Claude Dashboard</h1>
     <div class="top__meta">
-      <span id="alert-badge" class="alert-badge" role="status" aria-label="Alerts needing attention" hidden></span>
+      <span id="alert-badge" class="alert-badge-slot"></span>
       <span id="conn" class="conn">connecting…</span>
       <select id="skin" aria-label="Skin">
         <option value="classic">Classic</option>
@@ -27,15 +27,7 @@
     <section id="core" class="core" aria-labelledby="h-core"></section>
     <nav id="popup-bar" class="popup-bar" aria-label="Open a panel"></nav>
     <section id="limits" class="panel" aria-labelledby="h-limits"></section>
-    <section id="alerts" class="panel alerts" aria-labelledby="h-alerts">
-      <h2 id="h-alerts">Needs attention <span id="alerts-count" class="alerts__count" hidden></span></h2>
-      <ul id="alerts-list" class="alerts__list"></ul>
-      <form id="alerts-form" class="alerts__form">
-        <label>Usage alert threshold (%) <input id="alerts-threshold" type="number" min="1" max="100" step="1" required></label>
-        <button class="btn btn--sm" type="submit">Save</button>
-        <span id="alerts-status" class="sub" role="status"></span>
-      </form>
-    </section>
+    <div id="alerts"></div>
     <section id="sessions" class="panel" aria-labelledby="h-sessions"></section>
   </main>
   <div id="popups" class="popups" hidden>
@@ -77,45 +69,11 @@
     </div>
     <div id="popup-devices" class="popup" role="dialog" aria-modal="true" aria-label="Devices" hidden>
       <button class="btn popup__close" type="button" data-popup-close aria-label="Close Devices">Close</button>
-      <section id="devices" class="panel devices" aria-labelledby="h-devices" hidden>
-        <h2 id="h-devices">Devices</h2>
-        <ul id="devices-list" class="devices__list"></ul>
-        <form id="devices-form" class="devices__form">
-          <label>Device name <input id="devices-name" type="text" maxlength="40" autocomplete="off" required></label>
-          <button class="btn btn--sm" type="submit">Add</button>
-        </form>
-        <div id="devices-token" class="devices__token" hidden>
-          <div class="sub">New device token (shown once)</div>
-          <code id="devices-token-value" class="devices__token-value"></code>
-          <div class="devices__token-actions">
-            <button id="devices-token-copy" class="btn btn--sm" type="button">Copy</button>
-            <button id="devices-token-dismiss" class="btn btn--sm" type="button">Dismiss</button>
-          </div>
-        </div>
-        <div id="devices-qr" class="devices__qr" hidden>
-          <div class="sub"><strong id="devices-qr-name"></strong>: scan with the phone. Works once, for 10 minutes.</div>
-          <select id="devices-qr-addr" aria-label="Address the QR code points to" hidden></select>
-          <div id="devices-qr-draw" class="devices__qr-draw"></div>
-          <div id="devices-qr-expiry" class="sub"></div>
-          <div id="devices-qr-note" class="sub"></div>
-          <div class="devices__token-actions">
-            <button id="devices-qr-close" class="btn btn--sm" type="button">Close</button>
-          </div>
-        </div>
-        <p id="devices-status" class="sub" role="status"></p>
-      </section>
+      <section id="devices" class="panel devices" aria-labelledby="h-devices"></section>
     </div>
     <div id="popup-audit" class="popup" role="dialog" aria-modal="true" aria-label="Activity" hidden>
       <button class="btn popup__close" type="button" data-popup-close aria-label="Close Activity">Close</button>
-      <details id="audit" class="panel audit">
-        <summary id="h-audit" class="audit__summary">Activity</summary>
-        <div class="audit__bar">
-          <label>Device <select id="audit-device"><option value="">All devices</option></select></label>
-          <button id="audit-refresh" class="btn btn--sm" type="button">Refresh</button>
-          <span id="audit-status" class="sub" role="status"></span>
-        </div>
-        <ul id="audit-list" class="audit__list"></ul>
-      </details>
+      <section id="audit" class="panel audit" aria-labelledby="h-audit"></section>
     </div>
     <div id="popup-approvals" class="popup" role="dialog" aria-modal="true" aria-label="Approvals" hidden>
       <button class="btn popup__close" type="button" data-popup-close aria-label="Close Approvals">Close</button>
