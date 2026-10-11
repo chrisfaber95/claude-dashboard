@@ -1,11 +1,11 @@
-// Permission prompt logic: pending filter, who may answer, fixed error messages, approval rows and escaping.
+// Permission prompt logic: pending filter, who may answer, fixed error messages and approval rows.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { AuditEntry, PermissionRequestInfo } from '../../../../src/shared/types/index.ts';
 import {
   PC_HINT,
   answerErrorMessage,
-  approvalListHtml,
+  approvalEntriesOf,
   approvalRowOf,
   canAnswer,
   pendingRequests,
@@ -68,11 +68,24 @@ test('the PC hint tells where to answer', () => {
   assert.ok(PC_HINT.includes('`claude attach`'));
 });
 
-test('approvalListHtml escapes entry text and shows an empty state', () => {
-  assert.ok(approvalListHtml([]).includes('No approvals yet.'));
-  const html = approvalListHtml([entry({ text: '<img onerror=alert(1)>', tool: '<i>', device: '<u>', outcome: 'allow' })]);
-  assert.ok(!html.includes('<img'));
-  assert.ok(!html.includes('<i>'));
-  assert.ok(!html.includes('<u>'));
-  assert.ok(html.includes('Allowed'));
+test('approvalRowOf gives the outcome class, falling back to unknown', () => {
+  assert.equal(approvalRowOf(entry({ outcome: 'allow' })).outcomeClass, 'allow');
+  assert.equal(approvalRowOf(entry({ outcome: 'weird' })).outcomeClass, 'unknown');
+  assert.equal(approvalRowOf(entry({})).outcomeClass, 'unknown');
+});
+
+test('approvalEntriesOf accepts the response shape and rejects anything else', () => {
+  assert.deepEqual(approvalEntriesOf({ approvals: [] }), []);
+  assert.equal(approvalEntriesOf(null), null);
+  assert.equal(approvalEntriesOf({ approvals: 'x' }), null);
+  assert.equal(approvalEntriesOf({}), null);
+});
+
+test('approvalEntriesOf keeps string fields and skips items without ts and action', () => {
+  const entries = approvalEntriesOf({
+    approvals: [{ ts: 't', action: 'approval', tool: 'Bash', text: 'ls', outcome: 'allow', device: 5 }, { ts: 't' }, 'x', null],
+  });
+  assert.equal(entries?.length, 1);
+  assert.equal(entries?.[0]?.tool, 'Bash');
+  assert.equal(entries?.[0]?.device, undefined);
 });

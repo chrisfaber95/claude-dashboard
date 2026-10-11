@@ -1,6 +1,6 @@
 // Pure permission-prompt logic (no DOM): testable with node --test.
 import type { AuditEntry, DashboardState, PermissionRequestInfo, SessionInfo } from '../../../shared/types/index.ts';
-import { esc } from '../../shared/escape.ts';
+import { isRecord } from '../../../shared/guards.ts';
 import { timeLabel } from '../audit/audit.logic.ts';
 
 const SHORT_ID_LENGTH = 8;
@@ -17,8 +17,13 @@ const ERROR_MESSAGES: Record<string, string> = {
   'commands are disabled': 'Commands are disabled on this dashboard.',
 };
 
-const OUTCOME_LABELS: Record<string, string> = { allow: 'Allowed', deny: 'Denied', expired: 'Expired' };
-const KNOWN_OUTCOMES = new Set(['allow', 'deny', 'expired']);
+const OUTCOME_LABELS = { allow: 'Allowed', deny: 'Denied', expired: 'Expired' } as const;
+type KnownOutcome = keyof typeof OUTCOME_LABELS;
+
+function knownOutcomeOf(outcome: string | undefined): KnownOutcome | null {
+  if (outcome === 'allow' || outcome === 'deny' || outcome === 'expired') return outcome;
+  return null;
+}
 
 /** What a request's buttons currently show: busy while the answer is on its way, a fixed message after a failure. */
 export interface AnswerProgress {
@@ -55,32 +60,47 @@ export interface ApprovalRow {
   tool: string;
   text: string;
   outcome: string;
+  /** Modifier of `approvals__outcome`: the outcome itself, or `unknown`. */
+  outcomeClass: string;
 }
 
 /** Turn an approval-log entry into display strings; missing fields get a neutral value. */
 export function approvalRowOf(entry: AuditEntry): ApprovalRow {
-  const isKnownOutcome = entry.outcome !== undefined && KNOWN_OUTCOMES.has(entry.outcome);
+  const outcome = knownOutcomeOf(entry.outcome);
   return {
     time: timeLabel(entry.ts),
     device: entry.device ?? entry.deviceId ?? 'unknown',
     session: entry.session ? entry.session.slice(0, SHORT_ID_LENGTH) : '',
     tool: entry.tool ?? '',
     text: entry.text ?? '',
-    outcome: isKnownOutcome ? OUTCOME_LABELS[entry.outcome!]! : 'Unknown',
+    outcome: outcome === null ? 'Unknown' : OUTCOME_LABELS[outcome],
+    outcomeClass: outcome ?? 'unknown',
   };
 }
 
-/** One approval-log list item. */
-export function approvalHtml(entry: AuditEntry): string {
-  const row = approvalRowOf(entry);
-  const outcomeClass = entry.outcome !== undefined && KNOWN_OUTCOMES.has(entry.outcome) ? entry.outcome : 'unknown';
-  const session = row.session ? ` <span class="approvals__session">${esc(row.session)}</span>` : '';
-  const tool = row.tool ? ` <strong class="approvals__tool">${esc(row.tool)}</strong>` : '';
-  const text = row.text ? `<div class="permission__text">${esc(row.text)}</div>` : '';
-  return `<li class="approvals__item"><div class="approvals__line"><span class="approvals__time sub">${esc(row.time)}</span> <span class="approvals__device">${esc(row.device)}</span>${session}${tool} <span class="approvals__outcome approvals__outcome--${outcomeClass}">${esc(row.outcome)}</span></div>${text}</li>`;
+function optionalString(record: Record<string, unknown>, key: string): string | undefined {
+  const value = record[key];
+  return typeof value === 'string' ? value : undefined;
 }
 
-/** The whole approval list, or the empty state. */
-export function approvalListHtml(entries: readonly AuditEntry[]): string {
-  return entries.length ? entries.map(approvalHtml).join('') : '<li class="empty">No approvals yet.</li>';
+/** The entries of a `/api/approvals` body, or null when it is not `{ approvals: [...] }`; unusable items are skipped. */
+export function approvalEntriesOf(body: unknown): AuditEntry[] | null {
+  if (!isRecord(body) || !Array.isArray(body.approvals)) return null;
+  const entries: AuditEntry[] = [];
+  for (const item of body.approvals) {
+    if (!isRecord(item)) continue;
+    const { ts, action } = item;
+    if (typeof ts !== 'string' || typeof action !== 'string') continue;
+    entries.push({
+      ts,
+      action,
+      device: optionalString(item, 'device'),
+      deviceId: optionalString(item, 'deviceId'),
+      session: optionalString(item, 'session'),
+      tool: optionalString(item, 'tool'),
+      text: optionalString(item, 'text'),
+      outcome: optionalString(item, 'outcome'),
+    });
+  }
+  return entries;
 }
