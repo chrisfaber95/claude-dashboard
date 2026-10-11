@@ -49,7 +49,7 @@ function render(state: DashboardState): void {
     ['usage', () => draws('usage') && renderUsage(state)],
     ['controls', () => updateControls(state)],
     ['building', () => updateBuilding(state, projectTint)],
-    ['popups', () => updatePopups()],
+    ['popups', () => updatePopups(state)],
   ];
   let hasFailed = false;
   for (const [name, run] of steps) {

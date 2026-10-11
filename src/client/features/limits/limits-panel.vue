@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useDashboardState } from '../../app/dashboard-state.ts';
-import { ago, until } from '../../shared/time.ts';
+import RelativeTime from '../../shared/relative-time.vue';
 import { formatTokenCount } from '../../shared/token-format.ts';
 import { tokensToday } from '../popups/popups.logic.ts';
 import { clampPercent, highestUtilization, limitLevelClass, limitStatusText } from './limits.logic.ts';
@@ -50,21 +50,21 @@ const recentHits = computed(() => (limits.value?.hits ?? []).slice(-RECENT_HITS_
           <div :class="['gauge__fill', gauge.levelClass]" :style="{ width: `${gauge.percent}%` }"></div>
         </div>
         <div class="sub">
-          <span data-time="until" :data-ms="gauge.resetsAtMs ?? ''">{{ until(gauge.resetsAtMs) }}</span>{{ gauge.statusText }}
+          <RelativeTime kind="until" :timestamp-ms="gauge.resetsAtMs" />{{ gauge.statusText }}
         </div>
       </div>
     </div>
     <div v-else class="empty">No limit data available.</div>
     <p class="sub">
-      <template v-if="limits.source === 'live'">live · updated <span data-time="ago" :data-ms="limits.fetchedAtMs ?? ''">{{ ago(limits.fetchedAtMs) }}</span></template>
-      <template v-else-if="limits.source === 'cache'">from Claude Code's local cache · updated <span data-time="ago" :data-ms="limits.fetchedAtMs ?? ''">{{ ago(limits.fetchedAtMs) }}</span></template>
+      <template v-if="limits.source === 'live'">live · updated <RelativeTime kind="ago" :timestamp-ms="limits.fetchedAtMs" /></template>
+      <template v-else-if="limits.source === 'cache'">from Claude Code's local cache · updated <RelativeTime kind="ago" :timestamp-ms="limits.fetchedAtMs" /></template>
       <template v-else>no limit data</template>
       <template v-if="limits.error"> · {{ limits.error }}</template>
     </p>
     <p v-if="recentHits.length" class="sub">
       Last limit hits:
       <template v-for="(hit, index) in recentHits" :key="hit.tsMs">
-        <template v-if="index > 0"> · </template>{{ hit.type }} <span data-time="ago" :data-ms="hit.tsMs">{{ ago(hit.tsMs) }}</span> ({{ hit.project }})
+        <template v-if="index > 0"> · </template>{{ hit.type }} <RelativeTime kind="ago" :timestamp-ms="hit.tsMs" /> ({{ hit.project }})
       </template>
     </p>
   </template>
