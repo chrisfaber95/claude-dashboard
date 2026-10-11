@@ -6,6 +6,7 @@ import ChatPanel from '../features/chat/chat-panel.vue';
 import BuildingDialog from '../features/building/building-dialog.vue';
 import { initControls, updateControls } from '../features/controls/controls.view.ts';
 import RunPanel from '../features/controls/run-panel.vue';
+import TranscriptDrawer from '../features/controls/transcript-drawer.vue';
 import CoreStrip from '../features/core/core-strip.vue';
 import AuditPanel from '../features/audit/audit-panel.vue';
 import DevicesPanel from '../features/devices/devices-panel.vue';
@@ -81,6 +82,7 @@ mountComponent(DevicesPanel, 'devices');
 mountComponent(AuditPanel, 'audit');
 initPermissions();
 mountComponent(BuildingDialog, 'building-dialog');
+mountComponent(TranscriptDrawer, 'transcript-drawer');
 mountComponent(CoreStrip, 'core');
 
 // Relative times ("3m ago", uptime, resets in) advance on their own light tick, writing only the text that changed.
