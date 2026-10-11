@@ -77,6 +77,12 @@ Moves use `git mv` in their own PR with only import edits, so `git log --follow`
 (camelCase, PascalCase types, UPPER_CASE constants, booleans prefixed `is`/`has`/`should`/`can`),
 `no-nested-ternary`, `max-lines` 300, `max-lines-per-function` 50 (not in `tests/`) and `max-depth` 4, in `.ts` and `.vue` files (the latter through `eslint-plugin-vue`'s essential rules and `vue/no-v-html`).
 
+The typing rules above are errors too (`@typescript-eslint/no-explicit-any`, `no-non-null-assertion`,
+`consistent-type-assertions` with `assertionStyle: 'never'` so only `as const` passes, and
+`explicit-module-boundary-types`), in `.ts` and `.vue` files. `TYPE_SAFETY_LEGACY_FILES` in `eslint.config.js` lists the
+files that still break them; like `LEGACY_FILES` it may only shrink (`tests/lint-config.test.ts` checks that every entry
+exists). Never add a file to it; fixing a file means removing its entry in the same change.
+
 `LEGACY_FILES` in `eslint.config.js` is empty: every file passes. Never add a file to it; a new or moved file must
 pass. Left to review: other abbreviations, verb-first function names, plural collections, units in names, one
 responsibility per module, magic numbers, comments, and the folder map (`tests/code-structure.test.ts`).
