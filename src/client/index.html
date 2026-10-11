@@ -77,33 +77,7 @@
     </div>
     <div id="popup-devices" class="popup" role="dialog" aria-modal="true" aria-label="Devices" hidden>
       <button class="btn popup__close" type="button" data-popup-close aria-label="Close Devices">Close</button>
-      <section id="devices" class="panel devices" aria-labelledby="h-devices" hidden>
-        <h2 id="h-devices">Devices</h2>
-        <ul id="devices-list" class="devices__list"></ul>
-        <form id="devices-form" class="devices__form">
-          <label>Device name <input id="devices-name" type="text" maxlength="40" autocomplete="off" required></label>
-          <button class="btn btn--sm" type="submit">Add</button>
-        </form>
-        <div id="devices-token" class="devices__token" hidden>
-          <div class="sub">New device token (shown once)</div>
-          <code id="devices-token-value" class="devices__token-value"></code>
-          <div class="devices__token-actions">
-            <button id="devices-token-copy" class="btn btn--sm" type="button">Copy</button>
-            <button id="devices-token-dismiss" class="btn btn--sm" type="button">Dismiss</button>
-          </div>
-        </div>
-        <div id="devices-qr" class="devices__qr" hidden>
-          <div class="sub"><strong id="devices-qr-name"></strong>: scan with the phone. Works once, for 10 minutes.</div>
-          <select id="devices-qr-addr" aria-label="Address the QR code points to" hidden></select>
-          <div id="devices-qr-draw" class="devices__qr-draw"></div>
-          <div id="devices-qr-expiry" class="sub"></div>
-          <div id="devices-qr-note" class="sub"></div>
-          <div class="devices__token-actions">
-            <button id="devices-qr-close" class="btn btn--sm" type="button">Close</button>
-          </div>
-        </div>
-        <p id="devices-status" class="sub" role="status"></p>
-      </section>
+      <section id="devices" class="panel devices" aria-labelledby="h-devices"></section>
     </div>
     <div id="popup-audit" class="popup" role="dialog" aria-modal="true" aria-label="Activity" hidden>
       <button class="btn popup__close" type="button" data-popup-close aria-label="Close Activity">Close</button>

@@ -1,6 +1,7 @@
 import type { PairingInfo } from '../../../shared/types/index.ts';
 import { qrShape } from './qr.logic.ts';
 import { elementById } from '../../shared/dom.ts';
+import { devicesStatus } from './devices-status.ts';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -84,7 +85,7 @@ export function showQr(id: string, name: string, info: PairingInfo): void {
 }
 
 function setQrStatus(text: string): void {
-  elementById('devices-status').textContent = text;
+  devicesStatus.value = text;
 }
 
 /** Id of the device whose QR code is shown, or an empty string. */
