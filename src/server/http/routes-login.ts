@@ -57,7 +57,7 @@ export async function handleLoginRoutes(context: ServerContext, call: RequestCal
   const { url, method } = call;
   if (url.pathname === '/login') {
     if (method === 'POST') await submitLogin(context, auth, call);
-    else await serveStatic(context.publicDir, call.res, '/login.html');
+    else await serveStatic(context.publicDir, call.res, '/login.html', call.req.headers['accept-encoding']);
     return true;
   }
   if (url.pathname === '/pair' && method === 'GET') {
