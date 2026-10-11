@@ -36,7 +36,6 @@ export const TYPE_SAFETY_LEGACY_FILES = [
   'src/client/shared/api.ts',
   'src/client/shared/dom.ts',
   'src/client/shared/escape.ts',
-  'src/client/shared/time.ts',
   'src/client/shared/token-format.ts',
   'src/server/claude/claude-cli.ts',
   'src/server/claude/session-summary.ts',
