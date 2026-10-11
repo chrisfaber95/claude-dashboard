@@ -46,17 +46,28 @@ export type TimeKind = 'ago' | 'until' | 'up';
 
 const TIME_FORMAT: Record<TimeKind, (timestampMs: number | null) => string> = { ago, until, up: uptime };
 
+/** Whether a value read from a `data-time` attribute is one of the relative time kinds. */
+export function isTimeKind(value: unknown): value is TimeKind {
+  return value === 'ago' || value === 'until' || value === 'up';
+}
+
+/** The text of one relative time, as `timeSpan` and `RelativeTime` show it. */
+export function formatRelativeTime(kind: TimeKind, timestampMs: number | null): string {
+  return TIME_FORMAT[kind](timestampMs);
+}
+
 /** A relative time whose text `tickTimes()` keeps current between pushes. */
 export function timeSpan(kind: TimeKind, timestampMs: number | null): string {
-  return `<span data-time="${kind}" data-ms="${timestampMs ?? ''}">${esc(TIME_FORMAT[kind](timestampMs))}</span>`;
+  return `<span data-time="${kind}" data-ms="${timestampMs ?? ''}">${esc(formatRelativeTime(kind, timestampMs))}</span>`;
 }
 
 /** Rewrite the text of every `timeSpan`, only where it changed. */
 export function tickTimes(root: ParentNode = document): void {
   for (const element of root.querySelectorAll<HTMLElement>('[data-time]')) {
-    const kind = element.dataset['time'] as TimeKind;
+    const kind = element.dataset['time'];
+    if (!isTimeKind(kind)) continue;
     const raw = element.dataset['ms'] ?? '';
-    const text = TIME_FORMAT[kind]?.(raw === '' ? null : Number(raw));
-    if (text !== undefined && element.textContent !== text) element.textContent = text;
+    const text = formatRelativeTime(kind, raw === '' ? null : Number(raw));
+    if (element.textContent !== text) element.textContent = text;
   }
 }

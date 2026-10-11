@@ -16,9 +16,29 @@ export const POPUPS = [
 /** Id of one popup. */
 export type PopupId = (typeof POPUPS)[number]['id'];
 
-/** Buttons for sections that are hidden today (no board, devices or commands not allowed) stay hidden. */
-export function visiblePopups(sectionHidden: (id: PopupId) => boolean): PopupId[] {
-  return POPUPS.map((popup) => popup.id).filter((id) => !sectionHidden(id));
+/** What decides which popup buttons exist: the team board, whether commands are allowed, and whether this is the PC. */
+export interface PopupAvailability {
+  hasTeamBoard: boolean;
+  canRunCommands: boolean;
+  canManageDevices: boolean;
+}
+
+/** Every popup is always available except the team board, the command popups (run, approvals) and devices. */
+export function isPopupAvailable(id: PopupId, availability: PopupAvailability): boolean {
+  if (id === 'team') return availability.hasTeamBoard;
+  if (id === 'run' || id === 'approvals') return availability.canRunCommands;
+  if (id === 'devices') return availability.canManageDevices;
+  return true;
+}
+
+/** Popup ids whose button shows, in button order. */
+export function visiblePopups(availability: PopupAvailability): PopupId[] {
+  return POPUPS.map((popup) => popup.id).filter((id) => isPopupAvailable(id, availability));
+}
+
+/** Narrow an unknown value (a dataset entry) to a popup id. */
+export function isPopupId(value: unknown): value is PopupId {
+  return POPUPS.some((popup) => popup.id === value);
 }
 
 /** A section that lives in a popup is drawn only while that popup is open; everything else always. */
