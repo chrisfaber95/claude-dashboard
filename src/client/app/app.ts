@@ -1,14 +1,15 @@
 // Shell: wires the feature views to the state stream. It renders nothing itself.
 import type { DashboardState } from '../../shared/types/index.ts';
-import { initAlerts, renderAlerts } from '../features/alerts/alerts.view.ts';
+import AlertsPanel from '../features/alerts/alerts-panel.vue';
 import { initSummarySetting } from '../features/settings/settings.view.ts';
 import ChatPanel from '../features/chat/chat-panel.vue';
 import BuildingDialog from '../features/building/building-dialog.vue';
 import { initControls, updateControls } from '../features/controls/controls.view.ts';
 import RunPanel from '../features/controls/run-panel.vue';
+import TranscriptDrawer from '../features/controls/transcript-drawer.vue';
 import CoreStrip from '../features/core/core-strip.vue';
 import AuditPanel from '../features/audit/audit-panel.vue';
-import { initDevices, renderDevices } from '../features/devices/devices.view.ts';
+import DevicesPanel from '../features/devices/devices-panel.vue';
 import LimitsPanel from '../features/limits/limits-panel.vue';
 import MessagesPanel from '../features/messages/messages-panel.vue';
 import { initPermissions, renderApprovals, updateApprovals } from '../features/permissions/permissions.view.ts';
@@ -38,8 +39,6 @@ function render(state: DashboardState): void {
   // Each step runs on its own: one failing section must not freeze the others or later pushes.
   const steps: Array<[string, () => void]> = [
     ['colors', () => setProjectColors(state.projects.map((project) => project.name))],
-    ['alerts', () => renderAlerts(state)],
-    ['devices', () => renderDevices(state)],
     ['approvals', () => updateApprovals(state)],
     ['usage', () => draws('usage') && renderUsage(state)],
     ['controls', () => updateControls(state)],
@@ -74,16 +73,15 @@ mountComponent(Tooltip, 'tip-root');
 initUsage(() => latestState);
 initPopups(drawPopup); // before the building dialog: its Escape handler must see the building still open
 initControls();
-initAlerts();
+mountComponent(AlertsPanel, 'alerts');
 initSummarySetting();
 mountComponent(ChatPanel, 'chat-panel');
-initDevices();
+mountComponent(DevicesPanel, 'devices');
 mountComponent(AuditPanel, 'audit');
 mountComponent(MessagesPanel, 'comms');
-initPermissions(() => {
-  if (latestState) renderAlerts(latestState);
-});
+initPermissions();
 mountComponent(BuildingDialog, 'building-dialog');
+mountComponent(TranscriptDrawer, 'transcript-drawer');
 mountComponent(CoreStrip, 'core');
 
 // Relative times ("3m ago", uptime, resets in) advance on their own light tick, writing only the text that changed.
