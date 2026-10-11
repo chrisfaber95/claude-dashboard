@@ -1568,11 +1568,7 @@ $hair: (#2b2118, #6b4423, #c9a24b, #a33b2a, #555555);
   &__summary {
     font-size: 15px;
     font-weight: 700;
-    cursor: pointer;
-  }
-
-  &[open] &__summary {
-    margin-bottom: 12px;
+    margin: 0 0 12px;
   }
 
   &__bar {

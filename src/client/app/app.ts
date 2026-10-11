@@ -6,7 +6,7 @@ import ChatPanel from '../features/chat/chat-panel.vue';
 import { initBuilding, updateBuilding } from '../features/building/building.view.ts';
 import { initControls, updateControls } from '../features/controls/controls.view.ts';
 import CoreStrip from '../features/core/core-strip.vue';
-import { initAudit, renderAudit } from '../features/audit/audit.view.ts';
+import AuditPanel from '../features/audit/audit-panel.vue';
 import { initDevices, renderDevices } from '../features/devices/devices.view.ts';
 import LimitsPanel from '../features/limits/limits-panel.vue';
 import { renderMessages } from '../features/messages/messages.view.ts';
@@ -39,7 +39,6 @@ function render(state: DashboardState): void {
     ['colors', () => setProjectColors(state.projects.map((project) => project.name))],
     ['alerts', () => renderAlerts(state)],
     ['devices', () => renderDevices(state)],
-    ['audit', () => renderAudit(state)],
     ['approvals', () => updateApprovals(state)],
     ['sessions', () => renderSessions(state)],
     ['messages', () => draws('comms') && renderMessages(state)],
@@ -80,7 +79,7 @@ initAlerts();
 initSummarySetting();
 mountComponent(ChatPanel, 'chat-panel');
 initDevices();
-initAudit();
+mountComponent(AuditPanel, 'audit');
 initPermissions(() => {
   if (!latestState) return;
   renderSessions(latestState);
