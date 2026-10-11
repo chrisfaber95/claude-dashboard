@@ -13,8 +13,6 @@ export const LEGACY_FILES = [];
 export const TYPE_SAFETY_LEGACY_FILES = [
   'src/client/app/patch.ts',
   'src/client/app/state-stream.ts',
-  'src/client/features/alerts/alerts.logic.ts',
-  'src/client/features/alerts/alerts.view.ts',
   'src/client/features/building/building.logic.ts',
   'src/client/features/chat/chat.logic.ts',
   'src/client/features/controls/controls.logic.ts',
@@ -24,7 +22,6 @@ export const TYPE_SAFETY_LEGACY_FILES = [
   'src/client/features/devices/devices.view.ts',
   'src/client/features/messages/messages.view.ts',
   'src/client/features/permissions/permissions.logic.ts',
-  'src/client/features/permissions/permissions.view.ts',
   'src/client/features/usage/usage.view.ts',
   'src/client/shared/api.ts',
   'src/client/shared/dom.ts',
