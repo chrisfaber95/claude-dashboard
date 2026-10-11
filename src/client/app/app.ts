@@ -3,7 +3,7 @@ import type { DashboardState } from '../../shared/types/index.ts';
 import { initAlerts, renderAlerts } from '../features/alerts/alerts.view.ts';
 import { initSummarySetting } from '../features/settings/settings.view.ts';
 import ChatPanel from '../features/chat/chat-panel.vue';
-import { initBuilding, updateBuilding } from '../features/building/building.view.ts';
+import BuildingDialog from '../features/building/building-dialog.vue';
 import { initControls, updateControls } from '../features/controls/controls.view.ts';
 import CoreStrip from '../features/core/core-strip.vue';
 import { initAudit, renderAudit } from '../features/audit/audit.view.ts';
@@ -19,7 +19,7 @@ import TeamPanel from '../features/team/team-panel.vue';
 import Tooltip from '../features/tooltip/tooltip.vue';
 import { initUsage, renderUsage } from '../features/usage/usage.view.ts';
 import { elementById } from '../shared/dom.ts';
-import { setProjectColors, projectTint } from '../shared/project-colors.ts';
+import { setProjectColors } from '../shared/project-colors.ts';
 import { tickTimes } from '../shared/time.ts';
 import { initAppearance } from './appearance.ts';
 import { mountComponent } from './mount-component.ts';
@@ -44,7 +44,6 @@ function render(state: DashboardState): void {
     ['messages', () => draws('comms') && renderMessages(state)],
     ['usage', () => draws('usage') && renderUsage(state)],
     ['controls', () => updateControls(state)],
-    ['building', () => updateBuilding(state, projectTint)],
     ['popups', () => updatePopups(state)],
   ];
   let hasFailed = false;
@@ -74,7 +73,7 @@ mountComponent(SessionsPanel, 'sessions');
 mountComponent(TeamPanel, 'team');
 mountComponent(Tooltip, 'tip-root');
 initUsage(() => latestState);
-initPopups(drawPopup); // before initBuilding: its Escape handler must see the building still open
+initPopups(drawPopup); // before the building dialog: its Escape handler must see the building still open
 initControls();
 initAlerts();
 initSummarySetting();
@@ -84,7 +83,7 @@ initAudit();
 initPermissions(() => {
   if (latestState) renderAlerts(latestState);
 });
-initBuilding();
+mountComponent(BuildingDialog, 'building-dialog');
 mountComponent(CoreStrip, 'core');
 
 // Relative times ("3m ago", uptime, resets in) advance on their own light tick, writing only the text that changed.
