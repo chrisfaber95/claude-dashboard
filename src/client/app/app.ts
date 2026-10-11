@@ -12,14 +12,13 @@ import AuditPanel from '../features/audit/audit-panel.vue';
 import ApprovalsPanel from '../features/permissions/approvals-panel.vue';
 import DevicesPanel from '../features/devices/devices-panel.vue';
 import LimitsPanel from '../features/limits/limits-panel.vue';
-import { renderMessages } from '../features/messages/messages.view.ts';
-import { draws, initPopups, updatePopups } from '../features/popups/popups.view.ts';
-import type { PopupId } from '../features/popups/popups.logic.ts';
+import MessagesPanel from '../features/messages/messages-panel.vue';
+import { initPopups, updatePopups } from '../features/popups/popups.view.ts';
 import ProjectsPanel from '../features/projects/projects-panel.vue';
 import SessionsPanel from '../features/sessions/sessions-panel.vue';
 import TeamPanel from '../features/team/team-panel.vue';
 import Tooltip from '../features/tooltip/tooltip.vue';
-import { initUsage, renderUsage } from '../features/usage/usage.view.ts';
+import UsagePanel from '../features/usage/usage-panel.vue';
 import { elementById } from '../shared/dom.ts';
 import { setProjectColors } from '../shared/project-colors.ts';
 import { tickTimes } from '../shared/time.ts';
@@ -29,18 +28,14 @@ import { connectStateStream } from './state-stream.ts';
 
 const TIME_TICK_MS = 10_000;
 
-let latestState: DashboardState | null = null;
 const renderWarning = elementById('render-warn');
 
 function render(state: DashboardState): void {
   // A server started before the subagent feature doesn't send this field; don't let that break the whole page.
   state.subagents ??= [];
-  latestState = state;
   // Each step runs on its own: one failing section must not freeze the others or later pushes.
   const steps: Array<[string, () => void]> = [
     ['colors', () => setProjectColors(state.projects.map((project) => project.name))],
-    ['messages', () => draws('comms') && renderMessages(state)],
-    ['usage', () => draws('usage') && renderUsage(state)],
     ['controls', () => updateControls(state)],
     ['popups', () => updatePopups(state)],
   ];
@@ -57,21 +52,14 @@ function render(state: DashboardState): void {
   renderWarning.hidden = !hasFailed;
 }
 
-// Opening a popup draws its section from the latest state first; closed popups are skipped on pushes.
-function drawPopup(id: PopupId): void {
-  if (!latestState) return;
-  if (id === 'comms') renderMessages(latestState);
-  else if (id === 'usage') renderUsage(latestState);
-}
-
 mountComponent(LimitsPanel, 'limits');
 mountComponent(RunPanel, 'run');
 mountComponent(ProjectsPanel, 'projects');
 mountComponent(SessionsPanel, 'sessions');
 mountComponent(TeamPanel, 'team');
 mountComponent(Tooltip, 'tip-root');
-initUsage(() => latestState);
-initPopups(drawPopup); // before the building dialog: its Escape handler must see the building still open
+mountComponent(UsagePanel, 'usage');
+initPopups(() => {}); // before the building dialog: its Escape handler must see the building still open
 initControls();
 mountComponent(AlertsPanel, 'alerts');
 initSummarySetting();
@@ -79,6 +67,7 @@ mountComponent(ChatPanel, 'chat-panel');
 mountComponent(DevicesPanel, 'devices');
 mountComponent(AuditPanel, 'audit');
 mountComponent(ApprovalsPanel, 'approvals');
+mountComponent(MessagesPanel, 'comms');
 mountComponent(BuildingDialog, 'building-dialog');
 mountComponent(TranscriptDrawer, 'transcript-drawer');
 mountComponent(CoreStrip, 'core');
