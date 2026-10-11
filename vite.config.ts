@@ -10,6 +10,38 @@ const BUILD_TARGET = 'es2022';
 /** Entries served before login (guards.ts PUBLIC_PATHS) keep their name; everything else gets a hash. */
 const STABLE_ENTRIES = new Set(['login', 'pair']);
 
+/**
+ * One self-contained IIFE build of a classic script (no imports, so no shared chunk). `pair.js` needs this: the server
+ * serves only `/pair.js` before login (guards.ts PUBLIC_PATHS), not the hashed `/assets/` chunks a module entry loads.
+ */
+async function buildClassicScript(entry: string, name: string, fileName: string): Promise<void> {
+  await build({
+    configFile: false,
+    root: clientRoot,
+    publicDir: false,
+    logLevel: 'warn',
+    plugins: [vue()],
+    define: { 'process.env.NODE_ENV': JSON.stringify('production') },
+    build: {
+      outDir: outputDirectory,
+      emptyOutDir: false,
+      target: BUILD_TARGET,
+      sourcemap: true,
+      lib: { entry, formats: ['iife'], name, fileName: () => fileName },
+    },
+  });
+}
+
+/** The pairing page's script, built on its own (see buildClassicScript). */
+function pairScript() {
+  return {
+    name: 'dashboard-pair-script',
+    async writeBundle() {
+      await buildClassicScript(`${clientRoot}/features/pair/pair.ts`, 'dashboardPair', 'pair.js');
+    },
+  };
+}
+
 /** Copies fonts and skin artwork into the output folder after Vite has emptied it; fails on a bad SVG. */
 function skinAssets() {
   return {
@@ -31,17 +63,38 @@ function bootScript() {
   return {
     name: 'dashboard-boot-script',
     async writeBundle() {
+      await buildClassicScript(`${clientRoot}/app/boot.ts`, 'dashboardBoot', 'boot.js');
+    },
+  };
+}
+
+/**
+ * The login page is served before login, when only the files in PUBLIC_PATHS (guards.ts) are reachable, so
+ * `login.js` must not import a shared chunk from `assets/`. It is its own build, with Vue bundled inside, and its stylesheet is written as `style.css` (also public).
+ */
+function loginPage() {
+  return {
+    name: 'dashboard-login-page',
+    async writeBundle() {
       await build({
         configFile: false,
         root: clientRoot,
         publicDir: false,
         logLevel: 'warn',
+        plugins: [vue()],
         build: {
           outDir: outputDirectory,
           emptyOutDir: false,
           target: BUILD_TARGET,
           sourcemap: true,
-          lib: { entry: `${clientRoot}/app/boot.ts`, formats: ['iife'], name: 'dashboardBoot', fileName: () => 'boot.js' },
+          modulePreload: { polyfill: false },
+          rollupOptions: {
+            input: { login: `${clientRoot}/login.html` },
+            output: {
+              entryFileNames: '[name].js',
+              assetFileNames: (asset) => (asset.names.some((name) => name.endsWith('.css')) ? 'style.css' : 'assets/[name]-[hash][extname]'),
+            },
+          },
         },
       });
     },
@@ -52,7 +105,7 @@ export default defineConfig({
   root: clientRoot,
   base: '/',
   publicDir: false,
-  plugins: [vue(), skinAssets(), bootScript()],
+  plugins: [vue(), skinAssets(), bootScript(), pairScript(), loginPage()],
   build: {
     outDir: outputDirectory,
     emptyOutDir: true,
@@ -62,7 +115,6 @@ export default defineConfig({
     rollupOptions: {
       input: {
         index: `${clientRoot}/index.html`,
-        login: `${clientRoot}/login.html`,
         pair: `${clientRoot}/pair.html`,
       },
       output: {

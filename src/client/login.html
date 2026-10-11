@@ -7,15 +7,7 @@
   <link rel="stylesheet" href="./style.scss">
 </head>
 <body>
-  <main class="login">
-    <form class="panel login__form" method="post" action="/login">
-      <h1>Claude Dashboard</h1>
-      <p class="sub">Paste the token from <code>.dashboard/token</code> on the dashboard PC.</p>
-      <label>Token <input name="token" type="password" autocomplete="current-password" required autofocus></label>
-      <p id="err" class="login__err" role="alert"></p>
-      <button class="btn btn--primary" type="submit">Log in</button>
-    </form>
-  </main>
-  <script type="module" src="./features/login/login.view.ts"></script>
+  <main class="login" id="login-app"></main>
+  <script type="module" src="./features/login/login-page.ts"></script>
 </body>
 </html>

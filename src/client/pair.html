@@ -8,14 +8,8 @@
   <link rel="stylesheet" href="./style.scss">
 </head>
 <body>
-  <main class="login">
-    <form class="panel login__form" id="pair" data-state="__STATE__">
-      <h1>Claude Dashboard</h1>
-      <p class="sub" id="ask">Sign in as <strong>__DEVICE__</strong>?</p>
-      <p id="err" class="login__err" role="alert"></p>
-      <button class="btn btn--primary" id="go" type="submit">Sign in</button>
-    </form>
-  </main>
-  <script type="module" src="./features/pair/pair.view.ts"></script>
+  <main class="login" id="pair-app" data-state="__STATE__" data-device="__DEVICE__"></main>
+
+  <script src="/pair.js"></script>
 </body>
 </html>

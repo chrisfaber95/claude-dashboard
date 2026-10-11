@@ -1,38 +1,27 @@
-import type { DashboardState, SessionInfo, SubagentInfo } from '../../../shared/types/index.ts';
+import type { DashboardState } from '../../../shared/types/index.ts';
+import { mountComponent } from '../../app/mount-component.ts';
 import { openSubagentTranscript, openTranscript } from '../controls/controls.view.ts';
 import { elementById } from '../../shared/dom.ts';
-import { sceneHtml } from './building-scene.view.ts';
-import { buildingRedrawKey, buildingSubtitle, cubicleLabel, roomTooltip, sessionStatLine, subagentTooltip } from './building.logic.ts';
+import BuildingScene from './building-scene.vue';
+import { setOpenBuilding } from './building-selection.ts';
+import { buildingSubtitle } from './building.logic.ts';
 
 const DEFAULT_TINT_CLASS = 'tint-1';
 
 let openProjectName: string | null = null;
 let latestState: DashboardState | null = null;
 let tintClassOf: (name: string) => string = () => DEFAULT_TINT_CLASS;
-let drawnKey = '';
 
 function isActivationKey(event: KeyboardEvent): boolean {
   return event.key === 'Enter' || event.key === ' ';
 }
 
-/** Only the changing text and tooltips, so the animations of an unchanged picture keep running. */
-function refreshChangedText(body: HTMLElement, sessions: SessionInfo[], subagents: SubagentInfo[]): void {
-  const subagentsById = new Map(subagents.map((subagent) => [subagent.agentId, subagent]));
-  for (const session of sessions) {
-    const id = CSS.escape(session.sessionId);
-    const stat = body.querySelector(`[data-stat="${id}"]`);
-    if (stat) stat.textContent = sessionStatLine(session);
-    body.querySelector(`[data-room="${id}"]`)?.setAttribute('data-tip', roomTooltip(session));
-  }
-  for (const subagent of subagents) {
-    const id = CSS.escape(subagent.agentId);
-    const activity = body.querySelector(`[data-act="${id}"]`);
-    if (activity) activity.textContent = cubicleLabel(subagent);
-    body.querySelector(`[data-sub="${id}"]`)?.setAttribute('data-tip', subagentTooltip(subagent, subagentsById));
-  }
+function asElement(target: EventTarget | null): Element | null {
+  return target instanceof Element ? target : null;
 }
 
-function renderBuilding(shouldForceRedraw: boolean): void {
+/** Title and subtitle of the popup; the drawing itself is the scene component, which follows the store. */
+function renderBuilding(): void {
   if (!openProjectName || !latestState) return;
   const name = openProjectName;
   const project = latestState.projects.find((candidate) => candidate.name === name);
@@ -46,22 +35,13 @@ function renderBuilding(shouldForceRedraw: boolean): void {
 
   elementById('building-title').textContent = name;
   elementById('building-sub').textContent = buildingSubtitle(project, sessions, subagents);
-
-  // Re-draw only when something visible changed, so the animations aren't restarted every push.
-  const key = buildingRedrawKey(name, tintClassOf(name), sessions, subagents);
-  const body = elementById('building-body');
-  if (shouldForceRedraw || key !== drawnKey) {
-    body.innerHTML = sceneHtml(name, sessions, subagents, tintClassOf(name));
-    drawnKey = key;
-    return;
-  }
-  refreshChangedText(body, sessions, subagents);
+  setOpenBuilding({ name, tintClass: tintClassOf(name) });
 }
 
 function closeBuilding(): void {
   const name = openProjectName;
   openProjectName = null;
-  drawnKey = '';
+  setOpenBuilding(null);
   elementById('building').hidden = true;
   // Hand keyboard focus back to the card that opened the building.
   if (name) document.querySelector<HTMLElement>(`[data-building="${CSS.escape(name)}"]`)?.focus();
@@ -71,7 +51,7 @@ function closeBuilding(): void {
 export function openBuilding(name: string): void {
   openProjectName = name;
   elementById('building').hidden = false;
-  renderBuilding(true);
+  renderBuilding();
   elementById('building-close').focus();
 }
 
@@ -79,35 +59,45 @@ export function openBuilding(name: string): void {
 export function updateBuilding(state: DashboardState, tintClass: (name: string) => string): void {
   latestState = state;
   tintClassOf = tintClass;
-  renderBuilding(false);
+  renderBuilding();
 }
 
 /** A click or Enter on a room opens the session's transcript; on a cubicle, the subagent's. */
 function activate(target: Element): boolean {
   const cubicle = target.closest<SVGElement>('[data-sub]');
-  if (cubicle) {
-    openSubagentTranscript(cubicle.dataset.sub!, cubicle.dataset.name ?? cubicle.dataset.sub!);
+  const subagentId = cubicle?.dataset.sub;
+  if (cubicle && subagentId) {
+    openSubagentTranscript(subagentId, cubicle.dataset.name ?? subagentId);
     return true;
   }
   const room = target.closest<SVGElement>('[data-room]');
-  if (room) {
-    openTranscript(room.dataset.room!, room.dataset.name ?? room.dataset.room!);
+  const sessionId = room?.dataset.room;
+  if (room && sessionId) {
+    openTranscript(sessionId, room.dataset.name ?? sessionId);
     return true;
   }
   return false;
 }
 
-/** Wire the building popup: close, room/cubicle activation, Escape, and the project cards that open it. */
+/** The project card an event came from, if its target is inside one. */
+function buildingCardOf(target: EventTarget | null): HTMLElement | null {
+  return asElement(target)?.closest<HTMLElement>('[data-building]') ?? null;
+}
+
+/** Wire the building popup: mount the scene, close, room/cubicle activation, Escape, and the project cards that open it. */
 export function initBuilding(): void {
+  mountComponent(BuildingScene, 'building-body');
   elementById('building-close').addEventListener('click', closeBuilding);
   elementById('building').addEventListener('click', (event) => {
-    const target = event.target as Element;
+    const target = asElement(event.target);
+    if (!target) return;
     if (target.id === 'building') closeBuilding();
     else activate(target);
   });
   elementById('building').addEventListener('keydown', (event) => {
     if (!isActivationKey(event)) return;
-    if (activate(event.target as Element)) event.preventDefault();
+    const target = asElement(event.target);
+    if (target && activate(target)) event.preventDefault();
   });
   // Capture phase: runs before the transcript drawer's handler, so Escape closes the drawer first and the building second.
   document.addEventListener(
@@ -118,14 +108,14 @@ export function initBuilding(): void {
     true,
   );
   document.addEventListener('click', (event) => {
-    const card = (event.target as Element).closest<HTMLElement>('[data-building]');
-    if (card) openBuilding(card.dataset.building!);
+    const name = buildingCardOf(event.target)?.dataset.building;
+    if (name) openBuilding(name);
   });
   document.addEventListener('keydown', (event) => {
     if (!isActivationKey(event)) return;
-    const card = (event.target as Element).closest<HTMLElement>('[data-building]');
+    const card = buildingCardOf(event.target);
     if (!card || card !== event.target) return;
     event.preventDefault();
-    openBuilding(card.dataset.building!);
+    if (card.dataset.building) openBuilding(card.dataset.building);
   });
 }

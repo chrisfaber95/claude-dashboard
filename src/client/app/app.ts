@@ -2,7 +2,7 @@
 import type { DashboardState } from '../../shared/types/index.ts';
 import { initAlerts, renderAlerts } from '../features/alerts/alerts.view.ts';
 import { initSummarySetting } from '../features/settings/settings.view.ts';
-import { initChat, updateChat } from '../features/chat/chat.view.ts';
+import ChatPanel from '../features/chat/chat-panel.vue';
 import { initBuilding, updateBuilding } from '../features/building/building.view.ts';
 import { initControls, updateControls } from '../features/controls/controls.view.ts';
 import CoreStrip from '../features/core/core-strip.vue';
@@ -15,7 +15,7 @@ import { draws, initPopups, updatePopups } from '../features/popups/popups.view.
 import type { PopupId } from '../features/popups/popups.logic.ts';
 import ProjectsPanel from '../features/projects/projects-panel.vue';
 import SessionsPanel from '../features/sessions/sessions-panel.vue';
-import { renderTeam } from '../features/team/team.view.ts';
+import TeamPanel from '../features/team/team-panel.vue';
 import Tooltip from '../features/tooltip/tooltip.vue';
 import { initUsage, renderUsage } from '../features/usage/usage.view.ts';
 import { elementById } from '../shared/dom.ts';
@@ -38,8 +38,6 @@ function render(state: DashboardState): void {
   const steps: Array<[string, () => void]> = [
     ['colors', () => setProjectColors(state.projects.map((project) => project.name))],
     ['alerts', () => renderAlerts(state)],
-    ['chat', () => updateChat(state)],
-    ['team', () => renderTeam(state, draws('team'))],
     ['devices', () => renderDevices(state)],
     ['audit', () => renderAudit(state)],
     ['approvals', () => updateApprovals(state)],
@@ -66,7 +64,6 @@ function render(state: DashboardState): void {
 function drawPopup(id: PopupId): void {
   if (!latestState) return;
   if (id === 'comms') renderMessages(latestState);
-  else if (id === 'team') renderTeam(latestState);
   else if (id === 'usage') renderUsage(latestState);
   else if (id === 'approvals') renderApprovals();
 }
@@ -74,13 +71,14 @@ function drawPopup(id: PopupId): void {
 mountComponent(LimitsPanel, 'limits');
 mountComponent(ProjectsPanel, 'projects');
 mountComponent(SessionsPanel, 'sessions');
+mountComponent(TeamPanel, 'team');
 mountComponent(Tooltip, 'tip-root');
 initUsage(() => latestState);
 initPopups(drawPopup); // before initBuilding: its Escape handler must see the building still open
 initControls();
 initAlerts();
 initSummarySetting();
-initChat();
+mountComponent(ChatPanel, 'chat-panel');
 initDevices();
 initAudit();
 initPermissions(() => {
