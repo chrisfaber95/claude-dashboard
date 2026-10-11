@@ -50,7 +50,7 @@ function render(state: DashboardState): void {
     ['controls', () => updateControls(state)],
     ['building', () => updateBuilding(state, projectTint)],
     ['core', () => updateCore(state)],
-    ['popups', () => updatePopups()],
+    ['popups', () => updatePopups(state)],
   ];
   let hasFailed = false;
   for (const [name, run] of steps) {
