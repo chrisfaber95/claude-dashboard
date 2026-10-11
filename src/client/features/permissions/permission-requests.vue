@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, watch } from 'vue';
 import { useDashboardState } from '../../app/dashboard-state.ts';
 import { api, ApiError } from '../../shared/api.ts';
+import { usePermissionProgress } from './permission-progress.ts';
 import { answerErrorMessage, canAnswer, pendingRequests, PC_HINT, sessionLabel } from './permissions.logic.ts';
-import type { AnswerProgress } from './permissions.logic.ts';
 
 /** Where the requests are listed: the sessions section or the needs-you list. */
 const props = defineProps<{ context: 'sessions' | 'alerts' }>();
 
 const state = useDashboardState();
-const progressById = ref(new Map<string, AnswerProgress>());
+const progressById = usePermissionProgress();
 
 const items = computed(() => {
   const current = state.value;

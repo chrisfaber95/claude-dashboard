@@ -14,7 +14,7 @@ import { initPermissions, renderApprovals, updateApprovals } from '../features/p
 import { draws, initPopups, updatePopups } from '../features/popups/popups.view.ts';
 import type { PopupId } from '../features/popups/popups.logic.ts';
 import ProjectsPanel from '../features/projects/projects-panel.vue';
-import { renderSessions } from '../features/sessions/sessions.view.ts';
+import SessionsPanel from '../features/sessions/sessions-panel.vue';
 import { renderTeam } from '../features/team/team.view.ts';
 import Tooltip from '../features/tooltip/tooltip.vue';
 import { initUsage, renderUsage } from '../features/usage/usage.view.ts';
@@ -43,7 +43,6 @@ function render(state: DashboardState): void {
     ['devices', () => renderDevices(state)],
     ['audit', () => renderAudit(state)],
     ['approvals', () => updateApprovals(state)],
-    ['sessions', () => renderSessions(state)],
     ['messages', () => draws('comms') && renderMessages(state)],
     ['usage', () => draws('usage') && renderUsage(state)],
     ['controls', () => updateControls(state)],
@@ -74,6 +73,7 @@ function drawPopup(id: PopupId): void {
 
 mountComponent(LimitsPanel, 'limits');
 mountComponent(ProjectsPanel, 'projects');
+mountComponent(SessionsPanel, 'sessions');
 mountComponent(Tooltip, 'tip-root');
 initUsage(() => latestState);
 initPopups(drawPopup); // before initBuilding: its Escape handler must see the building still open
@@ -84,9 +84,7 @@ initChat();
 initDevices();
 initAudit();
 initPermissions(() => {
-  if (!latestState) return;
-  renderSessions(latestState);
-  renderAlerts(latestState);
+  if (latestState) renderAlerts(latestState);
 });
 initBuilding();
 mountComponent(CoreStrip, 'core');
