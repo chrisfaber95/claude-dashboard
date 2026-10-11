@@ -16,7 +16,7 @@ import type { PopupId } from '../features/popups/popups.logic.ts';
 import ProjectsPanel from '../features/projects/projects-panel.vue';
 import { renderSessions } from '../features/sessions/sessions.view.ts';
 import { renderTeam } from '../features/team/team.view.ts';
-import { initTooltip } from '../features/tooltip/tooltip.view.ts';
+import Tooltip from '../features/tooltip/tooltip.vue';
 import { initUsage, renderUsage } from '../features/usage/usage.view.ts';
 import { elementById } from '../shared/dom.ts';
 import { setProjectColors, projectTint } from '../shared/project-colors.ts';
@@ -74,7 +74,7 @@ function drawPopup(id: PopupId): void {
 
 mountComponent(LimitsPanel, 'limits');
 mountComponent(ProjectsPanel, 'projects');
-initTooltip();
+mountComponent(Tooltip, 'tip-root');
 initUsage(() => latestState);
 initPopups(drawPopup); // before initBuilding: its Escape handler must see the building still open
 initControls();

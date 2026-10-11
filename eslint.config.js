@@ -30,7 +30,6 @@ export const TYPE_SAFETY_LEGACY_FILES = [
   'src/client/features/pair/pair.view.ts',
   'src/client/features/permissions/permissions.logic.ts',
   'src/client/features/permissions/permissions.view.ts',
-  'src/client/features/tooltip/tooltip.view.ts',
   'src/client/features/usage/usage.view.ts',
   'src/client/shared/api.ts',
   'src/client/shared/dom.ts',
