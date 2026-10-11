@@ -148,6 +148,6 @@ Two runners, each with its own file suffix, so neither picks up the other's file
 - `*.test.ts`: `node:test` (`npm run test:node`), for logic, server and source-scan tests.
 - `*.component.spec.ts`: Vitest with `@vue/test-utils` and `happy-dom` (`npm run test:component`, config in
   `vitest.config.ts`), for Vue components. They live in `tests/client/features/<feature>/` beside the mirror, e.g.
-  `tests/client/features/core/click-counter.component.spec.ts`.
+  `tests/client/features/limits/limits-panel.component.spec.ts`.
 
 `npm test` runs both. Import `describe`, `it` and `expect` from `vitest` explicitly (no globals).
