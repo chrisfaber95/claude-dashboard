@@ -81,15 +81,7 @@
     </div>
     <div id="popup-audit" class="popup" role="dialog" aria-modal="true" aria-label="Activity" hidden>
       <button class="btn popup__close" type="button" data-popup-close aria-label="Close Activity">Close</button>
-      <details id="audit" class="panel audit">
-        <summary id="h-audit" class="audit__summary">Activity</summary>
-        <div class="audit__bar">
-          <label>Device <select id="audit-device"><option value="">All devices</option></select></label>
-          <button id="audit-refresh" class="btn btn--sm" type="button">Refresh</button>
-          <span id="audit-status" class="sub" role="status"></span>
-        </div>
-        <ul id="audit-list" class="audit__list"></ul>
-      </details>
+      <section id="audit" class="panel audit" aria-labelledby="h-audit"></section>
     </div>
     <div id="popup-approvals" class="popup" role="dialog" aria-modal="true" aria-label="Approvals" hidden>
       <button class="btn popup__close" type="button" data-popup-close aria-label="Close Approvals">Close</button>

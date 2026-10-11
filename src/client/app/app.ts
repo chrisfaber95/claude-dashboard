@@ -7,7 +7,7 @@ import BuildingDialog from '../features/building/building-dialog.vue';
 import { initControls, updateControls } from '../features/controls/controls.view.ts';
 import RunPanel from '../features/controls/run-panel.vue';
 import CoreStrip from '../features/core/core-strip.vue';
-import { initAudit, renderAudit } from '../features/audit/audit.view.ts';
+import AuditPanel from '../features/audit/audit-panel.vue';
 import DevicesPanel from '../features/devices/devices-panel.vue';
 import LimitsPanel from '../features/limits/limits-panel.vue';
 import { renderMessages } from '../features/messages/messages.view.ts';
@@ -39,7 +39,6 @@ function render(state: DashboardState): void {
   const steps: Array<[string, () => void]> = [
     ['colors', () => setProjectColors(state.projects.map((project) => project.name))],
     ['alerts', () => renderAlerts(state)],
-    ['audit', () => renderAudit(state)],
     ['approvals', () => updateApprovals(state)],
     ['messages', () => draws('comms') && renderMessages(state)],
     ['usage', () => draws('usage') && renderUsage(state)],
@@ -80,7 +79,7 @@ initAlerts();
 initSummarySetting();
 mountComponent(ChatPanel, 'chat-panel');
 mountComponent(DevicesPanel, 'devices');
-initAudit();
+mountComponent(AuditPanel, 'audit');
 initPermissions(() => {
   if (latestState) renderAlerts(latestState);
 });
