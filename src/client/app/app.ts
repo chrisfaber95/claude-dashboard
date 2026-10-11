@@ -13,13 +13,13 @@ import DevicesPanel from '../features/devices/devices-panel.vue';
 import LimitsPanel from '../features/limits/limits-panel.vue';
 import MessagesPanel from '../features/messages/messages-panel.vue';
 import { initPermissions, renderApprovals, updateApprovals } from '../features/permissions/permissions.view.ts';
-import { draws, initPopups, updatePopups } from '../features/popups/popups.view.ts';
+import { initPopups, updatePopups } from '../features/popups/popups.view.ts';
 import type { PopupId } from '../features/popups/popups.logic.ts';
 import ProjectsPanel from '../features/projects/projects-panel.vue';
 import SessionsPanel from '../features/sessions/sessions-panel.vue';
 import TeamPanel from '../features/team/team-panel.vue';
 import Tooltip from '../features/tooltip/tooltip.vue';
-import { initUsage, renderUsage } from '../features/usage/usage.view.ts';
+import UsagePanel from '../features/usage/usage-panel.vue';
 import { elementById } from '../shared/dom.ts';
 import { setProjectColors } from '../shared/project-colors.ts';
 import { tickTimes } from '../shared/time.ts';
@@ -40,7 +40,6 @@ function render(state: DashboardState): void {
   const steps: Array<[string, () => void]> = [
     ['colors', () => setProjectColors(state.projects.map((project) => project.name))],
     ['approvals', () => updateApprovals(state)],
-    ['usage', () => draws('usage') && renderUsage(state)],
     ['controls', () => updateControls(state)],
     ['popups', () => updatePopups(state)],
   ];
@@ -60,8 +59,7 @@ function render(state: DashboardState): void {
 // Opening a popup draws its section from the latest state first; closed popups are skipped on pushes.
 function drawPopup(id: PopupId): void {
   if (!latestState) return;
-  if (id === 'usage') renderUsage(latestState);
-  else if (id === 'approvals') renderApprovals();
+  if (id === 'approvals') renderApprovals();
 }
 
 mountComponent(LimitsPanel, 'limits');
@@ -70,7 +68,7 @@ mountComponent(ProjectsPanel, 'projects');
 mountComponent(SessionsPanel, 'sessions');
 mountComponent(TeamPanel, 'team');
 mountComponent(Tooltip, 'tip-root');
-initUsage(() => latestState);
+mountComponent(UsagePanel, 'usage');
 initPopups(drawPopup); // before the building dialog: its Escape handler must see the building still open
 initControls();
 mountComponent(AlertsPanel, 'alerts');
