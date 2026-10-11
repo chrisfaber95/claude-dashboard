@@ -79,6 +79,7 @@ async function refreshTranscript(current: DrawerRequest, isInitial: boolean): Pr
       isTruncated.value = Boolean(page.truncated);
     }
     isLoading.value = false;
+    loadError.value = '';
     if (shouldStickToBottom && (isInitial || merged.length !== previousLength)) {
       await nextTick();
       scrollToBottom();

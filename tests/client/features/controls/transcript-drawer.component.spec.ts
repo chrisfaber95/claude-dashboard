@@ -142,6 +142,21 @@ describe('TranscriptDrawer', () => {
     expect(body.scrollTop).toBe(200);
   });
 
+  it('recovers from a failed first load on the next poll', async () => {
+    respond = () => {
+      throw new Error('boom');
+    };
+    openTranscript('s-1', 'Alpha');
+    await settle();
+    expect(document.querySelector('#drawer-body .empty')).not.toBeNull();
+    expect(messageTexts()).toEqual([]);
+    respond = () => ({ entries: [makeEntry('a')], hasMore: false });
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+    await settle();
+    expect(document.querySelector('#drawer-body .empty')).toBeNull();
+    expect(messageTexts()).toEqual(['a']);
+  });
+
   it('closes with the Close button and with Escape, and stops polling', async () => {
     openTranscript('s-1', 'Alpha');
     await settle();
