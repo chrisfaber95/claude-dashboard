@@ -1,7 +1,6 @@
 // Shell: wires the feature views to the state stream. It renders nothing itself.
 import type { DashboardState } from '../../shared/types/index.ts';
 import AlertsPanel from '../features/alerts/alerts-panel.vue';
-import { initSummarySetting } from '../features/settings/settings.view.ts';
 import ChatPanel from '../features/chat/chat-panel.vue';
 import BuildingDialog from '../features/building/building-dialog.vue';
 import { bindControlsVisibility } from '../features/controls/controls-visibility.ts';
@@ -17,6 +16,7 @@ import { initPermissions, renderApprovals, updateApprovals } from '../features/p
 import { initPopups, updatePopups } from '../features/popups/popups.view.ts';
 import type { PopupId } from '../features/popups/popups.logic.ts';
 import ProjectsPanel from '../features/projects/projects-panel.vue';
+import SummarySetting from '../features/settings/summary-setting.vue';
 import SessionsPanel from '../features/sessions/sessions-panel.vue';
 import TeamPanel from '../features/team/team-panel.vue';
 import Tooltip from '../features/tooltip/tooltip.vue';
@@ -72,7 +72,7 @@ mountComponent(UsagePanel, 'usage');
 initPopups(drawPopup); // before the building dialog: its Escape handler must see the building still open
 bindControlsVisibility();
 mountComponent(AlertsPanel, 'alerts');
-initSummarySetting();
+mountComponent(SummarySetting, 'summary-setting');
 mountComponent(ChatPanel, 'chat-panel');
 mountComponent(DevicesPanel, 'devices');
 mountComponent(AuditPanel, 'audit');
