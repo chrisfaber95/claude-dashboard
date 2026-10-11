@@ -11,7 +11,7 @@
   <header class="top">
     <h1>Claude Dashboard</h1>
     <div class="top__meta">
-      <span id="alert-badge" class="alert-badge" role="status" aria-label="Alerts needing attention" hidden></span>
+      <span id="alert-badge" class="alert-badge-slot"></span>
       <span id="conn" class="conn">connecting…</span>
       <select id="skin" aria-label="Skin">
         <option value="classic">Classic</option>
@@ -27,15 +27,7 @@
     <section id="core" class="core" aria-labelledby="h-core"></section>
     <nav id="popup-bar" class="popup-bar" aria-label="Open a panel"></nav>
     <section id="limits" class="panel" aria-labelledby="h-limits"></section>
-    <section id="alerts" class="panel alerts" aria-labelledby="h-alerts">
-      <h2 id="h-alerts">Needs attention <span id="alerts-count" class="alerts__count" hidden></span></h2>
-      <ul id="alerts-list" class="alerts__list"></ul>
-      <form id="alerts-form" class="alerts__form">
-        <label>Usage alert threshold (%) <input id="alerts-threshold" type="number" min="1" max="100" step="1" required></label>
-        <button class="btn btn--sm" type="submit">Save</button>
-        <span id="alerts-status" class="sub" role="status"></span>
-      </form>
-    </section>
+    <div id="alerts"></div>
     <section id="sessions" class="panel" aria-labelledby="h-sessions"></section>
   </main>
   <div id="popups" class="popups" hidden>

@@ -84,19 +84,3 @@ export function approvalHtml(entry: AuditEntry): string {
 export function approvalListHtml(entries: readonly AuditEntry[]): string {
   return entries.length ? entries.map(approvalHtml).join('') : '<li class="empty">No approvals yet.</li>';
 }
-
-function buttonsHtml(requestId: string, isBusy: boolean): string {
-  const disabled = isBusy ? ' disabled' : '';
-  const id = esc(requestId);
-  return `<button class="btn btn--sm" type="button" data-permission-decide="allow" data-permission-id="${id}"${disabled}>Approve</button>
-    <button class="btn btn--sm" type="button" data-permission-decide="deny" data-permission-id="${id}"${disabled}>Deny</button>`;
-}
-
-/** One pending request as a keyed list item; `context` keeps the key unique when it is shown in two lists. */
-export function requestItemHtml(request: PermissionRequestInfo, label: string, isAnswerable: boolean, progress: AnswerProgress | undefined, context: string): string {
-  const controls = isAnswerable ? buttonsHtml(request.id, progress?.isBusy === true) : `<span class="sub permission__hint">${esc(PC_HINT)}</span>`;
-  return `<li class="permission" data-key="${esc(`permission-${context}-${request.id}`)}">
-    <div class="permission__head"><strong class="permission__tool">${esc(request.tool)}</strong> <span class="sub">${esc(label)}</span></div>
-    <div class="permission__text">${esc(request.text)}</div>
-    <div class="permission__actions">${controls} <span class="sub permission__status" role="status">${esc(progress?.message ?? '')}</span></div></li>`;
-}

@@ -1,6 +1,6 @@
 // Shell: wires the feature views to the state stream. It renders nothing itself.
 import type { DashboardState } from '../../shared/types/index.ts';
-import { initAlerts, renderAlerts } from '../features/alerts/alerts.view.ts';
+import AlertsPanel from '../features/alerts/alerts-panel.vue';
 import { initSummarySetting } from '../features/settings/settings.view.ts';
 import ChatPanel from '../features/chat/chat-panel.vue';
 import BuildingDialog from '../features/building/building-dialog.vue';
@@ -38,7 +38,6 @@ function render(state: DashboardState): void {
   // Each step runs on its own: one failing section must not freeze the others or later pushes.
   const steps: Array<[string, () => void]> = [
     ['colors', () => setProjectColors(state.projects.map((project) => project.name))],
-    ['alerts', () => renderAlerts(state)],
     ['approvals', () => updateApprovals(state)],
     ['messages', () => draws('comms') && renderMessages(state)],
     ['usage', () => draws('usage') && renderUsage(state)],
@@ -75,14 +74,12 @@ mountComponent(Tooltip, 'tip-root');
 initUsage(() => latestState);
 initPopups(drawPopup); // before the building dialog: its Escape handler must see the building still open
 initControls();
-initAlerts();
+mountComponent(AlertsPanel, 'alerts');
 initSummarySetting();
 mountComponent(ChatPanel, 'chat-panel');
 mountComponent(DevicesPanel, 'devices');
 mountComponent(AuditPanel, 'audit');
-initPermissions(() => {
-  if (latestState) renderAlerts(latestState);
-});
+initPermissions();
 mountComponent(BuildingDialog, 'building-dialog');
 mountComponent(CoreStrip, 'core');
 

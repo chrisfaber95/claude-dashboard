@@ -9,7 +9,6 @@ import {
   approvalRowOf,
   canAnswer,
   pendingRequests,
-  requestItemHtml,
   sessionLabel,
 } from '../../../../src/client/features/permissions/permissions.logic.ts';
 
@@ -64,30 +63,9 @@ test('approvalRowOf labels outcomes, shortens the session and fills missing fiel
   assert.equal(approvalRowOf(entry({ deviceId: 'pc' })).device, 'pc');
 });
 
-test('request text and tool are escaped in the pending item', () => {
-  const html = requestItemHtml(request({ text: '<img src=x onerror=alert(1)>', tool: '<b>' }), '"><script>', true, undefined, 'alerts');
-  assert.ok(!html.includes('<img'));
-  assert.ok(!html.includes('<script>'));
-  assert.ok(html.includes('&lt;img src=x onerror=alert(1)&gt;'));
-  assert.ok(html.includes('data-permission-decide="allow"'));
-});
-
-test('a busy request has disabled buttons; the PC gets the hint instead of buttons', () => {
-  const busy = requestItemHtml(request({}), 'label', true, { isBusy: true, message: '' }, 'sessions');
-  assert.equal(busy.match(/ disabled/g)?.length, 2);
-  const failed = requestItemHtml(request({}), 'label', true, { isBusy: false, message: 'Could not send the answer.' }, 'sessions');
-  assert.ok(!failed.includes(' disabled'));
-  assert.ok(failed.includes('Could not send the answer.'));
-  const pc = requestItemHtml(request({}), 'label', false, undefined, 'sessions');
-  assert.ok(!pc.includes('data-permission-decide'));
-  assert.ok(pc.includes('`claude attach`'));
+test('the PC hint tells where to answer', () => {
   assert.ok(PC_HINT.startsWith('Answer from a paired phone or tablet'));
-});
-
-test('the same request has different keys in the two lists', () => {
-  const a = requestItemHtml(request({}), 'l', true, undefined, 'sessions');
-  const b = requestItemHtml(request({}), 'l', true, undefined, 'alerts');
-  assert.notEqual(a.match(/data-key="[^"]*"/)?.[0], b.match(/data-key="[^"]*"/)?.[0]);
+  assert.ok(PC_HINT.includes('`claude attach`'));
 });
 
 test('approvalListHtml escapes entry text and shows an empty state', () => {

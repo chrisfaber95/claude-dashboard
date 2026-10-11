@@ -1417,6 +1417,11 @@ $hair: (#2b2118, #6b4423, #c9a24b, #a33b2a, #555555);
   }
 }
 
+// The badge component is teleported into this slot; it must not add a flex gap of its own.
+.alert-badge-slot {
+  display: contents;
+}
+
 .alert-badge {
   min-width: 20px;
   padding: 1px 7px;
