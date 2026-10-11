@@ -9,10 +9,10 @@ import RunPanel from '../features/controls/run-panel.vue';
 import TranscriptDrawer from '../features/controls/transcript-drawer.vue';
 import CoreStrip from '../features/core/core-strip.vue';
 import AuditPanel from '../features/audit/audit-panel.vue';
+import ApprovalsPanel from '../features/permissions/approvals-panel.vue';
 import DevicesPanel from '../features/devices/devices-panel.vue';
 import LimitsPanel from '../features/limits/limits-panel.vue';
 import { renderMessages } from '../features/messages/messages.view.ts';
-import { initPermissions, renderApprovals, updateApprovals } from '../features/permissions/permissions.view.ts';
 import { draws, initPopups, updatePopups } from '../features/popups/popups.view.ts';
 import type { PopupId } from '../features/popups/popups.logic.ts';
 import ProjectsPanel from '../features/projects/projects-panel.vue';
@@ -39,7 +39,6 @@ function render(state: DashboardState): void {
   // Each step runs on its own: one failing section must not freeze the others or later pushes.
   const steps: Array<[string, () => void]> = [
     ['colors', () => setProjectColors(state.projects.map((project) => project.name))],
-    ['approvals', () => updateApprovals(state)],
     ['messages', () => draws('comms') && renderMessages(state)],
     ['usage', () => draws('usage') && renderUsage(state)],
     ['controls', () => updateControls(state)],
@@ -63,7 +62,6 @@ function drawPopup(id: PopupId): void {
   if (!latestState) return;
   if (id === 'comms') renderMessages(latestState);
   else if (id === 'usage') renderUsage(latestState);
-  else if (id === 'approvals') renderApprovals();
 }
 
 mountComponent(LimitsPanel, 'limits');
@@ -80,7 +78,7 @@ initSummarySetting();
 mountComponent(ChatPanel, 'chat-panel');
 mountComponent(DevicesPanel, 'devices');
 mountComponent(AuditPanel, 'audit');
-initPermissions();
+mountComponent(ApprovalsPanel, 'approvals');
 mountComponent(BuildingDialog, 'building-dialog');
 mountComponent(TranscriptDrawer, 'transcript-drawer');
 mountComponent(CoreStrip, 'core');
