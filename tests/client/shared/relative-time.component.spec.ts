@@ -1,7 +1,7 @@
 import { mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import RelativeTime from '../../../src/client/shared/relative-time.vue';
-import { tickTimes, timeSpan } from '../../../src/client/shared/time.ts';
+import { tickTimes } from '../../../src/client/shared/time.ts';
 
 const NOW_MS = Date.parse('2026-10-11T12:00:00Z');
 const MINUTE_MS = 60_000;
@@ -44,12 +44,8 @@ describe('RelativeTime', () => {
     expect(mount(RelativeTime, { props: { kind: 'up', timestampMs: null } }).text()).toBe('0m');
   });
 
-  it('renders the same element as timeSpan, so tickTimes keeps advancing it', () => {
+  it('is advanced by tickTimes between pushes', () => {
     const wrapper = mount(RelativeTime, { props: { kind: 'ago', timestampMs: NOW_MS - MINUTE_MS } });
-    const container = document.createElement('div');
-    container.innerHTML = timeSpan('ago', NOW_MS - MINUTE_MS);
-    expect(wrapper.html()).toBe(container.innerHTML);
-
     document.body.append(wrapper.element);
     vi.setSystemTime(NOW_MS + 4 * MINUTE_MS);
     tickTimes();

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue';
 import { useDashboardState } from '../../app/dashboard-state.ts';
-import { elementById } from '../../shared/dom.ts';
 import { projectTint } from '../../shared/project-colors.ts';
 import { openSubagentTranscript, openTranscript } from '../controls/transcript-drawer-selection.ts';
 import BuildingScene from './building-scene.vue';
@@ -105,7 +104,7 @@ function onDocumentKeydown(event: KeyboardEvent): void {
 
 // Capture phase: runs before the transcript drawer's handler, so Escape closes the drawer first and the building second.
 function onEscape(event: KeyboardEvent): void {
-  if (event.key === 'Escape' && isOpen.value && elementById('drawer').hidden) close();
+  if (event.key === 'Escape' && isOpen.value && document.getElementById('drawer')?.hidden !== false) close();
 }
 
 onMounted(() => {

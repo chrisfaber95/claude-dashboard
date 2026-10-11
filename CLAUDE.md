@@ -27,7 +27,7 @@ Moved verbatim to `docs/architecture.md` to keep this file small. Read the match
 - **Environment variables**: `DASHBOARD_*`, `PROJECTS_ROOT`, `CLAUDE_*` and their defaults.
 - **Claude CLI behaviour (verified)**: how `claude.exe` is found, trust, `--bg`. Read before touching `claude-cli.ts`.
 - **Tests**: fixtures, `makeFixture()`, fake CLI, `raw()`. Read before writing or changing tests.
-- **UI conventions**: palette, skins, animations, no inline styles, `esc()`. Read before any change in `src/client/`, and include it in every `frontend-developer` delegation.
+- **UI conventions**: palette, skins, animations, no inline styles, no `v-html`. Read before any change in `src/client/`, and include it in every `frontend-developer` delegation.
 
 - **Vendored Vue skills** (`docs/vendored-skills.md`): source, commit and update steps of the skills in `.claude/skills/`.
 
@@ -64,7 +64,7 @@ For `.vue` work load the `vue-best-practices` skill (component tests: `vue-testi
   - Permission modes are allowlisted (`plan`, `default`, `acceptEdits`, `auto`). Never allow `bypassPermissions` or `dontAsk`.
   - Every command is audited to `.dashboard/commands.log`. At most 4 CLI processes run at once.
 - **Client XSS:**
-  - Every interpolated value goes through `esc()`.
+  - No `v-html` (`vue/no-v-html` is an error): Vue escapes every interpolated value.
   - Tooltips (`data-tip`) are rendered with `textContent`, because attribute values come back entity-decoded. Never switch them to `innerHTML`.
   - The CSP allows no inline scripts; keep scripts in bundled files.
 - Error messages that reach the browser are fixed strings, never raw exception text (JSON parse errors can quote secrets).
@@ -88,7 +88,7 @@ Also see `.claude/skills/` for 24 reusable skills.
 
 ### Frontend and TypeScript delegation (mandatory)
 
-- **Frontend:** delegate every change in `src/client/` (`.ts`, `.scss`, `index.html`, `login.html`) to the `frontend-developer` agent, including new files such as `features/building/building.view.ts`. The client is TypeScript and SCSS moving to Vue 3 with Vite (decision 0007; no panel is migrated yet), not React or Angular, so ignore the agent's other framework wording. In the delegation prompt, include the "UI conventions" from `docs/architecture.md`, the `esc()` and no-inline-script rules from "Rules", `docs/code-style.md`, and which `src/shared/types/` changes are involved. Trivial one-line fixes may be done directly.
+- **Frontend:** delegate every change in `src/client/` (`.ts`, `.scss`, `index.html`, `login.html`) to the `frontend-developer` agent, including new files such as `features/building/building.view.ts`. The client is TypeScript and SCSS moving to Vue 3 with Vite (decision 0007; no panel is migrated yet), not React or Angular, so ignore the agent's other framework wording. In the delegation prompt, include the "UI conventions" from `docs/architecture.md`, the no-`v-html` and no-inline-script rules from "Rules", `docs/code-style.md`, and which `src/shared/types/` changes are involved. Trivial one-line fixes may be done directly.
 - **TypeScript:** delegate to `typescript-pro` whenever `src/shared/types/` is added to or changed, a new `.ts` module is created, or API, transcript or config boundaries get new types, not only when asked for "type-system work". Honour the "TypeScript constraints" above and include `docs/code-style.md` in the delegation prompt.
 - When both apply (a client feature with new shared types), run `typescript-pro` for the types first, then `frontend-developer` for the UI.
 

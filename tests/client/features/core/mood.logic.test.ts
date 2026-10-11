@@ -5,8 +5,39 @@ import type { SessionInfo, SubagentInfo } from '../../../../src/shared/types/ind
 import { CORE_LABEL, coreHeadline, coreSummary, moodOf, coreHeadlineParts } from '../../../../src/client/features/core/mood.logic.ts';
 import type { CoreSummary } from '../../../../src/client/features/core/mood.logic.ts';
 
-const session = (status: string, name = 'S'): SessionInfo => ({ status, name }) as unknown as SessionInfo;
-const sub = (state: 'working' | 'done'): SubagentInfo => ({ state }) as unknown as SubagentInfo;
+const session = (status: string, name = 'S'): SessionInfo => ({
+  sessionId: 'session',
+  pid: 1,
+  name,
+  project: 'project',
+  cwd: '',
+  status,
+  entrypoint: 'cli',
+  kind: 'interactive',
+  startedAtMs: 0,
+  updatedAtMs: 0,
+  branch: null,
+  tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+});
+const sub = (state: SubagentInfo['state']): SubagentInfo => ({
+  agentId: 'agent',
+  sessionId: 'session',
+  project: 'project',
+  agentType: 'general-purpose',
+  description: '',
+  prompt: '',
+  background: false,
+  parentAgentId: null,
+  startedAtMs: 0,
+  lastTsMs: 0,
+  state,
+  handedBack: false,
+  activity: '',
+  result: '',
+  tokens: 0,
+});
+/** A copy that went through JSON, typed loosely: for inputs an older server could send with fields missing. */
+const looseCopy = (value: unknown) => JSON.parse(JSON.stringify(value));
 const summary = (overrides: Partial<CoreSummary>): CoreSummary => ({
   mood: 'standby',
   busy: 0,
@@ -20,7 +51,7 @@ test('moodOf maps busy, waiting and everything else to idle', () => {
   assert.equal(moodOf({ status: 'busy' }), 'busy');
   assert.equal(moodOf({ status: 'waiting' }), 'waiting');
   assert.equal(moodOf({ status: 'idle' }), 'idle');
-  assert.equal(moodOf({ status: 'whatever' as SessionInfo['status'] }), 'idle');
+  assert.equal(moodOf({ status: 'whatever' }), 'idle');
 });
 
 test('coreSummary is standby with nothing running', () => {
@@ -28,7 +59,7 @@ test('coreSummary is standby with nothing running', () => {
 });
 
 test('coreSummary tolerates missing subagents', () => {
-  const core = coreSummary({ sessions: [session('busy')], subagents: undefined as unknown as SubagentInfo[] });
+  const core = coreSummary(looseCopy({ sessions: [session('busy')] }));
   assert.equal(core.mood, 'working');
   assert.equal(core.subagentsWorking, 0);
 });

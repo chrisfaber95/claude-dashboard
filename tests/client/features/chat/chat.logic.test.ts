@@ -1,15 +1,46 @@
 // Chat intents: what a typed phrase means and how the chat answers it.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Alert, DashboardState, SessionInfo } from '../../../../src/shared/types/index.ts';
+import type { Alert, DashboardState, SessionInfo, SubagentInfo } from '../../../../src/shared/types/index.ts';
 import { answer, fmtTokens, HELP_TEXT, parseIntent } from '../../../../src/client/features/chat/chat.logic.ts';
 
 const NOW = new Date(2026, 9, 9, 12, 0, 0).getTime();
 const tokenCounts = (count: number) => ({ input: count, output: 0, cacheRead: 0, cacheWrite: 0 });
-const session = (sessionId: string, name: string, project: string, status = 'busy'): SessionInfo =>
-  ({ sessionId, name, project, status }) as unknown as SessionInfo;
+const session = (sessionId: string, name: string, project: string, status = 'busy'): SessionInfo => ({
+  sessionId,
+  pid: 1,
+  name,
+  project,
+  cwd: '',
+  status,
+  entrypoint: 'cli',
+  kind: 'interactive',
+  startedAtMs: 0,
+  updatedAtMs: 0,
+  branch: null,
+  tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+});
+const sub = (state: SubagentInfo['state']): SubagentInfo => ({
+  agentId: 'agent',
+  sessionId: 'session',
+  project: 'project',
+  agentType: 'general-purpose',
+  description: '',
+  prompt: '',
+  background: false,
+  parentAgentId: null,
+  startedAtMs: 0,
+  lastTsMs: 0,
+  state,
+  handedBack: false,
+  activity: '',
+  result: '',
+  tokens: 0,
+});
+/** A copy that went through JSON, typed loosely: for inputs an older server could send with fields missing. */
+const looseCopy = (value: unknown) => JSON.parse(JSON.stringify(value));
 const alert = (id: string, title: string, detail = 'Waiting for you'): Alert =>
-  ({ id, kind: 'session', title, detail, sinceMs: 0, resetsAtMs: null }) as Alert;
+  ({ id, kind: 'session', title, detail, sinceMs: 0, resetsAtMs: null });
 
 function makeState(overrides: Partial<DashboardState> = {}): DashboardState {
   return {
@@ -29,8 +60,10 @@ function makeState(overrides: Partial<DashboardState> = {}): DashboardState {
     recentSessions: [],
     alerts: { items: [alert('session:bbbb2222-0', 'Tester'), alert('usage:five_hour', '5-hour', '87% used')], threshold: 80 },
     team: null,
+    features: { lan: false, commands: false, permissionModes: [], manageDevices: false },
+    permissions: [],
     ...overrides,
-  } as DashboardState;
+  };
 }
 
 const kind = (text: string, state = makeState()) => parseIntent(text, state).kind;
@@ -148,7 +181,7 @@ test('ack with several or no matches lists or says so', () => {
 });
 
 test('status reply lists sessions with their mood and subagents', () => {
-  const state = makeState({ subagents: [{ state: 'working' }, { state: 'done' }] as DashboardState['subagents'] });
+  const state = makeState({ subagents: [sub('working'), sub('done')] });
   const reply = answer(parseIntent("what's running?", state), state);
   assert.match(reply, /2 live sessions/);
   assert.match(reply, /Builder \(alpha\): working/);
@@ -162,7 +195,7 @@ test('status reply when nothing runs', () => {
 });
 
 test('attention reply lists alerts and team items, or says all is quiet', () => {
-  const state = makeState({ team: { counts: {}, active: {}, needsYou: ['T-9 needs approval'] } as unknown as DashboardState['team'] });
+  const state = makeState({ team: { counts: { backlog: 0, ready: 0, 'in-progress': 0, review: 0, done: 0, blocked: 0 }, active: { inProgress: [], review: [], blocked: [] }, needsYou: ['T-9 needs approval'] } });
   const reply = answer({ kind: 'attention' }, state);
   assert.match(reply, /3 things need you/);
   assert.match(reply, /Tester: Waiting for you/);
@@ -208,7 +241,7 @@ test('a verb with no match and no keyword still replies with no match', () => {
 });
 
 test('usage reply tolerates missing usage data', () => {
-  const state = makeState({ usage: undefined as unknown as DashboardState['usage'] });
+  const state = looseCopy({ ...makeState(), usage: undefined });
   const reply = answer({ kind: 'usage' }, state);
   assert.match(reply, /5-hour: 42% used/);
   assert.doesNotMatch(reply, /Tokens in total/);

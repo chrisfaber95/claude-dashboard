@@ -2,7 +2,7 @@ import { mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { isDashboardState, useDashboardState } from '../../../src/client/app/dashboard-state.ts';
 import { mountComponent } from '../../../src/client/app/mount-component.ts';
-import { connectStateStream } from '../../../src/client/app/state-stream.ts';
+import { connectStateStream, useConnectionStatus } from '../../../src/client/app/state-stream.ts';
 import type { DashboardState } from '../../../src/shared/types/index.ts';
 import StateProbe from './state-probe.vue';
 
@@ -57,7 +57,6 @@ describe('isDashboardState', () => {
 
 describe('state store fed by the state stream', () => {
   beforeEach(() => {
-    document.body.innerHTML = '<span id="conn"></span><div id="probe-host"></div>';
     vi.stubGlobal('EventSource', FakeEventSource);
     vi.spyOn(console, 'error').mockImplementation(() => {});
   });
@@ -69,13 +68,12 @@ describe('state store fed by the state stream', () => {
 
   it('stores every push and re-renders a reading component', async () => {
     const wrapper = mount(StateProbe);
-    const onState = vi.fn();
-    connectStateStream(onState, vi.fn());
+    connectStateStream(vi.fn());
 
     FakeEventSource.instance?.onmessage?.({ data: JSON.stringify(makeState(2)) });
     await wrapper.vm.$nextTick();
     expect(wrapper.text()).toBe('2 sessions');
-    expect(onState).toHaveBeenCalledTimes(1);
+    expect(useConnectionStatus().value).toBe('live');
 
     FakeEventSource.instance?.onmessage?.({ data: JSON.stringify(makeState(5)) });
     await wrapper.vm.$nextTick();
@@ -86,7 +84,7 @@ describe('state store fed by the state stream', () => {
   it('keeps the old state and reports a bad push', () => {
     const before = useDashboardState().value;
     const onBadPush = vi.fn();
-    connectStateStream(vi.fn(), onBadPush);
+    connectStateStream(onBadPush);
 
     FakeEventSource.instance?.onmessage?.({ data: '{"sessions":1}' });
     FakeEventSource.instance?.onmessage?.({ data: 'not json' });

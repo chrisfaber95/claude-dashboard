@@ -1,5 +1,3 @@
-import { esc } from './escape.ts';
-
 const MS_PER_SECOND = 1000;
 const SECONDS_PER_MINUTE = 60;
 const SECONDS_PER_HOUR = 3600;
@@ -41,7 +39,7 @@ export function uptime(startedAtMs: number | null): string {
   return hours ? `${hours}h ${minutes}m` : `${minutes}m`;
 }
 
-/** Which relative text a `timeSpan` shows: time since, time until or uptime. */
+/** Which relative text a `RelativeTime` shows: time since, time until or uptime. */
 export type TimeKind = 'ago' | 'until' | 'up';
 
 const TIME_FORMAT: Record<TimeKind, (timestampMs: number | null) => string> = { ago, until, up: uptime };
@@ -51,17 +49,12 @@ export function isTimeKind(value: unknown): value is TimeKind {
   return value === 'ago' || value === 'until' || value === 'up';
 }
 
-/** The text of one relative time, as `timeSpan` and `RelativeTime` show it. */
+/** The text of one relative time, as `RelativeTime` shows it. */
 export function formatRelativeTime(kind: TimeKind, timestampMs: number | null): string {
   return TIME_FORMAT[kind](timestampMs);
 }
 
-/** A relative time whose text `tickTimes()` keeps current between pushes. */
-export function timeSpan(kind: TimeKind, timestampMs: number | null): string {
-  return `<span data-time="${kind}" data-ms="${timestampMs ?? ''}">${esc(formatRelativeTime(kind, timestampMs))}</span>`;
-}
-
-/** Rewrite the text of every `timeSpan`, only where it changed. */
+/** Rewrite the text of every `RelativeTime` (`[data-time]`), only where it changed. */
 export function tickTimes(root: ParentNode = document): void {
   for (const element of root.querySelectorAll<HTMLElement>('[data-time]')) {
     const kind = element.dataset['time'];

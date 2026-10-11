@@ -26,7 +26,7 @@ watchEffect(() => {
   host.classList.remove(...MOOD_CLASSES);
   host.classList.add(`core--${mood.value}`);
   document.documentElement.setAttribute('data-mood', mood.value);
-});
+}, { flush: 'post' }); // post: the host section is only in the page once the app is mounted
 </script>
 
 <template>

@@ -36,11 +36,15 @@ const HOURS_PER_DAY = 24;
 
 const normalize = (text: string): string => text.trim().toLowerCase();
 
+/** One capture group of a match whose pattern always fills it. */
+const groupOf = (match: RegExpExecArray, index: number): string => match[index] ?? '';
+
 /** Picks the first tier (strongest match) that has any hit; several hits in that tier are ambiguous. */
 function pick<T>(items: readonly T[], tiers: ReadonlyArray<(x: T) => boolean>): Match<T> {
   for (const hit of tiers) {
     const found = items.filter(hit);
-    if (found.length === 1) return { kind: 'one', item: found[0] as T };
+    const [first] = found;
+    if (found.length === 1 && first !== undefined) return { kind: 'one', item: first };
     if (found.length > 1) return { kind: 'many', items: found };
   }
   return { kind: 'none' };
@@ -87,8 +91,8 @@ export function parseIntent(text: string, state: Pick<DashboardState, 'alerts' |
 
   const messageMatch = MESSAGE_RE.exec(trimmed);
   if (messageMatch) {
-    const query = messageMatch[1] as string;
-    return { kind: 'message', query, match: matchSession(query, sessions), text: messageMatch[2] as string, needsConfirm: true };
+    const query = groupOf(messageMatch, 1);
+    return { kind: 'message', query, match: matchSession(query, sessions), text: groupOf(messageMatch, 2), needsConfirm: true };
   }
   // A verb followed by something that is no session or alert ("view usage", "clear alerts") may be a plain
   // question: only fall through to the keyword intents when nothing matched.
@@ -100,16 +104,18 @@ export function parseIntent(text: string, state: Pick<DashboardState, 'alerts' |
   };
   const ack = ACK_RE.exec(trimmed);
   if (ack) {
-    const match = matchAlert(ack[1] as string, state);
-    if (match.kind !== 'none') return { kind: 'ack', query: ack[1] as string, match };
-    return keyword().kind === 'help' ? { kind: 'ack', query: ack[1] as string, match } : keyword();
+    const query = groupOf(ack, 1);
+    const match = matchAlert(query, state);
+    if (match.kind !== 'none') return { kind: 'ack', query, match };
+    return keyword().kind === 'help' ? { kind: 'ack', query, match } : keyword();
   }
   for (const [pattern, kind] of [[SUMMARY_RE, 'summary'], [OPEN_RE, 'open']] as const) {
     const verbMatch = pattern.exec(trimmed);
     if (!verbMatch) continue;
-    const match = matchSession(verbMatch[1] as string, sessions);
-    if (match.kind !== 'none') return { kind, query: verbMatch[1] as string, match };
-    return keyword().kind === 'help' ? { kind, query: verbMatch[1] as string, match } : keyword();
+    const query = groupOf(verbMatch, 1);
+    const match = matchSession(query, sessions);
+    if (match.kind !== 'none') return { kind, query, match };
+    return keyword().kind === 'help' ? { kind, query, match } : keyword();
   }
   return keyword();
 }

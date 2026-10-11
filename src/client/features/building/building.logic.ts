@@ -30,7 +30,7 @@ const TWO_COLUMNS_MAX = 4;
 const THREE_COLUMNS_MAX = 9;
 
 /** Shorten `text` to at most `maxLength` characters, ending in an ellipsis when it was cut. */
-export const truncateWithEllipsis = (text: string, maxLength: number) => (text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text);
+export const truncateWithEllipsis = (text: string, maxLength: number): string => (text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text);
 
 /** "1h 5m" for the time since a session started; never negative. */
 export function formatSessionUptime(startedAtMs: number): string {
@@ -41,7 +41,7 @@ export function formatSessionUptime(startedAtMs: number): string {
 }
 
 /** Tooltip text, one line per entry. It is shown with textContent. */
-export const tooltipText = (lines: (string | false)[]) => lines.filter(Boolean).join('\n');
+export const tooltipText = (lines: (string | false)[]): string => lines.filter(Boolean).join('\n');
 
 /** The "12k tokens · up 5m" line of a room. */
 export function sessionStatLine(session: SessionInfo): string {
@@ -104,7 +104,7 @@ export function columnCount(sessionCount: number): number {
 }
 
 /** Rows of cubicles needed for `subagentCount` subagents. */
-export const annexRowCount = (subagentCount: number) => Math.ceil(subagentCount / CUBICLES_PER_ROW);
+export const annexRowCount = (subagentCount: number): number => Math.ceil(subagentCount / CUBICLES_PER_ROW);
 
 /** "3 sessions" or "1 session". */
 const countOf = (count: number, noun: string) => `${count} ${noun}${count === 1 ? '' : 's'}`;

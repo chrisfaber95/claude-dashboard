@@ -13,4 +13,4 @@ export function formatTokenCount(tokenCount: number): string {
 }
 
 /** Sum every token kind of one usage record. */
-export const sumTokens = (tokens: TokenCounts) => tokens.input + tokens.output + tokens.cacheRead + tokens.cacheWrite;
+export const sumTokens = (tokens: TokenCounts): number => tokens.input + tokens.output + tokens.cacheRead + tokens.cacheWrite;

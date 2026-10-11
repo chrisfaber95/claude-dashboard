@@ -68,7 +68,7 @@ async function saveThreshold(): Promise<void> {
 </script>
 
 <template>
-  <Teleport to="#alert-badge">
+  <Teleport to="#alert-badge" defer>
     <span class="alert-badge" role="status" aria-label="Alerts needing attention" :hidden="total === 0">{{ total > 0 ? total : '' }}</span>
   </Teleport>
   <section :class="['panel', 'alerts', { 'has-alerts': total > 0 }]" aria-labelledby="h-alerts">
