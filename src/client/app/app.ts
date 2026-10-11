@@ -4,9 +4,10 @@ import AlertsPanel from '../features/alerts/alerts-panel.vue';
 import { initSummarySetting } from '../features/settings/settings.view.ts';
 import ChatPanel from '../features/chat/chat-panel.vue';
 import BuildingDialog from '../features/building/building-dialog.vue';
-import { initControls, updateControls } from '../features/controls/controls.view.ts';
+import { bindControlsVisibility } from '../features/controls/controls-visibility.ts';
 import RunPanel from '../features/controls/run-panel.vue';
 import TranscriptDrawer from '../features/controls/transcript-drawer.vue';
+import ToastStack from '../features/controls/toast-stack.vue';
 import CoreStrip from '../features/core/core-strip.vue';
 import AuditPanel from '../features/audit/audit-panel.vue';
 import ApprovalsPanel from '../features/permissions/approvals-panel.vue';
@@ -36,7 +37,6 @@ function render(state: DashboardState): void {
   // Each step runs on its own: one failing section must not freeze the others or later pushes.
   const steps: Array<[string, () => void]> = [
     ['colors', () => setProjectColors(state.projects.map((project) => project.name))],
-    ['controls', () => updateControls(state)],
     ['popups', () => updatePopups(state)],
   ];
   let hasFailed = false;
@@ -60,7 +60,7 @@ mountComponent(TeamPanel, 'team');
 mountComponent(Tooltip, 'tip-root');
 mountComponent(UsagePanel, 'usage');
 initPopups(() => {}); // before the building dialog: its Escape handler must see the building still open
-initControls();
+bindControlsVisibility();
 mountComponent(AlertsPanel, 'alerts');
 initSummarySetting();
 mountComponent(ChatPanel, 'chat-panel');
@@ -70,6 +70,7 @@ mountComponent(ApprovalsPanel, 'approvals');
 mountComponent(MessagesPanel, 'comms');
 mountComponent(BuildingDialog, 'building-dialog');
 mountComponent(TranscriptDrawer, 'transcript-drawer');
+mountComponent(ToastStack, 'toast-root');
 mountComponent(CoreStrip, 'core');
 
 // Relative times ("3m ago", uptime, resets in) advance on their own light tick, writing only the text that changed.

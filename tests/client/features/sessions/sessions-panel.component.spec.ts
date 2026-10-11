@@ -2,6 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { setDashboardState } from '../../../../src/client/app/dashboard-state.ts';
 import SessionsPanel from '../../../../src/client/features/sessions/sessions-panel.vue';
+import { closeDrawer, useDrawerRequest } from '../../../../src/client/features/controls/transcript-drawer-selection.ts';
 import type { DashboardState, RecentSession, SessionInfo } from '../../../../src/shared/types/index.ts';
 
 function makeSession(overrides: Partial<SessionInfo>): SessionInfo {
@@ -68,7 +69,7 @@ describe('SessionsPanel', () => {
     expect(row.get('.num').text()).toBe('10.0k');
     expect(row.get('.num').attributes('data-tip')).toBe('in 1.0k · out 2.0k\ncache read 3.0k · write 4.0k');
     expect(row.get('[data-time="up"]').text()).toBe('1m');
-    expect(row.findAll('button').map((button) => button.attributes('data-view'))).toEqual(['session-aaaa-1111']);
+    expect(row.findAll('button').map((button) => button.text())).toEqual(['View']);
   });
 
   it('adds the background badge and Logs and Stop buttons only for background sessions with commands on', () => {
@@ -77,16 +78,13 @@ describe('SessionsPanel', () => {
     const row = wrapper.get('tbody tr');
 
     expect(row.get('.badge').text()).toBe('background');
-    expect(row.get('[data-logs]').attributes('data-logs')).toBe('session-aaaa-1111');
-    expect(row.get('[data-stop]').attributes('data-name')).toBe('alpha <b>');
+    expect(row.findAll('button').map((button) => button.text())).toEqual(['View', 'Logs', 'Stop']);
   });
 
   it('hides Logs and Stop when commands are off', async () => {
     setDashboardState(makeState({ sessions: [makeSession({ kind: 'background' })], hasCommands: false }));
     const wrapper = mount(SessionsPanel);
 
-    expect(wrapper.find('[data-stop]').exists()).toBe(false);
-    expect(wrapper.find('[data-logs]').exists()).toBe(false);
     expect(wrapper.findAll('tbody button')).toHaveLength(1);
   });
 
@@ -134,5 +132,31 @@ describe('SessionsPanel', () => {
     await flushPromises();
 
     expect(second.get('[data-permission-decide="allow"]').attributes('disabled')).toBeDefined();
+  });
+
+  it('opens the transcript and the logs from the row buttons', async () => {
+    setDashboardState(makeState({ sessions: [makeSession({ kind: 'bg' })] }));
+    const wrapper = mount(SessionsPanel);
+    const request = useDrawerRequest();
+
+    await wrapper.findAll('tbody button')[0]?.trigger('click');
+    expect(request.value?.mode).toEqual({ kind: 'transcript', id: 'session-aaaa-1111' });
+    expect(request.value?.title).toBe('alpha <b>');
+    await wrapper.findAll('tbody button')[1]?.trigger('click');
+    expect(request.value?.mode).toEqual({ kind: 'logs', id: 'session-aaaa-1111' });
+    closeDrawer();
+  });
+
+  it('asks before stopping a background session and posts to its stop endpoint', async () => {
+    setDashboardState(makeState({ sessions: [makeSession({ kind: 'bg' })] }));
+    const fetchMock = vi.fn(async (_path: string) => ({ ok: true, status: 200, json: async () => ({ ok: true, output: '' }) }));
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('confirm', () => true);
+    const wrapper = mount(SessionsPanel);
+
+    await wrapper.findAll('tbody button')[2]?.trigger('click');
+    await flushPromises();
+
+    expect(fetchMock.mock.calls[0]?.at(0)).toBe('/api/sessions/session-aaaa-1111/stop');
   });
 });

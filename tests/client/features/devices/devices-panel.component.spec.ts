@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setDashboardState } from '../../../../src/client/app/dashboard-state.ts';
 import DevicesPanel from '../../../../src/client/features/devices/devices-panel.vue';
 import { devicesStatus } from '../../../../src/client/features/devices/devices-status.ts';
+import { setOpenPopup } from '../../../../src/client/features/popups/open-popup.ts';
 import type { DashboardState, DeviceInfo } from '../../../../src/shared/types/index.ts';
 
 const DAY_MS = 86_400_000;
@@ -62,6 +63,7 @@ const mounted: VueWrapper[] = [];
 
 afterEach(() => {
   mounted.splice(0).forEach((wrapper) => wrapper.unmount());
+  setOpenPopup(null);
   vi.unstubAllGlobals();
 });
 
@@ -172,6 +174,42 @@ describe('DevicesPanel', () => {
     expect(wrapper.find('#devices-qr').exists()).toBe(false);
 
     setDashboardState(makeState(true));
+    await flushPromises();
+    expect(wrapper.find('#devices-token').exists()).toBe(false);
+  });
+
+  it('clears the token when the popup closes, so reopening shows none', async () => {
+    const wrapper = await mountShown();
+    setOpenPopup('devices');
+    await flushPromises();
+    replies = { '/api/devices': { status: 200, json: { id: 'd3', token: 'tok-3' } } };
+    await wrapper.get('#devices-name').setValue('Laptop');
+    await wrapper.get('#devices-form').trigger('submit');
+    await flushPromises();
+    expect(wrapper.get('#devices-token-value').text()).toBe('tok-3');
+
+    setOpenPopup(null);
+    await flushPromises();
+    expect(wrapper.find('#devices-token').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('tok-3');
+    expect(devicesStatus.value).toBe('');
+
+    setOpenPopup('devices');
+    await flushPromises();
+    expect(wrapper.find('#devices-token').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('tok-3');
+  });
+
+  it('clears the token when another popup opens', async () => {
+    const wrapper = await mountShown();
+    setOpenPopup('devices');
+    await flushPromises();
+    replies = { '/api/devices': { status: 200, json: { id: 'd3', token: 'tok-4' } } };
+    await wrapper.get('#devices-name').setValue('Laptop');
+    await wrapper.get('#devices-form').trigger('submit');
+    await flushPromises();
+
+    setOpenPopup('audit');
     await flushPromises();
     expect(wrapper.find('#devices-token').exists()).toBe(false);
   });

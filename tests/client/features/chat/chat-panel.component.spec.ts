@@ -5,7 +5,7 @@ import { setDashboardState } from '../../../../src/client/app/dashboard-state.ts
 import ChatPanel from '../../../../src/client/features/chat/chat-panel.vue';
 import type { DashboardState, SessionInfo } from '../../../../src/shared/types/index.ts';
 
-vi.mock('../../../../src/client/features/controls/controls.view.ts', () => ({ openTranscript: vi.fn() }));
+vi.mock('../../../../src/client/features/controls/transcript-drawer-selection.ts', () => ({ openTranscript: vi.fn() }));
 
 const SESSION: SessionInfo = {
   sessionId: 'abcdef1234567890',

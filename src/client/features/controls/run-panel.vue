@@ -6,6 +6,7 @@ import { api } from '../../shared/api.ts';
 import RelativeTime from '../../shared/relative-time.vue';
 import { fieldsAfterLaunch, launchBody, launchRow, launchState } from '../launch/launch.logic.ts';
 import { describeCommandResult, matchSession } from './controls.logic.ts';
+import { openRecentLaunch } from './session-actions.ts';
 
 const DEFAULT_PERMISSION_MODE = 'auto';
 
@@ -124,7 +125,7 @@ onBeforeUnmount(() => document.removeEventListener('click', reloadOnPopupOpen));
             · {{ item.device }} · <span class="recent__state">{{ item.state }}</span>
           </span>
         </span>
-        <button v-if="item.session" class="btn btn--sm" type="button" :data-recent="item.session" :data-name="item.project">View</button>
+        <button v-if="item.session" class="btn btn--sm" type="button" @click="openRecentLaunch(item.session, item.project)">View</button>
       </li>
     </ul>
   </div>
