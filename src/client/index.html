@@ -52,16 +52,7 @@
       <button class="btn popup__close" type="button" data-popup-close aria-label="Close Chat">Close</button>
       <section id="chat" class="panel chat" aria-labelledby="h-chat">
         <div id="chat-panel"></div>
-        <div class="chat__setting">
-          <label>Session summaries
-            <select id="summary-mode">
-              <option value="recap">Recap (no model)</option>
-              <option value="model">Model (haiku, one CLI call)</option>
-            </select>
-          </label>
-          <span id="summary-status" class="sub" role="status"></span>
-          <span id="summary-note" class="sub" hidden>Commands are off, so summaries use the recap.</span>
-        </div>
+        <div id="summary-setting" class="chat__setting"></div>
       </section>
     </div>
     <div id="popup-run" class="popup" role="dialog" aria-modal="true" aria-label="Launch a task" hidden>

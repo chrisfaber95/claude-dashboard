@@ -24,8 +24,7 @@ function makeState(features: { lan: boolean; commands: boolean }): DashboardStat
 describe('bindControlsVisibility', () => {
   beforeEach(() => {
     document.body.innerHTML =
-      '<section id="run" hidden></section><form id="logout" hidden></form>' +
-      '<select id="summary-mode"><option value="recap">recap</option></select><span id="summary-note" hidden></span>';
+      '<section id="run" hidden></section><form id="logout" hidden></form>';
   });
 
   it('shows the run section and logout button only when the state turns the features on', async () => {
