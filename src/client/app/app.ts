@@ -5,7 +5,7 @@ import { initSummarySetting } from '../features/settings/settings.view.ts';
 import { initChat, updateChat } from '../features/chat/chat.view.ts';
 import { initBuilding, updateBuilding } from '../features/building/building.view.ts';
 import { initControls, updateControls } from '../features/controls/controls.view.ts';
-import { initCore, updateCore } from '../features/core/core.view.ts';
+import CoreStrip from '../features/core/core-strip.vue';
 import { initAudit, renderAudit } from '../features/audit/audit.view.ts';
 import { initDevices, renderDevices } from '../features/devices/devices.view.ts';
 import LimitsPanel from '../features/limits/limits-panel.vue';
@@ -49,7 +49,6 @@ function render(state: DashboardState): void {
     ['usage', () => draws('usage') && renderUsage(state)],
     ['controls', () => updateControls(state)],
     ['building', () => updateBuilding(state, projectTint)],
-    ['core', () => updateCore(state)],
     ['popups', () => updatePopups()],
   ];
   let hasFailed = false;
@@ -91,7 +90,7 @@ initPermissions(() => {
   renderAlerts(latestState);
 });
 initBuilding();
-initCore();
+mountComponent(CoreStrip, 'core');
 
 // Relative times ("3m ago", uptime, resets in) advance on their own light tick, writing only the text that changed.
 setInterval(() => tickTimes(), TIME_TICK_MS);

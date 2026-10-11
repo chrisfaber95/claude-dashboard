@@ -2,7 +2,7 @@
 // Everything is scoped to :root[data-skin='root']. Loaded from style.scss (meta.load-css) after Co-pilot.
 // Fonts and artwork are self-hosted (CSP is default-src 'self') and only fetched when this skin is used:
 // the fonts through @font-face below, the SVG artwork through root-scene.ts (built lazily).
-// The scene reacts to the status core: core.ts sets data-mood="standby|working|waiting" on <html>.
+// The scene reacts to the status core: core-strip.vue sets data-mood="standby|working|waiting" on <html>.
 // Per-element layout of the seeds, dots, moss and haze is generated below from the design's hash, so no inline styles are needed.
 @use 'sass:list';
 @use 'sass:math';
