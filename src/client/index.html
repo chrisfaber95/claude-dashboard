@@ -73,27 +73,7 @@
     </div>
     <div id="popup-run" class="popup" role="dialog" aria-modal="true" aria-label="Launch a task" hidden>
       <button class="btn popup__close" type="button" data-popup-close aria-label="Close Launch a task">Close</button>
-      <section id="run" class="panel" aria-labelledby="h-run" hidden>
-        <h2 id="h-run">Launch a task</h2>
-        <form id="run-form" class="run">
-          <div class="run__row">
-            <label>Project <select id="run-project"></select></label>
-            <label>Permissions <select id="run-mode"></select></label>
-          </div>
-          <label class="run__prompt">Goal <textarea id="run-goal" rows="3" maxlength="20000" placeholder="What should Claude achieve?"></textarea></label>
-          <label class="run__notes">Background notes (optional) <textarea id="run-notes" rows="3" maxlength="20000" placeholder="Context, constraints, files to look at"></textarea></label>
-          <div class="run__row">
-            <button class="btn btn--primary" type="submit">Launch task</button>
-            <span id="run-status" class="sub" role="status"></span>
-          </div>
-        </form>
-        <div id="recent" class="recent" hidden>
-          <div class="recent__head">
-            <h3 id="h-recent">Recent launches</h3>
-          </div>
-          <ul id="recent-list" class="recent__list" aria-labelledby="h-recent"></ul>
-        </div>
-      </section>
+      <section id="run" class="panel" aria-labelledby="h-run" hidden></section>
     </div>
     <div id="popup-devices" class="popup" role="dialog" aria-modal="true" aria-label="Devices" hidden>
       <button class="btn popup__close" type="button" data-popup-close aria-label="Close Devices">Close</button>
