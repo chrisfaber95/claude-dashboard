@@ -4,7 +4,6 @@ import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { request } from 'node:http';
 import type { IncomingHttpHeaders } from 'node:http';
-import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import { makeFixture } from '../../helpers.ts';
@@ -43,7 +42,9 @@ interface RawResponse {
 
 /** Raw GET (binary-safe, no automatic decompression) with optional Accept-Encoding. */
 function rawGet(path: string, acceptEncoding?: string): Promise<RawResponse> {
-  const { port } = server.address() as AddressInfo;
+  const address = server.address();
+  if (typeof address !== 'object' || address === null) throw new Error('server is not listening');
+  const { port } = address;
   const headers: Record<string, string> = acceptEncoding === undefined ? {} : { 'Accept-Encoding': acceptEncoding };
   return new Promise((resolve, reject) => {
     const req = request({ host: '127.0.0.1', port, path, method: 'GET', headers }, (res) => {

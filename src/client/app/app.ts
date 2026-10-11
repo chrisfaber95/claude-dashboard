@@ -8,7 +8,7 @@ import { initControls, updateControls } from '../features/controls/controls.view
 import { initCore, updateCore } from '../features/core/core.view.ts';
 import { initAudit, renderAudit } from '../features/audit/audit.view.ts';
 import { initDevices, renderDevices } from '../features/devices/devices.view.ts';
-import { renderLimits } from '../features/limits/limits.view.ts';
+import LimitsPanel from '../features/limits/limits-panel.vue';
 import { renderMessages } from '../features/messages/messages.view.ts';
 import { initPermissions, renderApprovals, updateApprovals } from '../features/permissions/permissions.view.ts';
 import { draws, initPopups, updatePopups } from '../features/popups/popups.view.ts';
@@ -22,6 +22,7 @@ import { elementById } from '../shared/dom.ts';
 import { setProjectColors, projectTint } from '../shared/project-colors.ts';
 import { tickTimes } from '../shared/time.ts';
 import { initAppearance } from './appearance.ts';
+import { mountComponent } from './mount-component.ts';
 import { connectStateStream } from './state-stream.ts';
 
 const TIME_TICK_MS = 10_000;
@@ -36,7 +37,6 @@ function render(state: DashboardState): void {
   // Each step runs on its own: one failing section must not freeze the others or later pushes.
   const steps: Array<[string, () => void]> = [
     ['colors', () => setProjectColors(state.projects.map((project) => project.name))],
-    ['limits', () => renderLimits(state)],
     ['alerts', () => renderAlerts(state)],
     ['chat', () => updateChat(state)],
     ['team', () => renderTeam(state, draws('team'))],
@@ -75,6 +75,7 @@ function drawPopup(id: PopupId): void {
   else if (id === 'approvals') renderApprovals();
 }
 
+mountComponent(LimitsPanel, 'limits');
 initTooltip();
 initUsage(() => latestState);
 initPopups(drawPopup); // before initBuilding: its Escape handler must see the building still open

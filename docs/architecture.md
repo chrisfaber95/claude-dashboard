@@ -32,7 +32,7 @@ Reference sections moved out of `CLAUDE.md` (which links here) so they load only
   - `app/appearance.ts`: `initAppearance()`: skin picker (localStorage `skin`, applies `data-skin` to `<html>`, hides the Theme button in dark-only skins) and light/dark theme toggle (localStorage `theme`)
   - `app/state-stream.ts`: `connectStateStream(onState, onBadPush)`: the `/api/events` EventSource, the connection badge, and the `/api/state` probe on error (redirects to login on 401)
   - `app/patch.ts`: in-place DOM patcher (`patchHtml`, `patchChildren`, `patchIfChanged`, `forgetHtml`); keyed by `data-key`, skips identical markup
-  - `features/limits/limits.view.ts` / `limits.logic.ts`: `renderLimits` draws `#limits` (gauges, last hits, source); pure `clampPercent`, `limitLevelClass`, `limitStatusText`, `highestUtilization` (critical from 90 %, warning from 75 %)
+  - `features/limits/limits-panel.vue` / `limits.logic.ts`: the Vue panel mounted into `#limits` reads the dashboard state store (gauges, last hits, source); pure `clampPercent`, `limitLevelClass`, `limitStatusText`, `highestUtilization` (critical from 90 %, warning from 75 %)
   - `features/projects/projects.view.ts`: `renderProjects` draws the project cards in `#projects` (subagent counts, trust note); cards carry `data-building`
   - `features/sessions/sessions.view.ts` / `sessions.logic.ts`: `renderSessions` draws the live-session table and recent sessions in `#sessions`; pure `isBackgroundSession`, `dotStateClass`
   - `features/messages/messages.view.ts` / `messages.logic.ts`: `renderMessages` draws the session message graph and feed in `#comms`; pure `buildMessageGraph` (circle layout, one edge per sender/receiver pair)

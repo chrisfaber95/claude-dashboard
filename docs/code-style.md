@@ -65,6 +65,22 @@ existing one.
   guard; DOM elements by `instanceof`; constant data uses `satisfies`. Exported functions declare their return type.
 - Component tests use Vitest + `@vue/test-utils` (`*.component.spec.ts` under `tests/client/`).
 
+## Vue panel
+
+The limits panel (`src/client/features/limits/limits-panel.vue`) is the example every panel copies:
+
+- The page keeps the empty `<section id="<feature>">`; `app.ts` calls `mountComponent(Panel, '<feature>')` once, and the
+  panel is not part of the `render(state)` steps.
+- The panel reads the latest push from the store (`useDashboardState()` in `app/dashboard-state.ts`) and derives what it
+  shows with `computed`. It takes no props and keeps no copy of the state.
+- Pure helpers (`<feature>.logic.ts`) stay outside the component and keep their `node:test` tests; the component only
+  arranges their results in the template.
+- Same classes and DOM as the old string-built markup, so the skins need no change. Relative times keep the
+  `data-time` / `data-ms` attributes so `tickTimes()` still advances them between pushes.
+- Dynamic widths go through `:style` (set via the CSSOM, allowed by the CSP), never an inline `style` string.
+- Test: `tests/client/features/<feature>/<feature>-panel.component.spec.ts` sets the store, mounts, then sets a new
+  state and checks the DOM updated.
+
 ## What a cleanup may not change
 
 API routes, JSON field names in `src/shared/types`, `public/` file names that the server serves before login (`login.js`, `pair.js`, `style.css`), storage file formats, and every rule

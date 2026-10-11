@@ -1,5 +1,6 @@
 import { computed, shallowRef } from 'vue';
 import type { ComputedRef, Ref } from 'vue';
+import { isRecord } from '../../shared/guards.ts';
 import type { DashboardState } from '../../shared/types/index.ts';
 
 // The whole state is replaced on every push (every 2 s), so a shallow ref is enough: no deep proxies.
@@ -7,10 +8,6 @@ const currentState = shallowRef<DashboardState | null>(null);
 
 const ARRAY_FIELDS = ['projects', 'sessions', 'subagents', 'messages', 'recentSessions', 'permissions'] as const;
 const OBJECT_FIELDS = ['usage', 'limits', 'features', 'alerts'] as const;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
 
 /** Check the top-level shape of a parsed `/api/events` push; nested fields are trusted from the server. */
 export function isDashboardState(value: unknown): value is DashboardState {
