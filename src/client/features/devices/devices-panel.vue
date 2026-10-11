@@ -6,6 +6,7 @@ import { api, ApiError } from '../../shared/api.ts';
 import { cleanName, createdLabel, lastSeenLabel, sortDevices } from './devices.logic.ts';
 import PairingQr from './pairing-qr.vue';
 import { devicesStatus } from './devices-status.ts';
+import { useOpenPopup } from '../popups/open-popup.ts';
 
 const REFRESH_MS = 30_000;
 // Only these server strings may reach the page; anything else becomes the generic message.
@@ -19,12 +20,13 @@ const KNOWN_ERRORS = new Set([
 const GENERIC_ERROR = 'Something went wrong. Try again.';
 
 const state = useDashboardState();
+const openPopup = useOpenPopup();
 const canManage = computed(() => state.value?.features.manageDevices === true);
 
 const devices = ref<DeviceInfo[]>([]);
 const fetchedAtMs = ref(0);
 const nameInput = ref('');
-// The one-time token lives only here and in the DOM while shown; cleared on Dismiss, next add and hide.
+// The one-time token lives only here and in the DOM while shown; cleared on Dismiss, next add, hide and popup close.
 const token = ref('');
 const isBusy = ref(false);
 // The device whose pairing QR is shown; the links live only in the QR component, which unmounts on clear.
@@ -101,6 +103,17 @@ watch(
     if (isFirstShow || Date.now() - lastFetchMs >= REFRESH_MS) void refresh();
   },
   { immediate: true },
+);
+
+// Whatever closes the popup (Close, Esc, backdrop, another popup) drops the one-time token and QR links.
+watch(
+  () => openPopup.value === 'devices',
+  (isOpen) => {
+    if (isOpen) return;
+    clearToken();
+    clearQr();
+    devicesStatus.value = '';
+  },
 );
 
 async function copyToken(): Promise<void> {
