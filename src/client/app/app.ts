@@ -11,7 +11,7 @@ import CoreStrip from '../features/core/core-strip.vue';
 import AuditPanel from '../features/audit/audit-panel.vue';
 import DevicesPanel from '../features/devices/devices-panel.vue';
 import LimitsPanel from '../features/limits/limits-panel.vue';
-import { renderMessages } from '../features/messages/messages.view.ts';
+import MessagesPanel from '../features/messages/messages-panel.vue';
 import { initPermissions, renderApprovals, updateApprovals } from '../features/permissions/permissions.view.ts';
 import { draws, initPopups, updatePopups } from '../features/popups/popups.view.ts';
 import type { PopupId } from '../features/popups/popups.logic.ts';
@@ -40,7 +40,6 @@ function render(state: DashboardState): void {
   const steps: Array<[string, () => void]> = [
     ['colors', () => setProjectColors(state.projects.map((project) => project.name))],
     ['approvals', () => updateApprovals(state)],
-    ['messages', () => draws('comms') && renderMessages(state)],
     ['usage', () => draws('usage') && renderUsage(state)],
     ['controls', () => updateControls(state)],
     ['popups', () => updatePopups(state)],
@@ -61,8 +60,7 @@ function render(state: DashboardState): void {
 // Opening a popup draws its section from the latest state first; closed popups are skipped on pushes.
 function drawPopup(id: PopupId): void {
   if (!latestState) return;
-  if (id === 'comms') renderMessages(latestState);
-  else if (id === 'usage') renderUsage(latestState);
+  if (id === 'usage') renderUsage(latestState);
   else if (id === 'approvals') renderApprovals();
 }
 
@@ -80,6 +78,7 @@ initSummarySetting();
 mountComponent(ChatPanel, 'chat-panel');
 mountComponent(DevicesPanel, 'devices');
 mountComponent(AuditPanel, 'audit');
+mountComponent(MessagesPanel, 'comms');
 initPermissions();
 mountComponent(BuildingDialog, 'building-dialog');
 mountComponent(TranscriptDrawer, 'transcript-drawer');
