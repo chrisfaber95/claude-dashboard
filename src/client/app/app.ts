@@ -5,6 +5,7 @@ import { initSummarySetting } from '../features/settings/settings.view.ts';
 import ChatPanel from '../features/chat/chat-panel.vue';
 import { initBuilding, updateBuilding } from '../features/building/building.view.ts';
 import { initControls, updateControls } from '../features/controls/controls.view.ts';
+import RunPanel from '../features/controls/run-panel.vue';
 import CoreStrip from '../features/core/core-strip.vue';
 import { initAudit, renderAudit } from '../features/audit/audit.view.ts';
 import { initDevices, renderDevices } from '../features/devices/devices.view.ts';
@@ -70,6 +71,7 @@ function drawPopup(id: PopupId): void {
 }
 
 mountComponent(LimitsPanel, 'limits');
+mountComponent(RunPanel, 'run');
 mountComponent(ProjectsPanel, 'projects');
 mountComponent(TeamPanel, 'team');
 mountComponent(Tooltip, 'tip-root');
