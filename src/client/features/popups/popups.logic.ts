@@ -41,15 +41,10 @@ export function isPopupId(value: unknown): value is PopupId {
   return POPUPS.some((popup) => popup.id === value);
 }
 
-/** A section that lives in a popup is drawn only while that popup is open; everything else always. */
-export function drawsSection(id: string, current: PopupId | null): boolean {
-  return !POPUPS.some((popup) => popup.id === id) || current === id;
-}
-
-/** Opening reveals the popup first (so its section counts as drawn), then renders it from the latest state. */
-export function openPopup(id: PopupId, reveal: (id: PopupId) => void, render: (id: PopupId) => void): void {
-  reveal(id);
-  render(id);
+/** Classes of the section that frames a popup's panel; the skins style the extra class (`team`, `chat`, ...). */
+export function popupSectionClass(id: PopupId): string {
+  if (id === 'team' || id === 'chat' || id === 'devices' || id === 'audit' || id === 'approvals') return `panel ${id}`;
+  return 'panel';
 }
 
 /** One popup at a time: opening another replaces the current one, its own button toggles it shut. */

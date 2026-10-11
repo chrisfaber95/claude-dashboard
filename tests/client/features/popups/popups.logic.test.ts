@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { UsageDay } from '../../../../src/shared/types/index.ts';
-import { POPUPS, backdropCloses, openPopup, escapeClosesPopup, isPopupId, stillOpen, toggled, tokensToday, visiblePopups } from '../../../../src/client/features/popups/popups.logic.ts';
+import { POPUPS, backdropCloses, escapeClosesPopup, isPopupId, popupSectionClass, stillOpen, toggled, tokensToday, visiblePopups } from '../../../../src/client/features/popups/popups.logic.ts';
 
 test('the button set and order are fixed', () => {
   assert.deepEqual(
@@ -66,16 +66,9 @@ test("tokensToday sums today's four counters and is 0 without a day", () => {
   assert.equal(tokensToday([day('2026-10-08')], now), 0);
 });
 
-test('drawsSection: closed popup sections are skipped, the open one and non-popup sections draw', async () => {
-  const { drawsSection } = await import('../../../../src/client/features/popups/popups.logic.ts');
-  assert.equal(drawsSection('usage', null), false);
-  assert.equal(drawsSection('usage', 'projects'), false);
-  assert.equal(drawsSection('usage', 'usage'), true);
-  assert.equal(drawsSection('sessions', null), true);
-});
-
-test('openPopup reveals the popup, then renders it', () => {
-  const calls: string[] = [];
-  openPopup('usage', (id) => calls.push(`reveal ${id}`), (id) => calls.push(`render ${id}`));
-  assert.deepEqual(calls, ['reveal usage', 'render usage']);
+test('popupSectionClass adds the feature class only where a skin styles it', () => {
+  assert.equal(popupSectionClass('team'), 'panel team');
+  assert.equal(popupSectionClass('chat'), 'panel chat');
+  assert.equal(popupSectionClass('projects'), 'panel');
+  assert.equal(popupSectionClass('run'), 'panel');
 });
