@@ -2,7 +2,7 @@
 import type { DashboardState } from '../../shared/types/index.ts';
 import { initAlerts, renderAlerts } from '../features/alerts/alerts.view.ts';
 import { initSummarySetting } from '../features/settings/settings.view.ts';
-import { initChat, updateChat } from '../features/chat/chat.view.ts';
+import ChatPanel from '../features/chat/chat-panel.vue';
 import { initBuilding, updateBuilding } from '../features/building/building.view.ts';
 import { initControls, updateControls } from '../features/controls/controls.view.ts';
 import CoreStrip from '../features/core/core-strip.vue';
@@ -38,7 +38,6 @@ function render(state: DashboardState): void {
   const steps: Array<[string, () => void]> = [
     ['colors', () => setProjectColors(state.projects.map((project) => project.name))],
     ['alerts', () => renderAlerts(state)],
-    ['chat', () => updateChat(state)],
     ['devices', () => renderDevices(state)],
     ['audit', () => renderAudit(state)],
     ['approvals', () => updateApprovals(state)],
@@ -79,7 +78,7 @@ initPopups(drawPopup); // before initBuilding: its Escape handler must see the b
 initControls();
 initAlerts();
 initSummarySetting();
-initChat();
+mountComponent(ChatPanel, 'chat-panel');
 initDevices();
 initAudit();
 initPermissions(() => {
