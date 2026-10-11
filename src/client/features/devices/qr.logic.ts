@@ -1,4 +1,4 @@
-// QR code geometry (no DOM): testable with node --test. The drawing lives in devices.ts.
+// QR code geometry (no DOM): testable with node --test. The drawing lives in pairing-qr.vue.
 import qrcode from 'qrcode-generator';
 
 /** Quiet zone around the code, in modules (the QR standard asks for 4). */

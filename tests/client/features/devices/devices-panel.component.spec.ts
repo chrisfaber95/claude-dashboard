@@ -6,10 +6,6 @@ import DevicesPanel from '../../../../src/client/features/devices/devices-panel.
 import { devicesStatus } from '../../../../src/client/features/devices/devices-status.ts';
 import type { DashboardState, DeviceInfo } from '../../../../src/shared/types/index.ts';
 
-// The QR view draws into page elements by id; it is covered by T-077, so here it is only observed.
-const qr = vi.hoisted(() => ({ clearQr: vi.fn(), showQr: vi.fn(), drawQrLink: vi.fn(), shownQrDeviceId: vi.fn(() => '') }));
-vi.mock('../../../../src/client/features/devices/devices-qr.view.ts', () => qr);
-
 const DAY_MS = 86_400_000;
 const NOW = Date.now();
 
@@ -51,7 +47,6 @@ beforeEach(() => {
   calls = [];
   devices = [phone, tablet];
   replies = {};
-  Object.values(qr).forEach((mock) => mock.mockClear());
   devicesStatus.value = '';
   vi.stubGlobal('fetch', async (path: string, init?: { body?: string }) => {
     calls.push({ path, body: init?.body ? JSON.parse(init.body) : undefined });
@@ -174,7 +169,7 @@ describe('DevicesPanel', () => {
     await flushPromises();
     expect(wrapper.find('#devices-token').exists()).toBe(false);
     expect(wrapper.text()).not.toContain('tok-2');
-    expect(qr.clearQr).toHaveBeenCalled();
+    expect(wrapper.find('#devices-qr').exists()).toBe(false);
 
     setDashboardState(makeState(true));
     await flushPromises();
@@ -208,7 +203,7 @@ describe('DevicesPanel', () => {
     expect(calls[before]?.body).toEqual({ id: 'd1' });
   });
 
-  it('asks for a pairing code and hands it to the QR view', async () => {
+  it('asks for a pairing code and shows the QR component', async () => {
     const info = { path: '/pair?c=abc', urls: [], expiresMs: NOW + 600_000 };
     const wrapper = await mountShown();
     replies = { '/api/devices/pair': { status: 200, json: info } };
@@ -216,7 +211,7 @@ describe('DevicesPanel', () => {
     await wrapper.get('[aria-label="Show QR for Phone"]').trigger('click');
     await flushPromises();
 
-    expect(qr.showQr).toHaveBeenCalledWith('d1', 'Phone', info);
+    expect(wrapper.get('#devices-qr-name').text()).toBe('Phone');
   });
 
   it('shows a known server error, and a generic text for an unknown one', async () => {

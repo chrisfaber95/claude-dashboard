@@ -4,7 +4,7 @@ import type { DeviceInfo, PairingInfo } from '../../../shared/types/index.ts';
 import { useDashboardState } from '../../app/dashboard-state.ts';
 import { api, ApiError } from '../../shared/api.ts';
 import { cleanName, createdLabel, lastSeenLabel, sortDevices } from './devices.logic.ts';
-import { clearQr, drawQrLink, showQr, shownQrDeviceId } from './devices-qr.view.ts';
+import PairingQr from './pairing-qr.vue';
 import { devicesStatus } from './devices-status.ts';
 
 const REFRESH_MS = 30_000;
@@ -27,6 +27,8 @@ const nameInput = ref('');
 // The one-time token lives only here and in the DOM while shown; cleared on Dismiss, next add and hide.
 const token = ref('');
 const isBusy = ref(false);
+// The device whose pairing QR is shown; the links live only in the QR component, which unmounts on clear.
+const qrPairing = ref<{ id: string; name: string; info: PairingInfo } | null>(null);
 
 let isShown = false;
 let lastFetchMs = 0;
@@ -48,6 +50,10 @@ function errorText(error: unknown): string {
 
 function clearToken(): void {
   token.value = '';
+}
+
+function clearQr(): void {
+  qrPairing.value = null;
 }
 
 async function refresh(): Promise<void> {
@@ -116,8 +122,14 @@ function closeQr(): void {
   devicesStatus.value = '';
 }
 
-function pickQrAddress(event: Event): void {
-  if (event.target instanceof HTMLSelectElement) drawQrLink(Number(event.target.value));
+function expireQr(): void {
+  clearQr();
+  devicesStatus.value = 'The QR code expired.';
+}
+
+function failQrDraw(): void {
+  clearQr();
+  devicesStatus.value = 'Could not draw the QR code.';
 }
 
 async function addDevice(): Promise<void> {
@@ -159,7 +171,7 @@ async function requestPairing(device: DeviceInfo): Promise<void> {
     // Dropped, not drawn, when the panel was hidden while the request was in flight.
     if (isShown) {
       clearToken();
-      showQr(device.id, device.name, info);
+      qrPairing.value = { id: device.id, name: device.name, info };
     }
   } catch (error) {
     if (isShown) devicesStatus.value = errorText(error);
@@ -172,7 +184,7 @@ async function revoke(device: DeviceInfo): Promise<void> {
   if (isBusy.value) return;
   if (!window.confirm(`Revoke "${device.name}"? It will be signed out and can no longer connect.`)) return;
   devicesStatus.value = '';
-  if (shownQrDeviceId() === device.id) clearQr();
+  if (qrPairing.value?.id === device.id) clearQr();
   isBusy.value = true;
   try {
     await api('/api/devices/revoke', { id: device.id });
@@ -233,19 +245,15 @@ async function revoke(device: DeviceInfo): Promise<void> {
         <button id="devices-token-dismiss" class="btn btn--sm" type="button" @click="dismissToken">Dismiss</button>
       </div>
     </div>
-    <!-- Drawn by devices-qr.view.ts until T-077 migrates it; keep these elements free of reactive bindings. -->
-    <div id="devices-qr" class="devices__qr" hidden>
-      <div class="sub">
-        <strong id="devices-qr-name"></strong>: scan with the phone. Works once, for 10 minutes.
-      </div>
-      <select id="devices-qr-addr" aria-label="Address the QR code points to" hidden @change="pickQrAddress"></select>
-      <div id="devices-qr-draw" class="devices__qr-draw"></div>
-      <div id="devices-qr-expiry" class="sub"></div>
-      <div id="devices-qr-note" class="sub"></div>
-      <div class="devices__token-actions">
-        <button id="devices-qr-close" class="btn btn--sm" type="button" @click="closeQr">Close</button>
-      </div>
-    </div>
+    <PairingQr
+      v-if="qrPairing"
+      :key="`${qrPairing.id}-${qrPairing.info.expiresMs}`"
+      :device-name="qrPairing.name"
+      :info="qrPairing.info"
+      @close="closeQr"
+      @expired="expireQr"
+      @draw-failed="failQrDraw"
+    />
     <p id="devices-status" class="sub" role="status">{{ devicesStatus }}</p>
   </template>
 </template>
