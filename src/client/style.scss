@@ -1376,8 +1376,8 @@ $hair: (#2b2118, #6b4423, #c9a24b, #a33b2a, #555555);
 }
 
 @include meta.load-css('features/permissions/permissions');
-@include meta.load-css('features/messages/city');
 @include meta.load-css('shared/iso');
+@include meta.load-css('features/messages/kingdom');
 
 // ---- skins: one partial each (src/client/skins/_<name>.scss), scoped to :root[data-skin='<name>'].
 // Loaded last so they win ties. Add the next skin with another load-css line. ----

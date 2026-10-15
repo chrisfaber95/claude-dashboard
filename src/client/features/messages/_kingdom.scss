@@ -1,0 +1,123 @@
+// The kingdom in the Session communication popup (docs/isometric.md): grass, square, wall, castle and buildings.
+// Ground, lit faces, windows and labels come from shared/_iso.scss; this file adds what only the kingdom has.
+.kingdom-area {
+  height: 60vh;
+  min-height: 320px;
+  overflow: hidden;
+
+  &--tall {
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+}
+
+svg.kingdom {
+  width: 100%;
+  display: block;
+
+  &.kingdom--wide {
+    height: 100%;
+  }
+
+  &.kingdom--tall {
+    height: auto;
+  }
+
+  .kingdom__grass {
+    fill: color-mix(in srgb, var(--s3) 12%, var(--surface));
+  }
+
+  .kingdom__square {
+    fill: color-mix(in srgb, var(--ink) 14%, var(--surface));
+    stroke: var(--border);
+  }
+
+  // Walls, towers and the well share one stone colour; the faces mix it light and dark like any building.
+  .kingdom__stone,
+  .kingdom__castle {
+    color: color-mix(in srgb, var(--muted) 70%, var(--surface));
+  }
+
+  .kingdom__stall {
+    color: var(--s5);
+  }
+
+  .kingdom__tree {
+    color: var(--s3);
+  }
+
+  .kingdom__trunk {
+    fill: color-mix(in srgb, #6b4423 80%, var(--surface));
+  }
+
+  .kingdom__canopy {
+    fill: color-mix(in srgb, var(--s3) 75%, #000);
+    stroke: color-mix(in srgb, var(--s3) 40%, #000);
+  }
+
+  .kingdom__roof--left {
+    fill: color-mix(in srgb, currentColor 35%, #8a3b24);
+    stroke: color-mix(in srgb, currentColor 20%, #000);
+  }
+
+  .kingdom__roof--right {
+    fill: color-mix(in srgb, currentColor 25%, #5e2717);
+    stroke: color-mix(in srgb, currentColor 20%, #000);
+  }
+
+  .kingdom__smoke {
+    fill: color-mix(in srgb, var(--muted) 50%, var(--surface));
+    opacity: 0.7;
+  }
+
+  .kingdom__shutter,
+  .kingdom__bar {
+    fill: color-mix(in srgb, currentColor 40%, #000);
+    stroke: #000;
+    stroke-width: 0.5;
+  }
+
+  .kingdom__pole {
+    fill: var(--ink);
+  }
+
+  .kingdom__flag {
+    fill: var(--crit);
+    stroke: var(--surface);
+  }
+
+  .kingdom__worker,
+  .kingdom__mailman {
+    stroke: var(--surface);
+    stroke-width: 1;
+  }
+
+  .kingdom__worker {
+    fill: var(--muted);
+  }
+
+  .kingdom__mailman {
+    fill: var(--ink);
+  }
+
+  .kingdom__more,
+  .kingdom__overflow {
+    font-size: 9px;
+    text-anchor: middle;
+    fill: var(--ink-2);
+    paint-order: stroke;
+    stroke: var(--surface);
+    stroke-width: 3px;
+  }
+
+  .kingdom__area {
+    font-size: 10px;
+    text-anchor: middle;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    fill: var(--ink-2);
+    paint-order: stroke;
+    stroke: var(--surface);
+    stroke-width: 3px;
+  }
+}
