@@ -1,28 +1,18 @@
-// Message graph: nodes, edges and layout of the messages between sessions.
+// Feed helpers of the messages popup.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { MessageInfo } from '../../../../src/shared/types/index.ts';
-import { buildMessageGraph, GRAPH_HEIGHT, GRAPH_WIDTH } from '../../../../src/client/features/messages/messages.logic.ts';
+import { feedKey, routeText } from '../../../../src/client/features/messages/messages.logic.ts';
 
-const message = (direction: 'in' | 'out', sessionName: string, peer: string): MessageInfo => ({
-  tsMs: 0, kind: 'session', direction, sessionId: sessionName, sessionName, peer, snippet: '',
+const message = (direction: 'in' | 'out'): MessageInfo => ({
+  tsMs: 5, kind: 'session', direction, sessionId: 's1', sessionName: 'a', peer: 'b', snippet: '',
 });
 
-test('buildMessageGraph with no sessions has no nodes or edges', () => {
-  const graph = buildMessageGraph([], []);
-  assert.deepEqual(graph.nodes, []);
-  assert.deepEqual(graph.edges, []);
+test('routeText orders sender and receiver by direction', () => {
+  assert.equal(routeText(message('out')), 'a → b');
+  assert.equal(routeText(message('in')), 'b → a');
 });
 
-test('a single node sits in the centre', () => {
-  const graph = buildMessageGraph(['solo'], []);
-  assert.deepEqual(graph.positions.get('solo'), { x: GRAPH_WIDTH / 2, y: GRAPH_HEIGHT / 2 });
-});
-
-test('edges follow the direction and count repeated messages', () => {
-  const graph = buildMessageGraph(['a'], [message('out', 'a', 'b'), message('out', 'a', 'b'), message('in', 'a', 'b')]);
-  assert.deepEqual(graph.nodes, ['a', 'b']);
-  const summary = graph.edges.map(({ from, to, count }) => ({ from, to, count }));
-  assert.deepEqual(summary, [{ from: 'a', to: 'b', count: 2 }, { from: 'b', to: 'a', count: 1 }]);
-  assert.equal(graph.positions.size, 2);
+test('feedKey differs between directions', () => {
+  assert.notEqual(feedKey(message('out')), feedKey(message('in')));
 });
