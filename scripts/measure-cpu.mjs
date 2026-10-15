@@ -1,16 +1,18 @@
 // Measures the average CPU use of an open dashboard tab in a headless Chrome or Edge, over the Chrome DevTools
 // Protocol (Node's built-in WebSocket, no dependency). See docs/perf.md.
 //
-//   node scripts/measure-cpu.mjs [url] [seconds] [viewport] [--browser <path>] [--warmup <seconds>]
+//   node scripts/measure-cpu.mjs [url] [seconds] [viewport] [--browser <path>] [--warmup <seconds>] [--popup <id>]
 //
 // url        default http://127.0.0.1:4777
 // seconds    measurement window, default 120
 // viewport   WIDTHxHEIGHT, default 1920x1080
+// --popup    id of a popup to open after load, before the warm-up (e.g. comms); none by default
 import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { POPUPS } from '../src/client/features/popups/popups.logic.ts';
 
 /**
  * Average CPU % of a tab between two samples: main-thread task time that elapsed, divided by wall time.
@@ -49,11 +51,15 @@ export function browserCandidates(env = process.env, platform = process.platform
   return ['/usr/bin/google-chrome', '/usr/bin/google-chrome-stable', '/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/microsoft-edge'];
 }
 
-function parseArgs(argv) {
+/**
+ * Parse the command line into { url, seconds, warmup, width, height, browser, popup }. Throws an Error with a
+ * readable message on a bad value; `popup` is undefined when --popup is not given.
+ */
+export function parseArgs(argv) {
   const pos = [];
   const opt = {};
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === '--browser' || argv[i] === '--warmup') {
+    if (argv[i] === '--browser' || argv[i] === '--warmup' || argv[i] === '--popup') {
       if (i + 1 >= argv.length) throw new Error(`${argv[i]} needs a value`);
       opt[argv[i].slice(2)] = argv[++i];
     } else pos.push(argv[i]);
@@ -65,7 +71,33 @@ function parseArgs(argv) {
   if (!Number.isFinite(seconds) || seconds <= 0) throw new Error('seconds must be a positive number');
   if (!Number.isFinite(warmup) || warmup < 0) throw new Error('--warmup must be a number of seconds, 0 or more');
   if (!m) throw new Error('viewport must look like 1920x1080');
-  return { url, seconds, warmup, width: Number(m[1]), height: Number(m[2]), browser: opt.browser };
+  const popupIds = POPUPS.map((popup) => popup.id);
+  if (opt.popup !== undefined && !popupIds.includes(opt.popup)) {
+    throw new Error(`--popup must be one of: ${popupIds.join(', ')}`);
+  }
+  return { url, seconds, warmup, width: Number(m[1]), height: Number(m[2]), browser: opt.browser, popup: opt.popup };
+}
+
+/** Open a popup by clicking its bar button; fails clearly when the button or the opened popup is not there. */
+async function openPopup(send, id) {
+  const expression = `(async () => {
+    const id = ${JSON.stringify(id)};
+    for (let i = 0; i < 100; i++) {
+      const button = document.querySelector('button[data-popup="' + id + '"]');
+      if (button && !button.hidden) {
+        button.click();
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        const popup = document.getElementById('popup-' + id);
+        return popup && !popup.hidden ? 'opened' : 'popup did not open after the click';
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    return 'no visible button for this popup';
+  })()`;
+  const { result, exceptionDetails } = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
+  if (exceptionDetails || result.value !== 'opened') {
+    throw new Error(`Could not open popup "${id}": ${exceptionDetails ? 'script error' : result.value}`);
+  }
 }
 
 function findBrowser(explicit) {
@@ -156,7 +188,8 @@ async function main() {
       width: args.width, height: args.height, deviceScaleFactor: 1, mobile: args.width < 500,
     });
     await send('Page.navigate', { url: args.url });
-    console.error(`Warming up ${args.warmup} s, then measuring ${args.seconds} s at ${args.width}x${args.height} (${exe})`);
+    if (args.popup) await openPopup(send, args.popup);
+    console.error(`${args.popup ? `Popup ${args.popup} open. ` : ''}Warming up ${args.warmup} s, then measuring ${args.seconds} s at ${args.width}x${args.height} (${exe})`);
     await sleep(args.warmup * 1000);
     const first = await sample(send);
     await sleep(args.seconds * 1000);
