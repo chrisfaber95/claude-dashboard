@@ -1,8 +1,9 @@
 // Pure scene of the kingdom view (no DOM): the three layers of docs/isometric.md as plain data, from the kingdom
 // model and its layout.
 import type { Cell } from '../../shared/iso.ts';
-import { cellCentre, cellCorners, cellDepth, isoPoint, polygonPath } from '../../shared/iso.ts';
+import { cellCentre, cellCorners, cellDepth, isoPoint, polygonPath, walkRoute, walkSteps } from '../../shared/iso.ts';
 import { COURT_ID } from './kingdom-grouping.logic.ts';
+import { mailmanRoute } from './kingdom-layout.logic.ts';
 import type { KingdomLayout, KingdomOrientation } from './kingdom-layout-types.logic.ts';
 import {
   buildingParts,
@@ -11,13 +12,14 @@ import {
   stallParts,
   towerParts,
   treeParts,
+  walkerStepParts,
   wallParts,
   wellParts,
   workerParts,
 } from './kingdom-shapes.logic.ts';
 import type { ScenePart } from './kingdom-shapes.logic.ts';
 import { CASTLE_ID } from './kingdom-types.logic.ts';
-import type { Kingdom, KingdomBuilding } from './kingdom-types.logic.ts';
+import type { Kingdom, KingdomBuilding, KingdomMailman } from './kingdom-types.logic.ts';
 
 const TINT_SLOTS = 8;
 const NAME_LABEL_MAX = 14;
@@ -29,6 +31,8 @@ const AREA_LABEL_OFFSET = 4;
 const OVERFLOW_OFFSET = 18;
 const WORKER_MORE_OFFSET = 14;
 const MAILMAN_DEPTH = 0.5;
+const WORKER_DEPTH = 0.25;
+const STEP_SECONDS = 0.9;
 const COURT_LABEL = 'Court';
 const CASTLE_LABEL = 'Castle';
 
@@ -38,6 +42,8 @@ export interface SceneItem {
   depth: number;
   className: string;
   parts: ScenePart[];
+  /** Custom properties for the item's CSS (walk end points, delays). */
+  vars?: Record<string, string>;
 }
 
 /** One text of the label layer. */
@@ -110,19 +116,62 @@ function buildingItems(kingdom: Kingdom, layout: KingdomLayout): SceneItem[] {
     if (!building) return [];
     const tint = `iso-tint-${(building.slot % TINT_SLOTS) + 1}`;
     const className = `iso__building ${tint} is-${building.state} kingdom__kind--${building.kind}`;
-    const parts = [...buildingParts(placed.cell, building.kind, building.state), ...workerParts(placed.cell, building.workers)];
-    return [itemOf(`building:${placed.name}`, placed.cell, className, parts)];
+    const parts = buildingParts(placed.cell, building.kind, building.state);
+    return [itemOf(`building:${placed.name}`, placed.cell, className, parts), ...workerItems(placed.name, placed.cell, building)];
   });
 }
 
+// One item per worker, keyed by agent id, so a worker arriving or leaving is a transition of its own element.
+function workerItems(name: string, cell: Cell, building: KingdomBuilding): SceneItem[] {
+  const parts = workerParts(cell, building.workers);
+  return building.workers.flatMap((worker, index) => {
+    const part = parts[index];
+    if (!part) return [];
+    const key = `worker:${name}:${worker.agentId}`;
+    return [{ key, depth: cellDepth(cell) + WORKER_DEPTH, className: 'kingdom__worker-item', parts: [part] }];
+  });
+}
+
+function formatPx(value: number): string {
+  return `${Math.round(value * 10) / 10}px`;
+}
+
+function stepItems(mailman: KingdomMailman, route: readonly Cell[], tip: string): SceneItem[] {
+  return walkSteps(route).map((step) => ({
+    key: `mailman:${mailman.key}:${step.index}`,
+    depth: step.depth,
+    className: 'iso__step kingdom__step',
+    parts: walkerStepParts(tip),
+    vars: {
+      '--from-x': formatPx(step.from.x),
+      '--from-y': formatPx(step.from.y),
+      '--to-x': formatPx(step.to.x),
+      '--to-y': formatPx(step.to.y),
+      '--step': String(step.index),
+    },
+  }));
+}
+
+// One element per step so each sorts against the buildings it passes, then a resting walker at the end cell until
+// the model drops the mailman. A hand-back has no route: it rests at its own building.
 function mailmanItems(kingdom: Kingdom, layout: KingdomLayout): SceneItem[] {
   return kingdom.mailmen.flatMap((mailman) => {
-    if (mailman.insideBuilding !== null) return [];
-    const door = layout.buildings.find((placed) => placed.name === mailman.from)?.door;
+    const home = mailman.insideBuilding ?? mailman.from;
+    const door = layout.buildings.find((placed) => placed.name === home)?.door;
     if (!door) return [];
     const target = mailman.to === CASTLE_ID ? CASTLE_LABEL : mailman.to;
-    const parts = mailmanParts(door, `${mailman.from} → ${target}`);
-    return [{ key: `mailman:${mailman.key}`, depth: cellDepth(door) + MAILMAN_DEPTH, className: 'kingdom__walker', parts }];
+    const tip = `${mailman.from} → ${target}`;
+    const route = walkRoute(mailmanRoute(layout, mailman));
+    const end = route[route.length - 1] ?? door;
+    const steps = stepItems(mailman, route, tip);
+    const rest: SceneItem = {
+      key: `mailman:${mailman.key}`,
+      depth: cellDepth(end) + MAILMAN_DEPTH,
+      className: 'kingdom__walker kingdom__rest',
+      parts: mailmanParts(end, tip),
+      vars: { '--rest-delay': `${steps.length * STEP_SECONDS}s` },
+    };
+    return [...steps, rest];
   });
 }
 

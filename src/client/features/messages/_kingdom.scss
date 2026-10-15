@@ -1,5 +1,35 @@
 // The kingdom in the Session communication popup (docs/isometric.md): grass, square, wall, castle and buildings.
 // Ground, lit faces, windows and labels come from shared/_iso.scss; this file adds what only the kingdom has.
+// Walkers, smoke and the banner move with transform and opacity only (docs/motion.md). Smoke and banner are drawn
+// only while their state holds, so their loops end with it; a walker's steps run once.
+@keyframes kingdom-smoke {
+  from {
+    opacity: 0.7;
+    transform: translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes kingdom-wave {
+  from {
+    transform: scaleX(1);
+  }
+
+  to {
+    transform: scaleX(0.8);
+  }
+}
+
+@keyframes kingdom-arrive {
+  from {
+    opacity: 0;
+  }
+}
+
 .kingdom-area {
   height: 60vh;
   min-height: 320px;
@@ -68,6 +98,15 @@ svg.kingdom {
   .kingdom__smoke {
     fill: color-mix(in srgb, var(--muted) 50%, var(--surface));
     opacity: 0.7;
+    animation: kingdom-smoke 2.4s var(--ease-out) infinite;
+  }
+
+  .kingdom__smoke--1 {
+    animation-delay: 0.8s;
+  }
+
+  .kingdom__smoke--2 {
+    animation-delay: 1.6s;
   }
 
   .kingdom__shutter,
@@ -84,6 +123,9 @@ svg.kingdom {
   .kingdom__flag {
     fill: var(--crit);
     stroke: var(--surface);
+    transform-box: fill-box;
+    transform-origin: left center;
+    animation: kingdom-wave 0.9s var(--ease-in-out) infinite alternate;
   }
 
   .kingdom__worker,
@@ -108,6 +150,30 @@ svg.kingdom {
     paint-order: stroke;
     stroke: var(--surface);
     stroke-width: 3px;
+  }
+
+  // Own delay from the step index: a long walk has more steps than the 24 delay classes of _iso.scss.
+  &.iso .kingdom__step {
+    animation-delay: calc(var(--step) * var(--iso-step-duration));
+  }
+
+  // Hidden until the last step has ended, then plain and static.
+  .kingdom__rest {
+    animation: kingdom-arrive var(--motion-fast) var(--ease-out) var(--rest-delay) backwards;
+  }
+
+  .kingdom-item-enter-active.kingdom__worker-item {
+    transition: opacity var(--motion-base) var(--ease-out), transform var(--motion-base) var(--ease-out);
+  }
+
+  .kingdom-item-leave-active.kingdom__worker-item {
+    transition: opacity var(--motion-fast) var(--ease-in), transform var(--motion-fast) var(--ease-in);
+  }
+
+  .kingdom-item-enter-from.kingdom__worker-item,
+  .kingdom-item-leave-to.kingdom__worker-item {
+    opacity: 0;
+    transform: translateY(4px);
   }
 
   .kingdom__area {

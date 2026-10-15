@@ -21,9 +21,11 @@ const scene = computed(() => buildKingdomScene(props.kingdom, props.layout));
       <path v-for="(tile, index) in scene.ground" :key="index" :class="tile.className" :d="tile.d" />
     </g>
     <g class="kingdom__scene">
-      <g v-for="item in scene.items" :key="item.key" :class="item.className" :data-key="item.key">
-        <path v-for="(part, index) in item.parts" :key="index" :class="part.className" :d="part.d" :data-tip="part.tip" />
-      </g>
+      <TransitionGroup name="kingdom-item" tag="g">
+        <g v-for="item in scene.items" :key="item.key" :class="item.className" :style="item.vars" :data-key="item.key">
+          <path v-for="(part, index) in item.parts" :key="index" :class="part.className" :d="part.d" :data-tip="part.tip" />
+        </g>
+      </TransitionGroup>
     </g>
     <g class="kingdom__labels">
       <text v-for="label in scene.labels" :key="label.key" :class="label.className" :x="label.x" :y="label.y" :data-tip="label.tip">

@@ -122,7 +122,7 @@ function chimneyParts(cell: Cell, roofTop: number, isActive: boolean): ScenePart
   const smoke = Array.from({ length: SMOKE_PUFFS }, (_, index) => {
     const centre = isoPoint(cell.col + 0.5, cell.row + 0.5, roofTop + SMOKE_LIFT + index * SMOKE_STEP);
     const drifted = { x: centre.x + index * SMOKE_DRIFT, y: centre.y };
-    return { className: 'kingdom__smoke', d: circlePath(drifted, SMOKE_RADIUS + index) };
+    return { className: `kingdom__smoke kingdom__smoke--${index}`, d: circlePath(drifted, SMOKE_RADIUS + index) };
   });
   return [...boxParts(stack), ...(isActive ? smoke : [])];
 }
@@ -204,6 +204,12 @@ export function treeParts(cell: Cell): ScenePart[] {
     ...trunk.map((part) => ({ ...part, className: 'kingdom__trunk' })),
     { className: 'kingdom__canopy', d: circlePath(canopy, TREE_CANOPY_RADIUS) },
   ];
+}
+
+/** A mailman drawn at the origin of its step: the step's transform walks it from one cell centre to the next. */
+export function walkerStepParts(tip: string): ScenePart[] {
+  const head = { x: 0, y: -MAILMAN_HEIGHT };
+  return [{ className: 'kingdom__mailman', d: circlePath(head, MAILMAN_RADIUS), tip }];
 }
 
 /** A mailman standing at a door. */
