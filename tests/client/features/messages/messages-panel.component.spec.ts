@@ -62,19 +62,18 @@ describe('MessagesPanel', () => {
     expect(wrapper.findAll('.feed li')).toHaveLength(1);
   });
 
-  it('draws shops, a postman and a feed with relative times', () => {
+  it('draws the kingdom and a feed with relative times', () => {
     setDashboardState(
       makeState([makeMessage({ tsMs: Date.now() - 1000 }), makeMessage({ tsMs: NOW - 60_000 }), makeMessage({ kind: 'subagent', direction: 'in', peer: 'gamma' })], ['alpha']),
     );
     setOpenPopup('comms');
     const wrapper = mount(MessagesPanel);
 
-    expect(wrapper.get('svg.city').attributes('viewBox')).toBe('0 0 400 112');
-    expect(wrapper.findAll('.city__shop')).toHaveLength(2);
-    expect(wrapper.get('.city__shop.is-active .city__status').text()).toBe('active');
-    expect(wrapper.get('.city__shop.is-stopped .city__status').text()).toBe('stopped');
-    expect(wrapper.findAll('.node-label').map((label) => label.text())).toEqual(['alpha', 'beta']);
-    expect(wrapper.find('.edge').exists()).toBe(false);
+    expect(wrapper.get('svg.kingdom').classes()).toContain('kingdom--wide');
+    expect(wrapper.findAll('[data-key^="building:"]')).toHaveLength(2);
+    expect(wrapper.find('[data-key="castle"]').exists()).toBe(true);
+    expect(wrapper.findAll('.iso__label').map((label) => label.text())).toContain('alpha');
+    expect(wrapper.findAll('.iso__status').map((label) => label.text())).toEqual(expect.arrayContaining(['active', 'stopped']));
     expect(wrapper.get('p.sub').text()).toBe('2 session messages · 1 subagent hand-back (recent)');
 
     const items = wrapper.findAll('.feed li');
@@ -85,19 +84,55 @@ describe('MessagesPanel', () => {
     expect(wrapper.find('.feed b').exists()).toBe(false);
   });
 
-  it('shows one postman for a fresh message and none, with no animation frame, for old ones', async () => {
+  it('shows the castle banner only while an alert or permission request needs the user', async () => {
+    setDashboardState(makeState([makeMessage({})], ['alpha']));
+    setOpenPopup('comms');
+    const wrapper = mount(MessagesPanel);
+    expect(wrapper.find('.kingdom__flag').exists()).toBe(false);
+
+    const waiting = makeState([makeMessage({})], ['alpha']);
+    setDashboardState({ ...waiting, alerts: { items: [{ id: 'session:a1', kind: 'session', title: 'alpha', detail: 'Waiting for you', sinceMs: NOW, resetsAtMs: null }], threshold: 80 } });
+    await nextTick();
+    expect(wrapper.find('.kingdom__flag').exists()).toBe(true);
+
+    setDashboardState(makeState([makeMessage({})], ['alpha']));
+    await nextTick();
+    expect(wrapper.find('.kingdom__flag').exists()).toBe(false);
+  });
+
+  it('switches to the tall layout when the scene area is taller than wide', async () => {
+    const observers: ((entries: { contentRect: { width: number; height: number } }[]) => void)[] = [];
+    class FakeResizeObserver {
+      constructor(callback: (entries: { contentRect: { width: number; height: number } }[]) => void) {
+        observers.push(callback);
+      }
+      observe(): void {}
+      disconnect(): void {}
+    }
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver);
+    setDashboardState(makeState([makeMessage({})], ['alpha', 'beta']));
+    setOpenPopup('comms');
+    const wrapper = mount(MessagesPanel);
+    expect(wrapper.get('svg.kingdom').classes()).toContain('kingdom--wide');
+
+    observers[0]?.([{ contentRect: { width: 360, height: 640 } }]);
+    await nextTick();
+    expect(wrapper.get('svg.kingdom').classes()).toContain('kingdom--tall');
+    expect(wrapper.findAll('[data-key^="building:"]')).toHaveLength(2);
+    vi.unstubAllGlobals();
+  });
+
+  it('shows a fresh message as a mailman at its sender door and none, with no animation frame, for old ones', async () => {
     const frameSpy = vi.spyOn(globalThis, 'requestAnimationFrame');
     setDashboardState(makeState([makeMessage({ tsMs: NOW - 120_000 })], ['alpha', 'beta']));
     setOpenPopup('comms');
     const wrapper = mount(MessagesPanel);
-    expect(wrapper.findAll('.city__postman')).toHaveLength(0);
+    expect(wrapper.findAll('.kingdom__mailman')).toHaveLength(0);
     expect(frameSpy).not.toHaveBeenCalled();
 
     setDashboardState(makeState([makeMessage({ tsMs: Date.now() - 1000 })], ['alpha', 'beta']));
     await nextTick();
-    const postman = wrapper.get('.city__postman');
-    expect(postman.attributes('data-tip')).toBe('alpha → beta');
-    expect(postman.attributes('style')).toContain('--from-x');
+    expect(wrapper.get('.kingdom__mailman').attributes('data-tip')).toBe('alpha → beta');
     expect(frameSpy).not.toHaveBeenCalled();
     frameSpy.mockRestore();
   });
@@ -119,8 +154,8 @@ describe('MessagesPanel', () => {
     setDashboardState({ ...makeState([makeMessage({})], ['alpha']), subagents });
     setOpenPopup('comms');
     const wrapper = mount(MessagesPanel);
-    expect(wrapper.findAll('.city__worker')).toHaveLength(6);
-    expect(wrapper.get('.city__more').text()).toBe('+2 more');
+    expect(wrapper.findAll('.kingdom__worker')).toHaveLength(6);
+    expect(wrapper.get('.kingdom__more').text()).toBe('+2 more');
 
     setDashboardState(makeState([makeMessage({}), makeMessage({ snippet: 'second' })]));
     await nextTick();
@@ -134,6 +169,7 @@ describe('MessagesPanel', () => {
     setOpenPopup('comms');
     const wrapper = mount(MessagesPanel);
 
-    expect(wrapper.get('.city__shop.is-idle .city__status').text()).toBe('idle 12 min');
+    expect(wrapper.find('.is-idle').exists()).toBe(true);
+    expect(wrapper.findAll('.iso__status').map((label) => label.text())).toContain('idle 12 min');
   });
 });
