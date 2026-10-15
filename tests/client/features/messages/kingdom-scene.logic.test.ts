@@ -70,8 +70,9 @@ test('building states: smoke only while active, shutters only while stopped', ()
       building('shut', { state: 'stopped', slot: 2 }),
     ]),
   );
-  assert.ok(partClasses(scene, 'building:live').includes('kingdom__smoke'));
-  assert.ok(!partClasses(scene, 'building:quiet').includes('kingdom__smoke'));
+  const isSmoke = (className: string): boolean => className.startsWith('kingdom__smoke');
+  assert.ok(partClasses(scene, 'building:live').some(isSmoke));
+  assert.ok(!partClasses(scene, 'building:quiet').some(isSmoke));
   assert.ok(!partClasses(scene, 'building:quiet').includes('kingdom__shutter'));
   assert.ok(partClasses(scene, 'building:shut').includes('kingdom__shutter'));
   const labels = scene.labels.map((label) => label.text);
@@ -81,8 +82,9 @@ test('building states: smoke only while active, shutters only while stopped', ()
 test('workers stand at their building and the extra ones become a "+N more" label', () => {
   const worker = { agentId: 'w1', agentType: 'coder', activity: 'editing' };
   const scene = sceneOf(kingdomOf([building('a', { workers: [worker, { ...worker, agentId: 'w2' }], moreWorkers: 3 })]));
-  const parts = scene.items.find((item) => item.key === 'building:a')?.parts ?? [];
-  assert.equal(parts.filter((part) => part.className === 'kingdom__worker').length, 2);
+  const workerItems = scene.items.filter((item) => item.key.startsWith('worker:a:'));
+  assert.deepEqual(workerItems.map((item) => item.key), ['worker:a:w1', 'worker:a:w2']);
+  assert.ok(workerItems.every((item) => item.parts.length === 1 && item.parts[0]?.className === 'kingdom__worker'));
   assert.ok(scene.labels.some((label) => label.text === '+3 more'));
 });
 
@@ -110,4 +112,42 @@ test('the tall scene keeps the same objects and says so in its orientation', () 
   assert.equal(scene.orientation, 'tall');
   assert.ok(scene.items.some((item) => item.key === 'building:a'));
   assert.ok(!scene.items.some((item) => item.key.startsWith('tree:')), 'tall has no trees');
+});
+
+function mailmanKingdom(mailmen: Kingdom['mailmen']): Kingdom {
+  return { ...kingdomOf([building('a'), building('b', { slot: 1 })]), mailmen };
+}
+
+function mailman(key: string, to: string, insideBuilding: string | null = null): Kingdom['mailmen'][number] {
+  return { key, from: 'a', to, insideBuilding, progress: 0 };
+}
+
+test('a mailman walks one step element per cell edge, with fixed keys, then rests at the end', () => {
+  const scene = sceneOf(mailmanKingdom([mailman('m1', 'b')]));
+  const steps = scene.items.filter((item) => item.key.startsWith('mailman:m1:'));
+  assert.ok(steps.length > 0);
+  assert.deepEqual(steps.map((item) => item.key), steps.map((_, index) => `mailman:m1:${index}`));
+  assert.ok(steps.every((item) => item.className.includes('iso__step') && item.vars?.['--to-x'] !== undefined));
+  assert.equal(steps[0]?.vars?.['--step'], '0');
+  const rest = scene.items.find((item) => item.key === 'mailman:m1');
+  assert.equal(rest?.vars?.['--rest-delay'], `${steps.length * 0.9}s`);
+});
+
+test('a castle mailman walks to the gate, a hand-back stays at its building without steps', () => {
+  const kingdom = mailmanKingdom([mailman('toCastle', CASTLE_ID), { ...mailman('back', 'boss', 'a'), from: 'agent-1' }]);
+  const layout = createKingdomLayoutTracker().arrange(kingdom, 'wide');
+  const scene = buildKingdomScene(kingdom, layout);
+  const castleSteps = scene.items.filter((item) => item.key.startsWith('mailman:toCastle:'));
+  assert.ok(castleSteps.length > 0);
+  const rest = scene.items.find((item) => item.key === 'mailman:toCastle');
+  const gateDepth = layout.gate.col + layout.gate.row + 0.5;
+  assert.ok(rest !== undefined && Math.abs(rest.depth - gateDepth) < 1e-6, 'rests at the gate');
+  assert.equal(scene.items.filter((item) => item.key.startsWith('mailman:back:')).length, 0);
+  assert.equal(scene.items.find((item) => item.key === 'mailman:back')?.vars?.['--rest-delay'], '0s');
+});
+
+test('with no mailman, no active building and no banner nothing animates', () => {
+  const scene = sceneOf(kingdomOf([building('quiet', { state: 'idle', idleMs: 5000 })]));
+  const classes = scene.items.flatMap((item) => [item.className, ...item.parts.map((part) => part.className)]);
+  assert.ok(!classes.some((className) => /iso__step|kingdom__smoke|kingdom__flag|kingdom__rest/.test(className)));
 });

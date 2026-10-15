@@ -137,6 +137,25 @@ describe('MessagesPanel', () => {
     frameSpy.mockRestore();
   });
 
+  it('runs no animation, timer or frame while nothing moves, and shows a fresh mailman as a walker', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'setInterval', 'requestAnimationFrame'] });
+    const frameSpy = vi.spyOn(globalThis, 'requestAnimationFrame');
+    setDashboardState(makeState([makeMessage({ tsMs: NOW - 120_000 })], ['alpha', 'beta']));
+    setOpenPopup('comms');
+    const wrapper = mount(MessagesPanel);
+    const movingSelector = '.iso__step, .kingdom__rest, .kingdom__smoke, .kingdom__flag';
+    expect(wrapper.findAll(movingSelector)).toHaveLength(0);
+    expect(frameSpy).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+
+    setDashboardState(makeState([makeMessage({ tsMs: Date.now() - 1000 })], ['alpha', 'beta']));
+    await nextTick();
+    expect(wrapper.findAll('.kingdom__rest')).toHaveLength(1);
+    expect(frameSpy).not.toHaveBeenCalled();
+    frameSpy.mockRestore();
+    vi.useRealTimers();
+  });
+
   it('shows the empty states when there are no messages', () => {
     setDashboardState(makeState([]));
     setOpenPopup('comms');
