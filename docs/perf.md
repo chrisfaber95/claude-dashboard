@@ -74,3 +74,25 @@ node scripts/measure-cpu.mjs http://127.0.0.1:4790 120 1920x1080 --popup comms
 
 The open popup costs about 0.07 to 0.08 points over the closed state. The closed numbers differ slightly from the
 "After F-004" table (0.16 % and 0.10 %) because the data and sitting differ; compare F-007 against the open-popup rows.
+
+## After F-007
+
+Commit `0d5b898` (main after T-091), same PC and browser as "Before F-007": Chrome on Windows 11, real `~/.claude`
+data, localhost server on port 4790 with commands off. Shorter runs than before, as the ticket asked: 60 s each (15 s
+warm-up), 3 finished runs per row, taken in one sitting (the popup-closed phone runs, then popup open, and so on). The
+popup is the Session communication popup (`--popup comms`), no postman moving.
+
+| Viewport | Popup | Run 1 | Run 2 | Run 3 | Median |
+|---|---|---|---|---|---|
+| 1920x1080 | comms open | 0.24 % | 0.21 % | 0.24 % | **0.24 %** |
+| 1920x1080 | closed | 0.21 % | 0.15 % | 0.16 % | **0.16 %** |
+| 390x844 | comms open | 0.24 % | 0.18 % | 0.25 % | **0.24 %** |
+| 390x844 | closed | 0.14 % | 0.15 % | 0.15 % | **0.15 %** |
+
+- Open versus closed: +0.08 points at 1920x1080 and +0.09 at 390x844, both within the 0.1 point limit. Open-popup
+  medians equal or are below "Before F-007" (0.25 % and 0.18 %) at desktop, and 0.06 points above it on the phone.
+- Closed at 1920x1080 is 0.16 %, the F-004 level. Closed at 390x844 is 0.15 %, above the 0.10 % of F-004 and "Before
+  F-007". As a control, main before T-091 (`cab3b0b`) was measured in the same sitting with 2 runs of 60 s: 0.15 % and
+  0.16 % at 1920x1080, 0.12 % and 0.15 % at 390x844. So the phone-closed rise is also present without T-091 and
+  looks like PC and data drift, not a regression; it is not proven with so few runs.
+- Not run: the 120 s runs of earlier sections. CPU measurement was stopped by the user's decision on 2026-10-15.
