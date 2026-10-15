@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { UsageDay } from '../../../../src/shared/types/index.ts';
-import { POPUPS, backdropCloses, escapeClosesPopup, isPopupId, popupSectionClass, stillOpen, toggled, tokensToday, visiblePopups } from '../../../../src/client/features/popups/popups.logic.ts';
+import { POPUPS, backdropCloses, escapeClosesPopup, isPopupId, popupFrameClass, popupSectionClass, stillOpen, toggled, tokensToday, visiblePopups } from '../../../../src/client/features/popups/popups.logic.ts';
 
 test('the button set and order are fixed', () => {
   assert.deepEqual(
@@ -64,6 +64,11 @@ test("tokensToday sums today's four counters and is 0 without a day", () => {
   const now = new Date(2026, 9, 9, 12);
   assert.equal(tokensToday([day('2026-10-08'), day('2026-10-09')], now), 10);
   assert.equal(tokensToday([day('2026-10-08')], now), 0);
+});
+
+test('only the comms popup frame is full screen', () => {
+  assert.equal(popupFrameClass('comms'), 'popup popup--full');
+  for (const popup of POPUPS.filter((entry) => entry.id !== 'comms')) assert.equal(popupFrameClass(popup.id), 'popup');
 });
 
 test('popupSectionClass adds the feature class only where a skin styles it', () => {

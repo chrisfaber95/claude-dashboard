@@ -1,0 +1,189 @@
+// The kingdom in the Session communication popup (docs/isometric.md): grass, square, wall, castle and buildings.
+// Ground, lit faces, windows and labels come from shared/_iso.scss; this file adds what only the kingdom has.
+// Walkers, smoke and the banner move with transform and opacity only (docs/motion.md). Smoke and banner are drawn
+// only while their state holds, so their loops end with it; a walker's steps run once.
+@keyframes kingdom-smoke {
+  from {
+    opacity: 0.7;
+    transform: translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes kingdom-wave {
+  from {
+    transform: scaleX(1);
+  }
+
+  to {
+    transform: scaleX(0.8);
+  }
+}
+
+@keyframes kingdom-arrive {
+  from {
+    opacity: 0;
+  }
+}
+
+.kingdom-area {
+  height: 60vh;
+  min-height: 320px;
+  overflow: hidden;
+
+  &--tall {
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+}
+
+svg.kingdom {
+  width: 100%;
+  display: block;
+
+  &.kingdom--wide {
+    height: 100%;
+  }
+
+  &.kingdom--tall {
+    height: auto;
+  }
+
+  .kingdom__grass {
+    fill: color-mix(in srgb, var(--s3) 12%, var(--surface));
+  }
+
+  .kingdom__square {
+    fill: color-mix(in srgb, var(--ink) 14%, var(--surface));
+    stroke: var(--border);
+  }
+
+  // Walls, towers and the well share one stone colour; the faces mix it light and dark like any building.
+  .kingdom__stone,
+  .kingdom__castle {
+    color: color-mix(in srgb, var(--muted) 70%, var(--surface));
+  }
+
+  .kingdom__stall {
+    color: var(--s5);
+  }
+
+  .kingdom__tree {
+    color: var(--s3);
+  }
+
+  .kingdom__trunk {
+    fill: color-mix(in srgb, #6b4423 80%, var(--surface));
+  }
+
+  .kingdom__canopy {
+    fill: color-mix(in srgb, var(--s3) 75%, #000);
+    stroke: color-mix(in srgb, var(--s3) 40%, #000);
+  }
+
+  .kingdom__roof--left {
+    fill: color-mix(in srgb, currentColor 35%, #8a3b24);
+    stroke: color-mix(in srgb, currentColor 20%, #000);
+  }
+
+  .kingdom__roof--right {
+    fill: color-mix(in srgb, currentColor 25%, #5e2717);
+    stroke: color-mix(in srgb, currentColor 20%, #000);
+  }
+
+  .kingdom__smoke {
+    fill: color-mix(in srgb, var(--muted) 50%, var(--surface));
+    opacity: 0.7;
+    animation: kingdom-smoke 2.4s var(--ease-out) infinite;
+  }
+
+  .kingdom__smoke--1 {
+    animation-delay: 0.8s;
+  }
+
+  .kingdom__smoke--2 {
+    animation-delay: 1.6s;
+  }
+
+  .kingdom__shutter,
+  .kingdom__bar {
+    fill: color-mix(in srgb, currentColor 40%, #000);
+    stroke: #000;
+    stroke-width: 0.5;
+  }
+
+  .kingdom__pole {
+    fill: var(--ink);
+  }
+
+  .kingdom__flag {
+    fill: var(--crit);
+    stroke: var(--surface);
+    transform-box: fill-box;
+    transform-origin: left center;
+    animation: kingdom-wave 0.9s var(--ease-in-out) infinite alternate;
+  }
+
+  .kingdom__worker,
+  .kingdom__mailman {
+    stroke: var(--surface);
+    stroke-width: 1;
+  }
+
+  .kingdom__worker {
+    fill: var(--muted);
+  }
+
+  .kingdom__mailman {
+    fill: var(--ink);
+  }
+
+  .kingdom__more,
+  .kingdom__overflow {
+    font-size: 9px;
+    text-anchor: middle;
+    fill: var(--ink-2);
+    paint-order: stroke;
+    stroke: var(--surface);
+    stroke-width: 3px;
+  }
+
+  // Own delay from the step index: a long walk has more steps than the 24 delay classes of _iso.scss.
+  &.iso .kingdom__step {
+    animation-delay: calc(var(--step) * var(--iso-step-duration));
+  }
+
+  // Hidden until the last step has ended, then plain and static.
+  .kingdom__rest {
+    animation: kingdom-arrive var(--motion-fast) var(--ease-out) var(--rest-delay) backwards;
+  }
+
+  .kingdom-item-enter-active.kingdom__worker-item {
+    transition: opacity var(--motion-base) var(--ease-out), transform var(--motion-base) var(--ease-out);
+  }
+
+  .kingdom-item-leave-active.kingdom__worker-item {
+    transition: opacity var(--motion-fast) var(--ease-in), transform var(--motion-fast) var(--ease-in);
+  }
+
+  .kingdom-item-enter-from.kingdom__worker-item,
+  .kingdom-item-leave-to.kingdom__worker-item {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  .kingdom__area {
+    font-size: 10px;
+    text-anchor: middle;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    fill: var(--ink-2);
+    paint-order: stroke;
+    stroke: var(--surface);
+    stroke-width: 3px;
+  }
+}

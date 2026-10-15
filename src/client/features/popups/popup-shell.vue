@@ -12,7 +12,7 @@ import SummarySetting from '../settings/summary-setting.vue';
 import TeamPanel from '../team/team-panel.vue';
 import UsagePanel from '../usage/usage-panel.vue';
 import { setOpenPopup, useOpenPopup } from './open-popup.ts';
-import { POPUPS, backdropCloses, escapeClosesPopup, popupSectionClass, stillOpen, toggled, visiblePopups } from './popups.logic.ts';
+import { POPUPS, backdropCloses, escapeClosesPopup, popupFrameClass, popupSectionClass, stillOpen, toggled, visiblePopups } from './popups.logic.ts';
 import type { PopupId } from './popups.logic.ts';
 
 // The panels stay mounted while their popup is shut, so each keeps its typed input, focus and selection.
@@ -107,7 +107,7 @@ const panels = {
         v-for="popup in POPUPS"
         :key="popup.id"
         :id="`popup-${popup.id}`"
-        class="popup"
+        :class="popupFrameClass(popup.id)"
         role="dialog"
         aria-modal="true"
         :aria-label="popup.label"

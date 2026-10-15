@@ -71,8 +71,8 @@ the far side of its street and before the one on the near side.
 - The feature's layout gives a walk as corners: start, every turn, end. Consecutive corners share a column or a row,
   and the layout picks them so the walk stays on its streets. `walkRoute` fills in every cell between them.
 - A step is an element with classes `iso__step iso-step--<index>` and its two end points as custom properties
-  (`--from-x`, `--from-y`, `--to-x`, `--to-y`) in `:style`, the same pattern as the postmen in
-  `features/messages/city-view.vue`. Everything else (duration, delay, colour) is a class in `_iso.scss`.
+  (`--from-x`, `--from-y`, `--to-x`, `--to-y`) in `:style`, the same pattern as the mailmen of
+  the kingdom (`features/messages/kingdom-view.vue`, T-100). Everything else (duration, delay, colour) is a class in `_iso.scss`.
 - `.iso__step` is hidden (`opacity: 0`) except while its own keyframes run. The delay class starts step N when step
   N - 1 ends (`--iso-step-duration`, 0.9 s per cell), so the steps read as one walker. `_iso.scss` has delay classes
   for 24 steps; a walk that needs more is too long for a dashboard scene.
