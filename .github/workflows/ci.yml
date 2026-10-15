@@ -17,4 +17,6 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run typecheck
       - run: npm run lint
-      - run: npm test
+      # Tests guard main only; PRs into an epic/* branch run typecheck and lint (decision 0008).
+      - if: github.event_name == 'push' || github.base_ref == 'main'
+        run: npm test
