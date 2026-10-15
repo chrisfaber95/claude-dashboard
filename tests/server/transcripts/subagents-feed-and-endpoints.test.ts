@@ -159,6 +159,26 @@ test('messages feed keeps the user-line hand-back form and uses from as peer whe
   assert.deepEqual([message.kind, message.peer, message.snippet], ['subagent', 'a1b2c3', 'Done.']);
 });
 
+test('a subagent hand-back message carries the agentId of the subagent, session messages carry none', () => {
+  const store = session();
+  store.meta('mmmm11', { agentType: 'Explore', description: 'bg', toolUseId: 'tuM', requestShape: 'background' });
+  writeFileSync(
+    store.main,
+    jsonl([
+      handbackAttachment(store.sessionId, T0 + 30_000, 'mmmm11', 'Report.'),
+      { type: 'user', sessionId: store.sessionId, cwd, timestamp: iso(T0 + 31_000), origin: { kind: 'peer', from: 'shopapp-0c', body: 'can you rebase?' } },
+    ]),
+  );
+  writeFileSync(store.agentFile('mmmm11'), jsonl([subLine(store.sessionId, 'mmmm11', T0 + 1000)]));
+  transcriptsModule.scanTranscripts();
+  const msgs = transcriptsModule.messages.filter((message) => message.sessionId === store.sessionId);
+  const handBack = msgs.find((message) => message.kind === 'subagent');
+  const [subagent] = mine(store.sessionId, T0 + 40_000);
+  assert.equal(handBack?.agentId, subagent.agentId);
+  assert.equal(handBack?.agentId, 'mmmm11');
+  assert.equal(msgs.find((message) => message.kind === 'session')?.agentId, undefined);
+});
+
 test('buildState returns a subagents array, empty for sessions that are not live', async () => {
   const { buildState } = await import('../../../src/server/transcripts/state.ts');
   const store = session();

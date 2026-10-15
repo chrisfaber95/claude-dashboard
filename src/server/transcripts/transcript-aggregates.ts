@@ -181,6 +181,7 @@ function recordIncomingPeerMessage(line: TranscriptLine, tsMs: number, sessionId
     sessionName: '',
     peer: peerName(peer),
     snippet: snippet(handbackBody(body), SNIPPET_MAX_CHARS),
+    ...(isSubagent && peer.senderTaskId ? { agentId: peer.senderTaskId } : {}),
   });
 }
 
