@@ -28,7 +28,7 @@ Moved verbatim to `docs/architecture.md` to keep this file small. Read the match
 - **Claude CLI behaviour (verified)**: how `claude.exe` is found, trust, `--bg`. Read before touching `claude-cli.ts`.
 - **Tests**: fixtures, `makeFixture()`, fake CLI, `raw()`. Read before writing or changing tests.
 - **UI conventions**: palette, skins, animations, no inline styles, no `v-html`. Read before any change in `src/client/`, and include it in every `frontend-developer` delegation.
-
+- **Isometric scenes** (`docs/isometric.md`) and **UI motion** (`docs/motion.md`): read before drawing a scene or adding any animation in `src/client/`, and include them in every `frontend-developer` delegation that does.
 - **Vendored Vue skills** (`docs/vendored-skills.md`): source, commit and update steps of the skills in `.claude/skills/`.
 
 ## Vue work
