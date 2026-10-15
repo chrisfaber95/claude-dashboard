@@ -40,6 +40,8 @@ export interface MessageInfo {
   /** The other party (name or id). */
   peer: string;
   snippet: string;
+  /** For a subagent hand-back: the id of the subagent that sent it (`SubagentInfo.agentId`). */
+  agentId?: string;
 }
 
 /** A subagent a session (or another subagent) handed work to. */
