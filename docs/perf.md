@@ -6,11 +6,11 @@ The dashboard tab stays open all day and the server pushes the full state every 
 ## Method
 
 ```
-node scripts/measure-cpu.mjs [url] [seconds] [viewport] [--browser <path>] [--warmup <seconds>]
+node scripts/measure-cpu.mjs [url] [seconds] [viewport] [--browser <path>] [--warmup <seconds>] [--popup <id>]
 node scripts/measure-cpu.mjs http://127.0.0.1:4777 120 1920x1080
 ```
 
-Defaults: `http://127.0.0.1:4777`, 120 s, `1920x1080`, 15 s warm-up. Start the dashboard first in localhost mode
+Defaults: `http://127.0.0.1:4777`, 120 s, `1920x1080`, 15 s warm-up, no popup (`--popup <id>` clicks that popup's bar button after load, before the warm-up, and fails if it cannot open). Start the dashboard first in localhost mode
 (no `--lan`, no login), with real `~/.claude` data.
 
 1. Finds Chrome or Edge in the usual install paths (or `--browser <path>`); errors out if there is none.
@@ -53,3 +53,24 @@ Both medians are lower than the baseline. An earlier measurement on `a5190ca` (T
 1920x1080, not lower: the patcher re-walked every section, including hidden popups, on each push. T-037 skips unchanged
 sections and closed popups, which is where the drop comes from. The `~/.claude` data differs from the baseline day, so
 treat the ratio as indicative, not exact.
+
+## Before F-007
+
+Commit `cab3b0b` (main before T-091), same PC and browser as F-004: Chrome on Windows 11, real `~/.claude` data,
+localhost server on port 4790 with commands off, 3 runs of 120 s each (15 s warm-up). The popup is the Session
+communication popup, opened with `--popup comms` after load and before the warm-up. The popup-closed runs were taken in
+the same sitting, straight after the popup-open runs.
+
+```
+node scripts/measure-cpu.mjs http://127.0.0.1:4790 120 1920x1080 --popup comms
+```
+
+| Viewport | Popup | Run 1 | Run 2 | Run 3 | Median |
+|---|---|---|---|---|---|
+| 1920x1080 | comms open | 0.29 % | 0.22 % | 0.25 % | **0.25 %** |
+| 1920x1080 | closed | 0.18 % | 0.18 % | 0.21 % | **0.18 %** |
+| 390x844 | comms open | 0.12 % | 0.20 % | 0.18 % | **0.18 %** |
+| 390x844 | closed | 0.12 % | 0.08 % | 0.10 % | **0.10 %** |
+
+The open popup costs about 0.07 to 0.08 points over the closed state. The closed numbers differ slightly from the
+"After F-004" table (0.16 % and 0.10 %) because the data and sitting differ; compare F-007 against the open-popup rows.
