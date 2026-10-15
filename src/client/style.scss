@@ -1851,6 +1851,24 @@ $hair: (#2b2118, #6b4423, #c9a24b, #a33b2a, #555555);
     padding-top: 48px; // room for the close button
   }
 
+  // Desktop only: the phone layout keeps the normal popup size and scrolling.
+  @media (min-width: 801px) {
+    &--full {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+
+      > .panel {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        overflow: auto;
+      }
+    }
+  }
+
   &__close {
     position: absolute;
     top: 10px;

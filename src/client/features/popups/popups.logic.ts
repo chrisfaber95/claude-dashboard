@@ -47,6 +47,14 @@ export function popupSectionClass(id: PopupId): string {
   return 'panel';
 }
 
+/** Popups that fill the viewport on desktop width, so their content (the kingdom scene) can grow with it. */
+const FULLSCREEN_POPUPS: readonly PopupId[] = ['comms'];
+
+/** Classes of a popup frame: `popup--full` for the popups that use the whole screen on desktop. */
+export function popupFrameClass(id: PopupId): string {
+  return FULLSCREEN_POPUPS.includes(id) ? 'popup popup--full' : 'popup';
+}
+
 /** One popup at a time: opening another replaces the current one, its own button toggles it shut. */
 export function toggled(current: PopupId | null, requested: PopupId): PopupId | null {
   return current === requested ? null : requested;
