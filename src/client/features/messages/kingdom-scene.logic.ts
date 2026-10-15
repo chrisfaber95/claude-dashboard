@@ -32,7 +32,8 @@ const OVERFLOW_OFFSET = 18;
 const WORKER_MORE_OFFSET = 14;
 const MAILMAN_DEPTH = 0.5;
 const WORKER_DEPTH = 0.25;
-const STEP_SECONDS = 0.9;const COURT_LABEL = 'Court';
+const STEP_SECONDS = 0.9;
+const COURT_LABEL = 'Court';
 const CASTLE_LABEL = 'Castle';
 
 /** One depth-sorted object of the scene layer. */
