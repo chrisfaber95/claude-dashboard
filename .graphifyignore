@@ -1,0 +1,4 @@
+# Build output (copies of src/client)
+public/
+# Secrets and audit log
+.dashboard/

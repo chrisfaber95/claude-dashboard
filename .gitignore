@@ -2,3 +2,8 @@ node_modules/
 public/
 .dashboard/
 .claude/settings.local.json
+
+# graphify: machine-local cache and paths (the graph itself is committed)
+graphify-out/cache/
+graphify-out/.graphify_python
+graphify-out/.graphify_root
