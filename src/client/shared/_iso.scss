@@ -1,0 +1,114 @@
+// Shared look of isometric scenes (docs/isometric.md): ground, lit building faces, walkers and labels.
+// Light comes from the back left: top face lightest, left face the base colour, right face darkest.
+$series-slots: 8;
+$step-slots: 24;
+
+@keyframes iso-step {
+  from {
+    opacity: 1;
+    transform: translate(var(--from-x), var(--from-y));
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(var(--to-x), var(--to-y));
+  }
+}
+
+@for $i from 1 through $series-slots {
+  .iso-tint-#{$i} {
+    color: var(--s#{$i});
+  }
+}
+
+// A walk is one element per step; each starts when the one before it ends.
+@for $i from 0 to $step-slots {
+  .iso-step--#{$i} {
+    animation-delay: calc(#{$i} * var(--iso-step-duration));
+  }
+}
+
+svg.iso {
+  --iso-step-duration: 0.9s;
+
+  .iso__grass {
+    fill: color-mix(in srgb, var(--s3) 10%, var(--surface));
+    stroke: var(--border);
+  }
+
+  .iso__street {
+    fill: color-mix(in srgb, var(--ink) 9%, var(--surface));
+    stroke: var(--border);
+  }
+
+  .iso__face--top,
+  .iso__face--left,
+  .iso__face--right {
+    stroke: color-mix(in srgb, currentColor 40%, #000);
+    stroke-linejoin: round;
+  }
+
+  .iso__face--top {
+    fill: color-mix(in srgb, currentColor 55%, #fff);
+  }
+
+  .iso__face--left {
+    fill: currentColor;
+  }
+
+  .iso__face--right {
+    fill: color-mix(in srgb, currentColor 68%, #000);
+  }
+
+  .iso__window {
+    fill: color-mix(in srgb, var(--s4) 35%, #fff);
+  }
+
+  // Doors and unlit windows stay dark in both themes, so they mix with black instead of using --ink-2.
+  .iso__door,
+  .is-idle .iso__window {
+    fill: color-mix(in srgb, currentColor 35%, #000);
+  }
+
+  .iso__awning {
+    fill: color-mix(in srgb, currentColor 12%, #fff);
+  }
+
+  .is-stopped {
+    color: var(--muted);
+
+    .iso__window,
+    .iso__awning {
+      fill: color-mix(in srgb, currentColor 50%, #000);
+    }
+  }
+
+  .iso__step {
+    opacity: 0;
+    animation: iso-step var(--iso-step-duration) linear;
+
+    circle {
+      fill: var(--ink);
+      stroke: var(--surface);
+    }
+  }
+
+  .iso__label,
+  .iso__status {
+    text-anchor: middle;
+    paint-order: stroke;
+    stroke: var(--surface);
+    stroke-width: 3px;
+  }
+
+  .iso__label {
+    font-size: 11px;
+    font-weight: 600;
+    fill: var(--ink);
+  }
+
+  .iso__status {
+    font-size: 10px;
+    fill: var(--ink-2);
+  }
+}

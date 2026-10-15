@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-304 -16 656 344" width="720">
+<!-- Reference picture for docs/isometric.md, generated with the helpers in that guide. Light-theme token values
+     are hard-coded here; in the app use the classes and tokens the guide names. -->
+<!-- The postman walks once when the picture opens; reload to see it again. -->
+<style>
+.iso__grass{fill:#e6ecdc;stroke:#d3dbc6;stroke-width:1}
+.iso__street{fill:#d9d7d0;stroke:#c9c6be;stroke-width:1}
+.iso-tint-1{color:#2a78d6}.iso-tint-2{color:#eb6834}.iso-tint-3{color:#1baf7a}.iso-tint-5{color:#e87ba4}.iso-tint-7{color:#4a3aa7}
+.iso__face--top{fill:color-mix(in srgb,currentColor 55%,#fff)}
+.iso__face--left{fill:currentColor}
+.iso__face--right{fill:color-mix(in srgb,currentColor 68%,#000)}
+.iso__face--top,.iso__face--left,.iso__face--right{stroke:color-mix(in srgb,currentColor 40%,#000);stroke-width:1;stroke-linejoin:round}
+.iso__window{fill:#fdf3b0}
+.iso__door{fill:#3a3936}
+.iso__awning{fill:#fcfcfb;opacity:.9}
+.is-idle .iso__window{fill:#52514e}
+.is-stopped .iso__face--top,.is-stopped .iso__face--left,.is-stopped .iso__face--right{fill:#c9c7c0;stroke:#898781}
+.is-stopped .iso__window,.is-stopped .iso__awning{fill:#898781}
+.iso__label{font:600 11px system-ui,sans-serif;fill:#0b0b0b;text-anchor:middle;paint-order:stroke;stroke:#fcfcfb;stroke-width:3px}
+.iso__status{font:10px system-ui,sans-serif;fill:#52514e;text-anchor:middle;paint-order:stroke;stroke:#fcfcfb;stroke-width:3px}
+.iso__walker circle{fill:#0b0b0b;stroke:#fcfcfb}
+.iso__walker rect{fill:#fcfcfb}
+.iso__walker-shadow{fill:#0b0b0b;opacity:.2}
+.iso__step{opacity:0;animation:iso-step 0.9s linear var(--step-delay)}
+@keyframes iso-step{from{opacity:1;transform:translate(var(--from-x),var(--from-y))}to{opacity:1;transform:translate(var(--to-x),var(--to-y))}}</style>
+<g class="iso__ground"><path class="iso__grass" d="M0 0L48 24L0 48L-48 24Z"/>
+<path class="iso__grass" d="M48 24L96 48L48 72L0 48Z"/>
+<path class="iso__grass" d="M96 48L144 72L96 96L48 72Z"/>
+<path class="iso__street" d="M144 72L192 96L144 120L96 96Z"/>
+<path class="iso__grass" d="M192 96L240 120L192 144L144 120Z"/>
+<path class="iso__grass" d="M240 120L288 144L240 168L192 144Z"/>
+<path class="iso__grass" d="M288 144L336 168L288 192L240 168Z"/>
+<path class="iso__grass" d="M-48 24L0 48L-48 72L-96 48Z"/>
+<path class="iso__grass" d="M0 48L48 72L0 96L-48 72Z"/>
+<path class="iso__grass" d="M48 72L96 96L48 120L0 96Z"/>
+<path class="iso__street" d="M96 96L144 120L96 144L48 120Z"/>
+<path class="iso__grass" d="M144 120L192 144L144 168L96 144Z"/>
+<path class="iso__grass" d="M192 144L240 168L192 192L144 168Z"/>
+<path class="iso__grass" d="M240 168L288 192L240 216L192 192Z"/>
+<path class="iso__street" d="M-96 48L-48 72L-96 96L-144 72Z"/>
+<path class="iso__street" d="M-48 72L0 96L-48 120L-96 96Z"/>
+<path class="iso__street" d="M0 96L48 120L0 144L-48 120Z"/>
+<path class="iso__street" d="M48 120L96 144L48 168L0 144Z"/>
+<path class="iso__street" d="M96 144L144 168L96 192L48 168Z"/>
+<path class="iso__street" d="M144 168L192 192L144 216L96 192Z"/>
+<path class="iso__street" d="M192 192L240 216L192 240L144 216Z"/>
+<path class="iso__grass" d="M-144 72L-96 96L-144 120L-192 96Z"/>
+<path class="iso__grass" d="M-96 96L-48 120L-96 144L-144 120Z"/>
+<path class="iso__grass" d="M-48 120L0 144L-48 168L-96 144Z"/>
+<path class="iso__street" d="M0 144L48 168L0 192L-48 168Z"/>
+<path class="iso__grass" d="M48 168L96 192L48 216L0 192Z"/>
+<path class="iso__grass" d="M96 192L144 216L96 240L48 216Z"/>
+<path class="iso__grass" d="M144 216L192 240L144 264L96 240Z"/>
+<path class="iso__grass" d="M-192 96L-144 120L-192 144L-240 120Z"/>
+<path class="iso__grass" d="M-144 120L-96 144L-144 168L-192 144Z"/>
+<path class="iso__grass" d="M-96 144L-48 168L-96 192L-144 168Z"/>
+<path class="iso__street" d="M-48 168L0 192L-48 216L-96 192Z"/>
+<path class="iso__grass" d="M0 192L48 216L0 240L-48 216Z"/>
+<path class="iso__grass" d="M48 216L96 240L48 264L0 240Z"/>
+<path class="iso__grass" d="M96 240L144 264L96 288L48 264Z"/>
+<path class="iso__street" d="M-240 120L-192 144L-240 168L-288 144Z"/>
+<path class="iso__street" d="M-192 144L-144 168L-192 192L-240 168Z"/>
+<path class="iso__street" d="M-144 168L-96 192L-144 216L-192 192Z"/>
+<path class="iso__street" d="M-96 192L-48 216L-96 240L-144 216Z"/>
+<path class="iso__street" d="M-48 216L0 240L-48 264L-96 240Z"/>
+<path class="iso__street" d="M0 240L48 264L0 288L-48 264Z"/>
+<path class="iso__street" d="M48 264L96 288L48 312L0 288Z"/></g>
+<g class="iso__scene"><g class="iso__shop is-active iso-tint-1">
+<path class="iso__face--left" d="M0 32L48 56L48 120L0 96Z"/>
+<path class="iso__face--right" d="M48 56L96 32L96 96L48 120Z"/>
+<path class="iso__face--top" d="M48 8L96 32L48 56L0 32Z"/>
+<path class="iso__window" d="M54.7 66.7L66.2 61L66.2 78.9L54.7 84.6Z"/>
+<path class="iso__window" d="M76.8 55.7L88.3 49.9L88.3 67.8L76.8 73.6Z"/>
+<path class="iso__awning" d="M9.6 61.1L38.4 75.5L38.4 83.2L9.6 68.8Z"/>
+<path class="iso__door" d="M18.2 76.3L29.8 82.1L29.8 110.9L18.2 105.1Z"/>
+</g>
+<g class="iso__shop is-active iso-tint-5">
+<path class="iso__face--left" d="M-144 68L-96 92L-96 144L-144 120Z"/>
+<path class="iso__face--right" d="M-96 92L-48 68L-48 120L-96 144Z"/>
+<path class="iso__face--top" d="M-96 44L-48 68L-96 92L-144 68Z"/>
+<path class="iso__window" d="M-89.3 100.1L-77.8 94.3L-77.8 108.9L-89.3 114.6Z"/>
+<path class="iso__window" d="M-67.2 89L-55.7 83.3L-55.7 97.8L-67.2 103.6Z"/>
+<path class="iso__awning" d="M-134.4 92.6L-105.6 107L-105.6 113.2L-134.4 98.8Z"/>
+<path class="iso__door" d="M-125.8 105.7L-114.2 111.5L-114.2 134.9L-125.8 129.1Z"/>
+</g>
+<g class="iso__shop is-stopped iso-tint-3">
+<path class="iso__face--left" d="M-240 80L-192 104L-192 144L-240 120Z"/>
+<path class="iso__face--right" d="M-192 104L-144 80L-144 120L-192 144Z"/>
+<path class="iso__face--top" d="M-192 56L-144 80L-192 104L-240 80Z"/>
+<path class="iso__window" d="M-185.3 109.4L-173.8 103.7L-173.8 114.9L-185.3 120.6Z"/>
+<path class="iso__window" d="M-163.2 98.4L-151.7 92.6L-151.7 103.8L-163.2 109.6Z"/>
+<path class="iso__awning" d="M-230.4 100L-201.6 114.4L-201.6 119.2L-230.4 104.8Z"/>
+<path class="iso__door" d="M-221.8 111.1L-210.2 116.9L-210.2 134.9L-221.8 129.1Z"/>
+</g>
+<g class="iso__walker iso__step" style="--from-x:0px;--from-y:120px;--to-x:48px;--to-y:144px;--step-delay:0s"><ellipse class="iso__walker-shadow" rx="6" ry="3"/><circle cy="-11" r="6"/><rect x="-4" y="-13" width="8" height="5"/></g>
+<g class="iso__walker iso__step" style="--from-x:48px;--from-y:144px;--to-x:0px;--to-y:168px;--step-delay:0.9s"><ellipse class="iso__walker-shadow" rx="6" ry="3"/><circle cy="-11" r="6"/><rect x="-4" y="-13" width="8" height="5"/></g>
+<g class="iso__shop is-idle iso-tint-2">
+<path class="iso__face--left" d="M144 124L192 148L192 192L144 168Z"/>
+<path class="iso__face--right" d="M192 148L240 124L240 168L192 192Z"/>
+<path class="iso__face--top" d="M192 100L240 124L192 148L144 124Z"/>
+<path class="iso__window" d="M198.7 154.3L210.2 148.6L210.2 160.9L198.7 166.6Z"/>
+<path class="iso__window" d="M220.8 143.3L232.3 137.5L232.3 149.8L220.8 155.6Z"/>
+<path class="iso__awning" d="M153.6 145.5L182.4 159.9L182.4 165.2L153.6 150.8Z"/>
+<path class="iso__door" d="M162.2 157.3L173.8 163.1L173.8 182.9L162.2 177.1Z"/>
+</g>
+<g class="iso__walker iso__step" style="--from-x:0px;--from-y:168px;--to-x:-48px;--to-y:192px;--step-delay:1.8s"><ellipse class="iso__walker-shadow" rx="6" ry="3"/><circle cy="-11" r="6"/><rect x="-4" y="-13" width="8" height="5"/></g>
+<g class="iso__walker iso__step" style="--from-x:-48px;--from-y:192px;--to-x:-96px;--to-y:216px;--step-delay:2.7s"><ellipse class="iso__walker-shadow" rx="6" ry="3"/><circle cy="-11" r="6"/><rect x="-4" y="-13" width="8" height="5"/></g>
+<g class="iso__shop is-active iso-tint-7">
+<path class="iso__face--left" d="M-48 136L0 160L0 240L-48 216Z"/>
+<path class="iso__face--right" d="M0 160L48 136L48 216L0 240Z"/>
+<path class="iso__face--top" d="M0 112L48 136L0 160L-48 136Z"/>
+<path class="iso__window" d="M6.7 174.2L18.2 168.5L18.2 190.9L6.7 196.6Z"/>
+<path class="iso__window" d="M28.8 163.2L40.3 157.4L40.3 179.8L28.8 185.6Z"/>
+<path class="iso__awning" d="M-38.4 171.2L-9.6 185.6L-9.6 195.2L-38.4 180.8Z"/>
+<path class="iso__door" d="M-29.8 189.1L-18.2 194.9L-18.2 230.9L-29.8 225.1Z"/>
+</g>
+<g class="iso__walker iso__step" style="--from-x:-96px;--from-y:216px;--to-x:-48px;--to-y:240px;--step-delay:3.6s"><ellipse class="iso__walker-shadow" rx="6" ry="3"/><circle cy="-11" r="6"/><rect x="-4" y="-13" width="8" height="5"/></g></g>
+<g class="iso__labels"><text class="iso__label" x="48" y="108">api</text><text class="iso__status" x="48" y="120">active</text>
+<text class="iso__label" x="192" y="180">web</text><text class="iso__status" x="192" y="192">idle 12 min</text>
+<text class="iso__label" x="-96" y="132">db</text><text class="iso__status" x="-96" y="144">active</text>
+<text class="iso__label" x="-192" y="132">docs</text><text class="iso__status" x="-192" y="144">stopped</text>
+<text class="iso__label" x="0" y="228">infra</text><text class="iso__status" x="0" y="240">active</text></g>
+</svg>

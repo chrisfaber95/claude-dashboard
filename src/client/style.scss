@@ -51,6 +51,13 @@ $series-dark: (#3987e5, #d95926, #199e70, #c98500, #d55181, #008300, #9085e9, #e
   --on-accent: #fff;
   --radius-panel: 12px;
   --radius-btn: 8px;
+  // Motion tokens (docs/motion.md, "Timing")
+  --motion-fast: 120ms;
+  --motion-base: 200ms;
+  --motion-slow: 400ms;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -1370,6 +1377,7 @@ $hair: (#2b2118, #6b4423, #c9a24b, #a33b2a, #555555);
 
 @include meta.load-css('features/permissions/permissions');
 @include meta.load-css('features/messages/city');
+@include meta.load-css('shared/iso');
 
 // ---- skins: one partial each (src/client/skins/_<name>.scss), scoped to :root[data-skin='<name>'].
 // Loaded last so they win ties. Add the next skin with another load-css line. ----
