@@ -104,6 +104,13 @@ body {
     justify-content: flex-end;
     color: var(--ink-2);
   }
+
+  &__greeting {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
 // Cockpit: full width, status first. Phone: one column (alerts, limits, sessions, core).
