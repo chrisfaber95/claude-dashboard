@@ -13,6 +13,11 @@ export const TEAM_HQ_DIR = process.env.TEAM_HQ_DIR ?? 'N:\\team-hq';
 const CONFIG_DIR = process.env.CLAUDE_CONFIG_DIR;
 export const CLAUDE_DIR = process.env.CLAUDE_DIR ?? CONFIG_DIR ?? join(homedir(), '.claude');
 export const CLAUDE_JSON = process.env.CLAUDE_JSON ?? (CONFIG_DIR ? join(CONFIG_DIR, '.claude.json') : join(homedir(), '.claude.json'));
+/**
+ * Other accounts' Claude folders (e.g. the homelab inbox) whose live sessions are listed too, read-only and only from
+ * `<dir>/sessions`: `label=path` entries separated by `;`. The label is shown as the session's project.
+ */
+export const CLAUDE_EXTRA_DIRS = parseExtraDirs(process.env.CLAUDE_EXTRA_DIRS ?? '');
 export const APP_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 /** Secrets (login token, TLS key) and the audit log. Never served. */
 export const DATA_DIR = process.env.DASHBOARD_DATA_DIR ?? join(APP_ROOT, '.dashboard');
@@ -38,3 +43,18 @@ export function localDay(ms: number): string {
 }
 
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export interface ExtraClaudeDir {
+  label: string;
+  dir: string;
+}
+
+/** Parse `label=path;label=path`; entries without a label or a path are skipped. */
+export function parseExtraDirs(value: string): ExtraClaudeDir[] {
+  return value.split(';').flatMap((entry) => {
+    const separator = entry.indexOf('=');
+    const label = entry.slice(0, separator).trim();
+    const dir = entry.slice(separator + 1).trim();
+    return separator > 0 && label && dir ? [{ label, dir }] : [];
+  });
+}

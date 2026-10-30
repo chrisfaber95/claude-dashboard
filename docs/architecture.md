@@ -69,6 +69,8 @@ Reference sections moved out of `CLAUDE.md` (which links here) so they load only
 ## Data sources (format of Claude Code's internal files, not a public API)
 
 - `~/.claude/sessions/<pid>.json`: one file per session (`kind`, `status`, `name`, `cwd`). A session counts as live only if its `pid` is still running.
+  - A headless `claude -p` run (verified 2026-10-30, Claude Code 2.1.314 on Linux) writes one too, with `kind: "interactive"` but `entrypoint: "sdk-cli"`; the client treats any `sdk-*` entrypoint as background (`isBackgroundSession`). With `--no-session-persistence` it writes none.
+  - `CLAUDE_EXTRA_DIRS` adds other accounts' Claude folders: only their `sessions/*.json` are read (no transcripts, so no tokens or transcript view), and the label replaces the project. Another account's pid counts as alive (`EPERM`).
   - Whether `status` becomes `waiting` on a permission prompt: not checked (no live session file was available to inspect).
 - `~/.claude/projects/<slug>/<sessionId>.jsonl`: transcripts. The slug is the cwd with every non-alphanumeric character replaced by `-`. Subagent transcripts live in `<sessionId>/subagents/agent-<id>.jsonl` (one per Agent tool call) plus `.meta.json` with `agentType`, `description`, `toolUseId` (links to spawner's Agent tool_use id), and request shape. All subagent transcripts are filtered by `isSidechain` and included in `DashboardState.subagents`.
 - Token usage comes from `message.usage` on assistant lines, deduplicated by `message.id` + `requestId`. `<synthetic>` models are skipped.
@@ -87,6 +89,7 @@ Reference sections moved out of `CLAUDE.md` (which links here) so they load only
 - `DASHBOARD_DATA_DIR` (`./.dashboard`)
 - `TEAM_HQ_DIR` (`N:\team-hq`): team-hq board folder read by `team.ts` (read-only); the Team section is hidden if `board/` is missing
 - `PROJECTS_ROOT` (`N:\Projects`), `CLAUDE_DIR` (`$CLAUDE_CONFIG_DIR`, else `~/.claude`), `CLAUDE_JSON` (`$CLAUDE_CONFIG_DIR/.claude.json`, else `~/.claude.json`); Claude Code relocates both when `CLAUDE_CONFIG_DIR` is set, as on this PC (`N:\ClaudeData\config`)
+- `CLAUDE_EXTRA_DIRS` (empty): `label=path` entries separated by `;`, other accounts' Claude folders whose live sessions are listed too, read-only (e.g. `inbox=/var/lib/inbox/.claude` on the homelab box)
 - `CLAUDE_BIN` (default: the CLI found in this order: `claude.exe` in a `PATH` folder, then the newest `claude.exe` in `~/.vscode/extensions/anthropic.claude-code-*/resources/native-binary/`), `CLAUDE_BIN_ARGS` (JSON array prefix, used by tests), `OPENSSL`
 
 ## Claude CLI behaviour (verified)
