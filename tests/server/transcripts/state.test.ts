@@ -6,6 +6,10 @@ import { join } from 'node:path';
 import { assistantLine, jsonl, makeFixture, transcriptDir } from '../../helpers.ts';
 
 const fx = makeFixture();
+// Another account's Claude folder (the homelab inbox): its live sessions are listed under its label.
+const extraDir = join(fx.root, 'inbox-claude');
+mkdirSync(join(extraDir, 'sessions'), { recursive: true });
+process.env.CLAUDE_EXTRA_DIRS = `inbox=${extraDir};missing=${join(fx.root, 'nope')}`;
 const { buildState } = await import('../../../src/server/transcripts/state.ts');
 
 // Projects: a normal repo, a worktree (.git file), and a non-git folder.
@@ -38,6 +42,14 @@ writeFileSync(
   JSON.stringify({ pid: 999999, sessionId: 'dead-1', cwd: alpha, name: 'alpha-dead', status: 'idle', startedAt: 1 }),
 );
 writeFileSync(join(sessions, 'broken.json'), '{"pid":');
+writeFileSync(
+  join(extraDir, 'sessions', `${process.pid}.json`),
+  JSON.stringify({ pid: process.pid, sessionId: 'inbox-1', cwd: '/var/lib/inbox/work/7/repo', name: 'repo-7', status: 'busy', startedAt: 2, entrypoint: 'sdk-cli' }),
+);
+writeFileSync(
+  join(extraDir, 'sessions', '999999.json'),
+  JSON.stringify({ pid: 999999, sessionId: 'inbox-dead', cwd: '/var/lib/inbox/work/6/repo', name: 'repo-6', startedAt: 3 }),
+);
 writeFileSync(join(sessions, `${process.pid}.abc.key`), 'not a session');
 
 const now = Date.now();
@@ -58,12 +70,18 @@ writeFileSync(
 const currentState = buildState();
 
 test('lists only live sessions with their aggregated tokens and branch', () => {
-  assert.deepEqual(currentState.sessions.map((session) => session.name), ['alpha-live']);
+  assert.deepEqual(currentState.sessions.map((session) => session.name), ['alpha-live', 'repo-7']);
   const item = currentState.sessions[0];
   assert.equal(item.project, 'Alpha');
   assert.equal(item.status, 'busy');
   assert.equal(item.branch, 'feature/x');
   assert.equal(item.tokens.output, 60);
+});
+
+test('lists live sessions of the extra Claude folders under their label', () => {
+  const inbox = currentState.sessions.find((session) => session.sessionId === 'inbox-1');
+  assert.equal(inbox?.project, 'inbox');
+  assert.equal(inbox?.entrypoint, 'sdk-cli');
 });
 
 test('lists visible project folders with git info and worktree detection', () => {

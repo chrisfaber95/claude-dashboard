@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { CLAUDE_DIR, CLAUDE_JSON, canRunCommands, isLanMode, PROJECTS_ROOT, emptyTokens, localDay, normPath } from '../config.ts';
+import { CLAUDE_DIR, CLAUDE_EXTRA_DIRS, CLAUDE_JSON, canRunCommands, isLanMode, PROJECTS_ROOT, emptyTokens, localDay, normPath } from '../config.ts';
 import { buildAlerts } from '../features/alerts/alerts.ts';
 import { getLimits } from '../features/limits/limits.ts';
 import { readTeamBoard } from '../features/team/team.ts';
@@ -60,9 +60,18 @@ function isPidAlive(pid: number): boolean {
   }
 }
 
-/** The live Claude Code sessions: one JSON file per session under ~/.claude/sessions, with a running pid. */
+/**
+ * The live Claude Code sessions: one JSON file per session under ~/.claude/sessions, with a running pid. Sessions of
+ * the CLAUDE_EXTRA_DIRS folders follow, with their label as project.
+ */
 export function readSessions(): SessionInfo[] {
-  const dir = join(CLAUDE_DIR, 'sessions');
+  const out = readSessionDir(CLAUDE_DIR, null);
+  for (const extra of CLAUDE_EXTRA_DIRS) out.push(...readSessionDir(extra.dir, extra.label));
+  return out.sort((a, b) => a.startedAtMs - b.startedAtMs);
+}
+
+function readSessionDir(claudeDir: string, label: string | null): SessionInfo[] {
+  const dir = join(claudeDir, 'sessions');
   const out: SessionInfo[] = [];
   let names: string[] = [];
   try {
@@ -79,7 +88,7 @@ export function readSessions(): SessionInfo[] {
         sessionId: session.sessionId,
         pid: session.pid,
         name: session.name ?? String(session.sessionId).slice(0, SHORT_SESSION_ID_LENGTH),
-        project: projectOf(session.cwd ?? ''),
+        project: label ?? projectOf(session.cwd ?? ''),
         cwd: session.cwd ?? '',
         status: session.status ?? 'unknown',
         entrypoint: session.entrypoint ?? '',
@@ -90,10 +99,10 @@ export function readSessions(): SessionInfo[] {
         tokens: aggregate?.tokens ?? emptyTokens(),
       });
     } catch {
-      // partial write; skip this tick
+      // partial write or unreadable file; skip this tick
     }
   }
-  return out.sort((a, b) => a.startedAtMs - b.startedAtMs);
+  return out;
 }
 
 function gitBranch(dir: string): { branch: string | null; isWorktree: boolean } {
