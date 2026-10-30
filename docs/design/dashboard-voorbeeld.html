@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="nl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Dashboard – ontwerpvoorbeeld</title>
+<!--
+  Zelfstandig ontwerp-artifact: dubbelklik om te openen, geen build, geen netwerk.
+  Alle data hieronder is voorbeelddata; er is niets gekoppeld aan ~/.claude of de usage-API.
+  Gebruik is in tokens, nooit in kosten (repo-regel).
+-->
+<style>
+:root{
+  --bg:#f4f5f7;--panel:#fff;--panel-2:#eef0f4;--text:#1b1f27;--muted:#667085;--line:#dde1e8;
+  --accent:#d97757;--ok:#2f9e6b;--warn:#d4a017;--bad:#d64545;
+  --s1:#3b6fd4;--s2:#d97757;--s3:#2f9e6b;--s4:#8b5fbf;--s5:#c2a100;--s6:#1e9bb0;--s7:#c24d86;--s8:#6b7280;
+  --radius:14px;--font:system-ui,-apple-system,"Segoe UI",sans-serif;--mono:ui-monospace,Consolas,monospace;
+}
+[data-theme=dark]{
+  --bg:#12141a;--panel:#1b1e26;--panel-2:#242834;--text:#e8eaf0;--muted:#8b93a7;--line:#2c313f;
+  --accent:#e8946f;--ok:#4cc38a;--warn:#e0b84a;--bad:#ef6b6b;
+  --s1:#6f9bf0;--s2:#e8946f;--s3:#4cc38a;--s4:#b48ae6;--s5:#e0c84a;--s6:#4cc3d6;--s7:#e87ab0;--s8:#98a0b0;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 var(--font)}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:18px 28px;border-bottom:1px solid var(--line)}
+h1{font-size:20px;margin:0}
+.sub{color:var(--muted);font-size:13px}
+.hdr-r{display:flex;gap:10px;align-items:center}
+button,select{font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 14px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.live{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--ok);display:inline-block}
+.pulse{animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.35;transform:scale(.8)}}
+main{max-width:1200px;margin:0 auto;padding:24px 28px;display:grid;grid-template-columns:repeat(12,1fr);gap:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px}
+.card h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 14px;font-weight:600}
+.c3{grid-column:span 3}.c4{grid-column:span 4}.c5{grid-column:span 5}.c7{grid-column:span 7}.c8{grid-column:span 8}.c12{grid-column:span 12}
+@media(max-width:900px){.c3,.c4,.c5,.c7,.c8{grid-column:span 12}.c3{grid-column:span 6}}
+.big{font-size:30px;font-weight:650;font-variant-numeric:tabular-nums}
+.delta{font-size:13px;color:var(--muted)}
+.up{color:var(--ok)}
+.meter{margin-bottom:16px}
+.meter:last-child{margin-bottom:0}
+.meter-top{display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px}
+.track{height:10px;border-radius:999px;background:var(--panel-2);overflow:hidden}
+.fill{height:100%;border-radius:999px;background:var(--ok);transform-origin:left;animation:grow .8s ease-out}
+.fill.warn{background:var(--warn)}.fill.bad{background:var(--bad)}
+@keyframes grow{from{transform:scaleX(0)}}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{font-size:12px;color:var(--muted);text-align:left;font-weight:600;padding:0 8px 8px}
+td{padding:9px 8px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+td.num,th.num{text-align:right}
+.sw{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:8px}
+.mono{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.badge{font-size:12px;border-radius:999px;padding:2px 10px;background:var(--panel-2)}
+.badge.run{color:var(--ok)}.badge.wait{color:var(--warn)}.badge.idle{color:var(--muted)}
+.tabs{display:flex;gap:6px;margin-bottom:12px}
+.tabs button[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:#1b1f27}
+.chart{width:100%;height:220px;display:block}
+.chart text{fill:var(--muted);font-size:11px}
+.chart .grid{stroke:var(--line)}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:13px;color:var(--muted);margin-top:10px}
+.bar:hover{opacity:.8}
+#tip{position:fixed;pointer-events:none;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12px;display:none;z-index:9}
+.msg{display:flex;gap:10px;padding:8px 0;border-top:1px solid var(--line);font-size:14px}
+.msg:first-of-type{border-top:0}
+.msg b{font-weight:600}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1 id="greet">Goedemorgen, Chris</h1>
+    <div class="sub">Claude Dashboard · ontwerpvoorbeeld met voorbeelddata</div>
+  </div>
+  <div class="hdr-r">
+    <span class="live"><span class="dot pulse"></span> live · bijgewerkt <span id="ago">2</span>s geleden</span>
+    <select id="range" aria-label="Periode">
+      <option value="7">Laatste 7 dagen</option>
+      <option value="14">Laatste 14 dagen</option>
+    </select>
+    <button id="theme" type="button">Licht / donker</button>
+  </div>
+</header>
+
+<main>
+  <section class="card c3"><h2>Tokens vandaag</h2><div class="big" id="k-today">–</div><div class="delta"><span class="up">▲ 12%</span> t.o.v. gisteren</div></section>
+  <section class="card c3"><h2>Tokens in periode</h2><div class="big" id="k-range">–</div><div class="delta">over <span id="k-days">7</span> dagen</div></section>
+  <section class="card c3"><h2>Actieve sessies</h2><div class="big">3</div><div class="delta">1 wacht op toestemming</div></section>
+  <section class="card c3"><h2>Projecten</h2><div class="big">8</div><div class="delta">5 actief deze week</div></section>
+
+  <section class="card c8">
+    <h2>Tokengebruik per project</h2>
+    <div class="tabs" role="group" aria-label="Soort tokens">
+      <button type="button" data-mode="all" aria-pressed="true">Alles</button>
+      <button type="button" data-mode="out" aria-pressed="false">Output</button>
+      <button type="button" data-mode="in" aria-pressed="false">Input</button>
+    </div>
+    <svg class="chart" id="chart" role="img" aria-label="Gestapeld staafdiagram van tokens per dag per project"></svg>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <section class="card c4">
+    <h2>Abonnementslimieten</h2>
+    <div class="meter"><div class="meter-top"><span>5-uurs venster</span><span>42%</span></div><div class="track"><div class="fill" style="width:42%"></div></div><div class="sub">reset over 2 u 10 min</div></div>
+    <div class="meter"><div class="meter-top"><span>Week (alle modellen)</span><span>71%</span></div><div class="track"><div class="fill warn" style="width:71%"></div></div><div class="sub">reset over 3 d 4 u</div></div>
+    <div class="meter"><div class="meter-top"><span>Week (Opus)</span><span>93%</span></div><div class="track"><div class="fill bad" style="width:93%"></div></div><div class="sub">reset over 3 d 4 u</div></div>
+  </section>
+
+  <section class="card c7">
+    <h2>Sessies</h2>
+    <table>
+      <thead><tr><th>Project</th><th>Status</th><th>Model</th><th class="num">Tokens</th><th class="num">Laatst actief</th></tr></thead>
+      <tbody id="sessions"></tbody>
+    </table>
+  </section>
+
+  <section class="card c5">
+    <h2>Berichten tussen sessies</h2>
+    <div class="msg"><span class="mono">09:41</span><div><b>claude-dashboard</b> → <b>homelab</b><br>Is de nieuwe skin al gedeployed?</div></div>
+    <div class="msg"><span class="mono">09:38</span><div><b>homelab</b> → <b>claude-dashboard</b><br>Deploy-script klaar, wacht op jouw PR.</div></div>
+    <div class="msg"><span class="mono">09:12</span><div><b>second-brain</b> → <b>claude-dashboard</b><br>Vault-sync van vannacht is geslaagd.</div></div>
+  </section>
+
+  <section class="card c12">
+    <h2>Projecten</h2>
+    <table>
+      <thead><tr><th>Project</th><th class="num">Sessies</th><th class="num">Tokens (periode)</th><th class="num">Aandeel</th></tr></thead>
+      <tbody id="projects"></tbody>
+    </table>
+  </section>
+</main>
+<div id="tip" role="status"></div>
+
+<script>
+(function(){
+  // Voorbeelddata. Projectkleuren: op naam, alfabetisch (zoals in het echte dashboard).
+  var names=["claude-dashboard","homelab","obsidian-vault","second-brain","team-hq"].sort();
+  var colour={};names.forEach(function(n,i){colour[n]="var(--s"+(i+1)+")"});
+  var seed=7;function rnd(){seed=(seed*9301+49297)%233280;return seed/233280}
+  var DAYS=14,data=[];
+  for(var d=0;d<DAYS;d++){var row={};names.forEach(function(n,i){var base=[420,180,90,140,60][i];row[n]={in:Math.round(base*(.4+rnd())*1000*.35),out:Math.round(base*(.4+rnd())*1000*.65)}});data.push(row)}
+  var sessions=[
+    {p:"claude-dashboard",s:"run",m:"Sonnet 5.5",t:482113,a:"nu"},
+    {p:"homelab",s:"wait",m:"Opus 5.5",t:218440,a:"1 min"},
+    {p:"second-brain",s:"run",m:"Haiku 5.5",t:73210,a:"3 min"},
+    {p:"team-hq",s:"idle",m:"Sonnet 5.5",t:51980,a:"2 u"}
+  ];
+  var label={run:"bezig",wait:"wacht op jou",idle:"inactief"};
+  var nf=new Intl.NumberFormat("nl-NL");
+  function fmt(n){return n>=1e6?(n/1e6).toFixed(1).replace(".",",")+" mln":n>=1e3?Math.round(n/1e3)+"k":String(n)}
+  var mode="all",range=7;
+  var $=function(id){return document.getElementById(id)};
+  function val(c){return mode==="in"?c.in:mode==="out"?c.out:c.in+c.out}
+  function el(tag,attrs,text){var e=document.createElementNS(tag==="svg"||attrs&&attrs.ns?"http://www.w3.org/2000/svg":"http://www.w3.org/1999/xhtml",tag);for(var k in attrs||{})if(k!=="ns")e.setAttribute(k,attrs[k]);if(text!=null)e.textContent=text;return e}
+  function svg(tag,attrs,text){attrs=attrs||{};attrs.ns=1;return el(tag,attrs,text)}
+
+  function renderChart(){
+    var c=$("chart");c.textContent="";
+    var W=800,H=220,pl=44,pb=22,pt=8,days=data.slice(-range);
+    c.setAttribute("viewBox","0 0 "+W+" "+H);
+    var tot=days.map(function(r){return names.reduce(function(s,n){return s+val(r[n])},0)});
+    var max=Math.max.apply(null,tot),step=Math.pow(10,Math.floor(Math.log10(max))),top=Math.ceil(max/step)*step;
+    for(var g=0;g<=4;g++){var y=pt+(H-pt-pb)*(1-g/4);
+      c.appendChild(svg("line",{x1:pl,x2:W,y1:y,y2:y,"class":"grid"}));
+      c.appendChild(svg("text",{x:pl-6,y:y+4,"text-anchor":"end"},fmt(top*g/4)))}
+    var bw=(W-pl)/days.length;
+    days.forEach(function(r,i){
+      var y=H-pb,x=pl+i*bw+bw*.18;
+      names.forEach(function(n){
+        var h=val(r[n])/top*(H-pt-pb);y-=h;
+        var rect=svg("rect",{x:x,y:y,width:bw*.64,height:Math.max(h-1,0),rx:2,fill:colour[n],"class":"bar"});
+        rect.addEventListener("mousemove",function(e){var t=$("tip");t.style.display="block";t.style.left=e.clientX+12+"px";t.style.top=e.clientY+12+"px";t.textContent=n+": "+nf.format(val(r[n]))+" tokens"});
+        rect.addEventListener("mouseleave",function(){$("tip").style.display="none"});
+        c.appendChild(rect)});
+      var dd=new Date(Date.now()-(days.length-1-i)*864e5);
+      if(days.length<=7||i%2===0)c.appendChild(svg("text",{x:x+bw*.32,y:H-6,"text-anchor":"middle"},dd.getDate()+"/"+(dd.getMonth()+1)));
+    });
+  }
+  function renderTables(){
+    var days=data.slice(-range),sum={};
+    names.forEach(function(n){sum[n]=days.reduce(function(s,r){return s+r[n].in+r[n].out},0)});
+    var total=names.reduce(function(s,n){return s+sum[n]},0);
+    $("k-range").textContent=fmt(total);$("k-days").textContent=range;
+    $("k-today").textContent=fmt(names.reduce(function(s,n){var r=data[data.length-1][n];return s+r.in+r.out},0));
+    var pb=$("projects");pb.textContent="";
+    names.slice().sort(function(a,b){return sum[b]-sum[a]}).forEach(function(n){
+      var tr=el("tr"),td=el("td");td.appendChild(el("span",{"class":"sw",style:"background:"+colour[n]}));td.appendChild(document.createTextNode(n));tr.appendChild(td);
+      [Math.round(sum[n]/90000),nf.format(sum[n]),Math.round(sum[n]/total*100)+"%"].forEach(function(v){tr.appendChild(el("td",{"class":"num"},v))});
+      pb.appendChild(tr)});
+    var sb=$("sessions");sb.textContent="";
+    sessions.forEach(function(s){
+      var tr=el("tr"),td=el("td");td.appendChild(el("span",{"class":"sw",style:"background:"+colour[s.p]}));td.appendChild(document.createTextNode(s.p));tr.appendChild(td);
+      var t2=el("td");t2.appendChild(el("span",{"class":"badge "+s.s},label[s.s]));tr.appendChild(t2);
+      tr.appendChild(el("td",{"class":"mono"},s.m));
+      tr.appendChild(el("td",{"class":"num"},nf.format(s.t)));
+      tr.appendChild(el("td",{"class":"num"},s.a));
+      sb.appendChild(tr)});
+    var lg=$("legend");lg.textContent="";
+    names.forEach(function(n){var s=el("span");s.appendChild(el("span",{"class":"sw",style:"background:"+colour[n]}));s.appendChild(document.createTextNode(n));lg.appendChild(s)});
+  }
+  function render(){renderChart();renderTables()}
+  document.querySelectorAll(".tabs button").forEach(function(b){b.addEventListener("click",function(){
+    mode=b.dataset.mode;document.querySelectorAll(".tabs button").forEach(function(o){o.setAttribute("aria-pressed",o===b)});render()})});
+  $("range").addEventListener("change",function(e){range=+e.target.value;render()});
+  $("theme").addEventListener("click",function(){var h=document.documentElement;h.dataset.theme=h.dataset.theme==="dark"?"light":"dark"});
+  var hr=new Date().getHours();$("greet").textContent=(hr<6?"Goedenacht":hr<12?"Goedemorgen":hr<18?"Goedemiddag":"Goedenavond")+", Chris";
+  var ago=2;setInterval(function(){ago=(ago+1)%10;$("ago").textContent=ago},1000);
+  render();
+})();
+</script>
+</body>
+</html>
