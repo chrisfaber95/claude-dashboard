@@ -33,7 +33,7 @@ function makeState(): DashboardState {
     usage: { days: [], totals: tokens, byModel: {} },
     limits: { source: 'none', fetchedAtMs: null, error: null, windows: [], hits: [] },
     recentSessions: [],
-    features: { lan: false, commands: true, permissionModes: ['plan'], manageDevices: false },
+    features: { lan: false, commands: true, permissionModes: ['plan'], manageDevices: false, search: false },
     team: null,
     alerts: { items: [], threshold: 80 },
     permissions: [],

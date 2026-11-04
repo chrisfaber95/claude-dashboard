@@ -7,6 +7,7 @@ export const POPUPS = [
   { id: 'team', label: 'Team board' },
   { id: 'usage', label: 'Token usage (14 days)' },
   { id: 'chat', label: 'Chat' },
+  { id: 'search', label: 'Search' },
   { id: 'run', label: 'Launch a task' },
   { id: 'devices', label: 'Devices' },
   { id: 'audit', label: 'Activity' },
@@ -16,18 +17,20 @@ export const POPUPS = [
 /** Id of one popup. */
 export type PopupId = (typeof POPUPS)[number]['id'];
 
-/** What decides which popup buttons exist: the team board, whether commands are allowed, and whether this is the PC. */
+/** What decides which popup buttons exist: the team board, whether commands are allowed, whether this is the PC, and whether search is configured. */
 export interface PopupAvailability {
   hasTeamBoard: boolean;
   canRunCommands: boolean;
   canManageDevices: boolean;
+  hasSearch: boolean;
 }
 
-/** Every popup is always available except the team board, the command popups (run, approvals) and devices. */
+/** Every popup is always available except the team board, the command popups (run, approvals) devices and search. */
 export function isPopupAvailable(id: PopupId, availability: PopupAvailability): boolean {
   if (id === 'team') return availability.hasTeamBoard;
   if (id === 'run' || id === 'approvals') return availability.canRunCommands;
   if (id === 'devices') return availability.canManageDevices;
+  if (id === 'search') return availability.hasSearch;
   return true;
 }
 
@@ -43,7 +46,7 @@ export function isPopupId(value: unknown): value is PopupId {
 
 /** Classes of the section that frames a popup's panel; the skins style the extra class (`team`, `chat`, ...). */
 export function popupSectionClass(id: PopupId): string {
-  if (id === 'team' || id === 'chat' || id === 'devices' || id === 'audit' || id === 'approvals') return `panel ${id}`;
+  if (id === 'team' || id === 'chat' || id === 'search' || id === 'devices' || id === 'audit' || id === 'approvals') return `panel ${id}`;
   return 'panel';
 }
 

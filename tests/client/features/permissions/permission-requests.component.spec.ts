@@ -16,7 +16,7 @@ function makeState(options: { isAnswerable: boolean; requestIds?: string[] }): D
     usage: { days: [], totals: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, byModel: {} },
     limits: { source: 'none', fetchedAtMs: null, error: null, windows: [], hits: [] },
     recentSessions: [],
-    features: { lan: true, commands: true, permissionModes: [], manageDevices: !options.isAnswerable },
+    features: { lan: true, commands: true, permissionModes: [], manageDevices: !options.isAnswerable, search: false },
     team: null,
     alerts: { items: [], threshold: 80 },
     permissions: requestIds.map((id) => ({ id, sessionId: 'abcdef123456', tool: 'Bash <b>', text: 'rm -rf /tmp/x', status: 'pending', createdMs: 1 })),

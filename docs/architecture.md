@@ -10,6 +10,7 @@ Reference sections moved out of `CLAUDE.md` (which links here) so they load only
   - `features/limits/limits.ts`: live usage API poll with fallback to the `.claude.json` cache
   - `transcripts/state.ts`: builds the `DashboardState` (live sessions, projects, subagents of live sessions, git info, CLI trust, feature flags, `team`)
   - `features/team/team.ts`: read-only reader of the team-hq board (`TEAM_HQ_DIR/board/`): ticket counts per column, in-progress/review/blocked tickets (id and title, max 20 each) and unticked `- [ ]` lines of `NEEDS-YOU.md`; returns `null` when the folder or its `board/` is missing, which hides the Team section; never writes
+  - `features/search/search.ts` + `http/routes-search.ts`: read-only proxy to the homelab search service (see "Search" below); `POST /api/search/{query,ask,feedback}` only, behind the login and the usual request checks
   - `features/alerts/alerts.ts`: needs-attention alerts: pure `deriveAlerts()` (waiting sessions, limit windows at or above the threshold, tickets in review; ids `session:<id>`, `usage:<key>`, `ticket:<T-id>`) and a small store of dismissed ids and the threshold (default 80) in `DATA_DIR/alerts.json`, written only on change (tmp + rename), defaults on a missing or corrupt file; dismissals are dropped once their condition is gone (usage ones are kept while `limits.source === 'none'`); `buildAlerts()` is called from `state.ts` and fills `DashboardState.alerts`; failed LAN sign-ins add a fourth kind, `signin:<address>`: `recordFailedSignin(address, tMs)` is the `onFailedLogin` hook of `createAuth` (wired in `server.ts`), keeps one in-memory record per socket address (count and last time only, never the attempted token; IPv4-mapped prefix removed; max 50 addresses, the one that failed longest ago is dropped), shown as 'Failed sign-in' with address, count and last time; dismissing deletes the record, so the next failure opens a fresh alert (these ids are never written to `alerts.json`); dismiss and threshold endpoints are `POST /api/alerts/dismiss` and `POST /api/settings/alerts`
   - `devices-logic.ts`: pure device-list helpers (`createdLabel`, `lastSeenLabel`, `sortDevices`, `cleanName`), testable with `node --test`
   - `qr.ts`: QR geometry (`qrShape(text)` -> size and one SVG path) on the bundled `qrcode-generator` (devDependency, MIT, no dependencies; Vite bundles it into the app chunk, nothing new at server runtime), testable with `node --test`
@@ -85,12 +86,26 @@ Reference sections moved out of `CLAUDE.md` (which links here) so they load only
 
 - `DASHBOARD_PORT` (4777), `DASHBOARD_HOST` (`127.0.0.1`; anything else means LAN mode)
 - `DASHBOARD_COMMANDS` (`0` removes all command endpoints)
+- `DASHBOARD_SEARCH_URL` (base URL of the homelab search service on the tailnet; unset = no Search panel, endpoints answer 503) and `DASHBOARD_SEARCH_TOKEN` (optional bearer token, sent by the backend only)
 - `DASHBOARD_LIVE_USAGE` (polling on by default; `0` turns it off)
 - `DASHBOARD_DATA_DIR` (`./.dashboard`)
 - `TEAM_HQ_DIR` (`N:\team-hq`): team-hq board folder read by `team.ts` (read-only); the Team section is hidden if `board/` is missing
 - `PROJECTS_ROOT` (`N:\Projects`), `CLAUDE_DIR` (`$CLAUDE_CONFIG_DIR`, else `~/.claude`), `CLAUDE_JSON` (`$CLAUDE_CONFIG_DIR/.claude.json`, else `~/.claude.json`); Claude Code relocates both when `CLAUDE_CONFIG_DIR` is set, as on this PC (`N:\ClaudeData\config`)
 - `CLAUDE_EXTRA_DIRS` (empty): `label=path` entries separated by `;`, other accounts' Claude folders whose live sessions are listed too, read-only (e.g. `inbox=/var/lib/inbox/.claude` on the homelab box)
 - `CLAUDE_BIN` (default: the CLI found in this order: `claude.exe` in a `PATH` folder, then the newest `claude.exe` in `~/.vscode/extensions/anthropic.claude-code-*/resources/native-binary/`), `CLAUDE_BIN_ARGS` (JSON array prefix, used by tests), `OPENSSL`
+
+## Search
+
+The Search popup (`src/client/features/search/`) asks the homelab search service (H-012) through the dashboard backend; the
+browser only ever calls `/api/search/*` and never learns the service address or token.
+
+- `POST /api/search/query` → service `POST {base}/query` with `{query, limit, project?, source_type?}`; returns `{results: [{source, location, date, project, sourceType, snippet, url}]}`
+- `POST /api/search/ask` → service `POST {base}/ask` with `{question, hard, project?, source_type?}`; returns `{answer, citations: [{source, location, url}], requestId, backend}`
+- `POST /api/search/feedback` `{requestId}` → service `POST {base}/feedback` with `{request_id, rating: 'down'}`
+- Only these three upstream paths exist in code (`SEARCH_PATHS`); search stays read-only. Upstream replies are normalised field by field (also accepts `request_id`, `source_type`, `title`, `text` spellings), lengths are capped, and links are kept only when they are `http(s)` and not on the service's own origin.
+- Errors that reach the browser are fixed strings: 502 "The search service is unreachable." / "returned an error." / "sent an unreadable answer.", 503 "Search is not configured.".
+- The field names above are the dashboard's assumption about the service contract (the homelab search docs were not available when this was built); adjust `search.ts` if the service differs.
+- The answer is rendered as plain text (`{{ }}`, `white-space: pre-wrap`); a link is rendered only when `safeHref()` accepts it.
 
 ## Claude CLI behaviour (verified)
 

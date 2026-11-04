@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useDashboardState } from '../../app/dashboard-state.ts';
 import ChatPanel from '../chat/chat-panel.vue';
 import AuditPanel from '../audit/audit-panel.vue';
+import SearchPanel from '../search/search-panel.vue';
 import RunPanel from '../controls/run-panel.vue';
 import DevicesPanel from '../devices/devices-panel.vue';
 import MessagesPanel from '../messages/messages-panel.vue';
@@ -27,6 +28,7 @@ const visibleIds = computed(() =>
     hasTeamBoard: Boolean(state.value?.team),
     canRunCommands: state.value?.features.commands === true,
     canManageDevices: state.value?.features.manageDevices === true,
+    hasSearch: state.value?.features.search === true,
   }),
 );
 const buttons = computed(() => POPUPS.filter((popup) => visibleIds.value.includes(popup.id)));
@@ -80,6 +82,7 @@ const panels = {
   team: TeamPanel,
   usage: UsagePanel,
   chat: ChatPanel,
+  search: SearchPanel,
   run: RunPanel,
   devices: DevicesPanel,
   audit: AuditPanel,

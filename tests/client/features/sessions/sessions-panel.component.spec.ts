@@ -37,7 +37,7 @@ function makeState(options: { sessions?: SessionInfo[]; recentSessions?: RecentS
     usage: { days: [], totals: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, byModel: {} },
     limits: { source: 'none', fetchedAtMs: null, error: null, windows: [], hits: [] },
     recentSessions: options.recentSessions ?? [],
-    features: { lan: true, commands: options.hasCommands ?? true, permissionModes: [], manageDevices: false },
+    features: { lan: true, commands: options.hasCommands ?? true, permissionModes: [], manageDevices: false, search: false },
     team: null,
     alerts: { items: [], threshold: 80 },
     permissions: (options.requestIds ?? []).map((id) => ({ id, sessionId: 'session-aaaa-1111', tool: 'Bash', text: 'ls', status: 'pending', createdMs: 1 })),

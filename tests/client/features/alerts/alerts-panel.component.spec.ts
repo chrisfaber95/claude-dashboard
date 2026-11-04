@@ -25,7 +25,7 @@ function makeState(items: Alert[], options: { threshold?: number; pendingRequest
     usage: { days: [], totals: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, byModel: {} },
     limits: { source: 'none', fetchedAtMs: null, error: null, windows: [], hits: [] },
     recentSessions: [],
-    features: { lan: true, commands: true, permissionModes: [], manageDevices: false },
+    features: { lan: true, commands: true, permissionModes: [], manageDevices: false, search: false },
     team: null,
     alerts: { items, threshold: options.threshold ?? 80 },
     permissions: (options.pendingRequestIds ?? []).map((id) => ({ id, sessionId: 'abcdef123456', tool: 'Bash', text: 'ls', status: 'pending', createdMs: 1 })),

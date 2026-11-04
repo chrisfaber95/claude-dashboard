@@ -13,6 +13,7 @@ vi.mock('../../../../src/client/features/messages/messages-panel.vue', () => ({ 
 vi.mock('../../../../src/client/features/team/team-panel.vue', () => ({ default: { template: '<p>team panel</p>' } }));
 vi.mock('../../../../src/client/features/usage/usage-panel.vue', () => ({ default: { template: '<p>usage panel</p>' } }));
 vi.mock('../../../../src/client/features/chat/chat-panel.vue', () => ({ default: { template: '<p>chat panel</p>' } }));
+vi.mock('../../../../src/client/features/search/search-panel.vue', () => ({ default: { template: '<p>search panel</p>' } }));
 vi.mock('../../../../src/client/features/settings/summary-setting.vue', () => ({ default: { template: '<p>summary</p>' } }));
 vi.mock('../../../../src/client/features/controls/run-panel.vue', () => ({ default: { template: '<p>run panel</p>' } }));
 vi.mock('../../../../src/client/features/devices/devices-panel.vue', () => ({ default: { template: '<p>devices panel</p>' } }));
@@ -29,7 +30,7 @@ function makeState(commands: boolean, manageDevices: boolean): DashboardState {
     usage: { days: [], totals: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, byModel: {} },
     limits: { source: 'none', fetchedAtMs: null, error: null, windows: [], hits: [] },
     recentSessions: [],
-    features: { lan: false, commands, permissionModes: [], manageDevices },
+    features: { lan: false, commands, permissionModes: [], manageDevices, search: true },
     team: null,
     alerts: { items: [], threshold: 80 },
     permissions: [],

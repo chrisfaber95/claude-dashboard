@@ -29,7 +29,7 @@ function makeState(): DashboardState {
     usage: { days: [], totals: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, byModel: {} },
     limits: { source: 'none', fetchedAtMs: null, error: null, windows: [], hits: [] },
     recentSessions: [],
-    features: { lan: false, commands: true, permissionModes: ['plan', 'default', 'acceptEdits', 'auto'], manageDevices: false },
+    features: { lan: false, commands: true, permissionModes: ['plan', 'default', 'acceptEdits', 'auto'], manageDevices: false, search: false },
     team: null,
     alerts: { items: [], threshold: 80 },
     permissions: [],

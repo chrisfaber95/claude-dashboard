@@ -7,6 +7,14 @@ export const HOST = process.env.DASHBOARD_HOST ?? (process.argv.includes('--lan'
 /** LAN mode = bound to anything other than loopback: HTTPS + login required. */
 export const isLanMode = !['127.0.0.1', 'localhost', '::1'].includes(HOST);
 export const canRunCommands = process.env.DASHBOARD_COMMANDS !== '0';
+/**
+ * Base URL of the homelab search service (tailnet only), e.g. `http://<tailnet-host>:<port>`. Unset = no Search panel.
+ * The browser never sees it: the dashboard backend proxies the calls.
+ */
+export const SEARCH_URL = process.env.DASHBOARD_SEARCH_URL?.trim() ?? '';
+/** Optional bearer token for the search service; sent only by the backend, never to the browser. */
+export const SEARCH_TOKEN = process.env.DASHBOARD_SEARCH_TOKEN?.trim() ?? '';
+export const isSearchConfigured = SEARCH_URL !== '';
 export const PROJECTS_ROOT = process.env.PROJECTS_ROOT ?? 'N:\\Projects';
 export const TEAM_HQ_DIR = process.env.TEAM_HQ_DIR ?? 'N:\\team-hq';
 // Claude Code moves its whole data folder, `.claude.json` included, when CLAUDE_CONFIG_DIR is set; follow it.

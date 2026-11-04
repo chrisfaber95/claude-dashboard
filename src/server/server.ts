@@ -21,7 +21,10 @@ import { handleLoginRoutes, handleLogout } from './http/routes-login.ts';
 import { handlePermissionHook } from './http/routes-permission-hook.ts';
 import { handlePermissionRoutes } from './http/routes-permissions.ts';
 import { handleSessionRoutes } from './http/routes-sessions.ts';
+import { handleSearchRoutes } from './http/routes-search.ts';
 import { handleSettingsRoutes } from './http/routes-settings.ts';
+import { createConfiguredSearchClient } from './features/search/search.ts';
+import type { SearchClient } from './features/search/search.ts';
 import { handleStateRoutes } from './http/routes-state.ts';
 import { send } from './http/respond.ts';
 import { handleStaticRoute } from './http/static-files.ts';
@@ -35,6 +38,7 @@ const API_ROUTES: RouteHandler[] = [
   handleSessionRoutes,
   handleDeviceRoutes,
   handleSettingsRoutes,
+  handleSearchRoutes,
   handleCommandRoutes,
   handlePermissionRoutes,
 ];
@@ -51,6 +55,8 @@ export interface ServerOptions {
   permissions?: PermissionStore;
   /** Whether a request's socket peer is this PC (tests replace it: every test client connects from loopback). */
   isLocalPeer?: (req: IncomingMessage) => boolean;
+  /** Search service proxy (tests inject one); defaults to the one from `DASHBOARD_SEARCH_URL`, if set. */
+  search?: SearchClient | null;
 }
 
 /** Who is acting, for the audit log. Without a login (localhost mode) the caller is this PC. */
@@ -116,9 +122,10 @@ export function createDashboardServer(options: ServerOptions = {}): Server {
     areCommandsEnabled: isCommandsEnabled,
     projectsRoot: options.projectsRoot ?? PROJECTS_ROOT,
     permissions,
+    search: options.search === undefined ? createConfiguredSearchClient() : options.search,
     isLocalPeer: options.isLocalPeer ?? isLocalPeer,
     streams,
-    buildDashboardState: () => ({ ...buildState({ lan: Boolean(auth), commands: isCommandsEnabled }), permissions: permissions.list() }),
+    buildDashboardState: () => ({ ...buildState({ lan: Boolean(auth), commands: isCommandsEnabled, search: context.search !== null }), permissions: permissions.list() }),
     getSettingsFile: () => settingsFile,
   };
 

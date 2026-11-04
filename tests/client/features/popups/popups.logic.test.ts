@@ -7,11 +7,11 @@ import { POPUPS, backdropCloses, escapeClosesPopup, isPopupId, popupFrameClass, 
 test('the button set and order are fixed', () => {
   assert.deepEqual(
     POPUPS.map((popup) => popup.id),
-    ['projects', 'comms', 'team', 'usage', 'chat', 'run', 'devices', 'audit', 'approvals'],
+    ['projects', 'comms', 'team', 'usage', 'chat', 'search', 'run', 'devices', 'audit', 'approvals'],
   );
 });
 
-const NOTHING = { hasTeamBoard: false, canRunCommands: false, canManageDevices: false };
+const NOTHING = { hasTeamBoard: false, canRunCommands: false, canManageDevices: false, hasSearch: false };
 
 test('without a board, commands or device rights only the always-on buttons show, order kept', () => {
   assert.deepEqual(visiblePopups(NOTHING), ['projects', 'comms', 'usage', 'chat', 'audit']);
@@ -20,11 +20,12 @@ test('without a board, commands or device rights only the always-on buttons show
 test('each capability adds only its own buttons', () => {
   assert.deepEqual(visiblePopups({ ...NOTHING, hasTeamBoard: true }), ['projects', 'comms', 'team', 'usage', 'chat', 'audit']);
   assert.deepEqual(visiblePopups({ ...NOTHING, canRunCommands: true }), ['projects', 'comms', 'usage', 'chat', 'run', 'audit', 'approvals']);
+  assert.deepEqual(visiblePopups({ ...NOTHING, hasSearch: true }), ['projects', 'comms', 'usage', 'chat', 'search', 'audit']);
   assert.deepEqual(visiblePopups({ ...NOTHING, canManageDevices: true }), ['projects', 'comms', 'usage', 'chat', 'devices', 'audit']);
 });
 
 test('with everything allowed every button shows', () => {
-  const all = { hasTeamBoard: true, canRunCommands: true, canManageDevices: true };
+  const all = { hasTeamBoard: true, canRunCommands: true, canManageDevices: true, hasSearch: true };
   assert.deepEqual(visiblePopups(all), POPUPS.map((popup) => popup.id));
 });
 

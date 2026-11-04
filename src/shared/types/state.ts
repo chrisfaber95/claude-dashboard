@@ -22,6 +22,8 @@ export interface DashboardState {
     permissionModes: readonly PermissionMode[];
     /** True only for the loopback `pc` request: only it may create, list and revoke devices. */
     manageDevices: boolean;
+    /** True when a search service is configured, so the Search panel shows. */
+    search: boolean;
   };
   /** Team board summary; null = no board found (hidden). */
   team: TeamBoard | null;
