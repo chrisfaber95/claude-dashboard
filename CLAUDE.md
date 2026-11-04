@@ -236,3 +236,14 @@ Handoffs: the agent's result may end with Handoffs entries (`to`, `why`, `task`,
 in your list of available agents); otherwise do the work yourself or show it to the user. Never
 grant authorization the user has not given; ask first.
 <!-- project-setup:end -->
+
+## Build kit
+
+Agents and skills added for brief H-012 (LLM router and local search); full list with sources and refs in `.claude/kit.md`.
+- `backend-developer` (agent): server-side work, endpoints, service hardening. Skills `build-endpoint`, `harden-service`.
+- `code-simplifier`, `comment-analyzer`, `pr-test-analyzer`, `silent-failure-hunter`, `type-design-analyzer` (agents, pr-review-toolkit): review a PR before it is opened.
+- `webapp-testing`, `frontend-design` (skills): test a local web UI with Playwright; design the Search panel/tab.
+- `mcp-builder` (skill): build the MCP tool Claude sessions call for search. Its `npx` runs (MCP inspector, `@modelcontextprotocol/codemod`) need Chris's go-ahead first; do not run them on your own.
+- `router-tiers` (skill, written for H-012): tiers, backends, escalation, usage log, how callers declare a tier.
+- `search-corpus` (skill, written for H-012): chunking, metadata, secret scrubbing, incremental re-indexing.
+- The existing `test-automator`, `documentation-engineer` and `code-reviewer` agents and their skills were kept as they were (no provenance recorded, so not overwritten).
