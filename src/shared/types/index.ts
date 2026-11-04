@@ -4,6 +4,7 @@ export * from './commands.ts';
 export * from './devices.ts';
 export * from './limits.ts';
 export * from './permissions.ts';
+export * from './search.ts';
 export * from './sessions.ts';
 export * from './state.ts';
 export * from './summary.ts';

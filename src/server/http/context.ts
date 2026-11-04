@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Auth, Identity } from '../auth/auth.ts';
+import type { SearchClient } from '../features/search/search.ts';
 import type { PermissionStore } from '../features/permissions/permissions.ts';
 import type { buildState } from '../transcripts/state.ts';
 import type { LiveStreams } from './live-streams.ts';
@@ -20,6 +21,8 @@ export interface ServerContext {
   isLocalPeer: (req: IncomingMessage) => boolean;
   projectsRoot: string;
   permissions: PermissionStore;
+  /** The search service proxy; null when no service is configured. */
+  search: SearchClient | null;
   streams: LiveStreams;
   buildDashboardState(): DashboardState;
   /** `--settings` file for sessions the dashboard starts; known once the server listens. */

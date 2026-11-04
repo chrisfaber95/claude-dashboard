@@ -60,7 +60,7 @@ function makeState(overrides: Partial<DashboardState> = {}): DashboardState {
     recentSessions: [],
     alerts: { items: [alert('session:bbbb2222-0', 'Tester'), alert('usage:five_hour', '5-hour', '87% used')], threshold: 80 },
     team: null,
-    features: { lan: false, commands: false, permissionModes: [], manageDevices: false },
+    features: { lan: false, commands: false, permissionModes: [], manageDevices: false, search: false },
     permissions: [],
     ...overrides,
   };

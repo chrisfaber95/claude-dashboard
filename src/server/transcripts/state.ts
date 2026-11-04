@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { CLAUDE_DIR, CLAUDE_EXTRA_DIRS, CLAUDE_JSON, canRunCommands, isLanMode, PROJECTS_ROOT, emptyTokens, localDay, normPath } from '../config.ts';
+import { CLAUDE_DIR, CLAUDE_EXTRA_DIRS, CLAUDE_JSON, canRunCommands, isLanMode, isSearchConfigured, PROJECTS_ROOT, emptyTokens, localDay, normPath } from '../config.ts';
 import { buildAlerts } from '../features/alerts/alerts.ts';
 import { getLimits } from '../features/limits/limits.ts';
 import { readTeamBoard } from '../features/team/team.ts';
@@ -35,6 +35,7 @@ interface BuildStateFeatures {
   lan?: boolean;
   commands?: boolean;
   manageDevices?: boolean;
+  search?: boolean;
 }
 
 /** Folders the Claude CLI trusts, from ~/.claude.json (keys look like "n:/Projects/ShopApp"). */
@@ -229,6 +230,7 @@ export function buildState(features: BuildStateFeatures = {}): DashboardState {
       commands: features.commands ?? canRunCommands,
       permissionModes: PERMISSION_MODES,
       manageDevices: features.manageDevices ?? false,
+      search: features.search ?? isSearchConfigured,
     },
     team,
     alerts: buildAlerts({ sessions, limits, team, nowMs: now }),

@@ -26,7 +26,7 @@ function makeState(days: UsageDay[]): DashboardState {
     },
     limits: { source: 'none', fetchedAtMs: null, error: null, windows: [], hits: [] },
     recentSessions: [],
-    features: { lan: false, commands: true, permissionModes: [], manageDevices: false },
+    features: { lan: false, commands: true, permissionModes: [], manageDevices: false, search: false },
     team: null,
     alerts: { items: [], threshold: 80 },
     permissions: [],
